@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.next/
+.turbo/
+pnpm-lock.yaml
+next-env.d.ts
+
+# Hand-maintained product doc — Prettier would rewrap its prose and tables.
+gart-master-plan.md

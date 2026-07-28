@@ -1,0 +1,26 @@
+{
+  "name": "@gart/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@gart/shared": "workspace:*",
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-express": "^11.1.28",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.10",
+    "@nestjs/schematics": "^11.0.8",
+    "@types/node": "^20.19.9",
+    "typescript": "5.9.3"
+  }
+}

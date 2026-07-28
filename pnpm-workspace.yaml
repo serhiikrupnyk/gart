@@ -1,0 +1,10 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# pnpm blocks dependency lifecycle scripts by default. Only these need to run:
+#   sharp         — native image pipeline used by next/image
+#   unrs-resolver — native module resolver used by eslint-config-next
+onlyBuiltDependencies:
+  - sharp
+  - unrs-resolver
