@@ -3,8 +3,14 @@ packages:
   - 'packages/*'
 
 # pnpm blocks dependency lifecycle scripts by default. Only these need to run:
-#   sharp         — native image pipeline used by next/image
-#   unrs-resolver — native module resolver used by eslint-config-next
+#   sharp           — native image pipeline used by next/image
+#   unrs-resolver   — native module resolver used by eslint-config-next
+#   @prisma/engines — downloads the Prisma query engine binaries
+#   prisma          — CLI postinstall
+#   esbuild         — native binary used by tsx to run the seed script
 onlyBuiltDependencies:
+  - '@prisma/engines'
+  - esbuild
+  - prisma
   - sharp
   - unrs-resolver

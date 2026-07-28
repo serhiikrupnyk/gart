@@ -1,0 +1,48 @@
+// Prisma 7: the connection URL lives in prisma.config.ts, not here.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+
+  // The API compiles to CommonJS. Without these two, the generated client uses
+  // `import.meta.url` and `.ts`-extension imports, neither of which tsc can emit
+  // to CommonJS.
+  moduleFormat        = "cjs"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id String @id @default(cuid())
+
+  // citext gives case-insensitive uniqueness in the database itself, so no code
+  // path can bypass it by forgetting to lowercase. Trusted extension since PG13,
+  // so the non-superuser app role can install it.
+  email String @unique @db.Citext
+  name  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trainer Trainer?
+}
+
+model Trainer {
+  id String @id @default(cuid())
+
+  // @unique already creates the index on userId; a separate @@index would be a
+  // redundant second index on the same column.
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  displayName  String
+  brandName    String?
+  brandLogoUrl String?
+  brandColor   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

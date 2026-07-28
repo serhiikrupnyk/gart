@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: gart_postgres
+    restart: unless-stopped
+    environment:
+      # POSTGRES_DB stays `postgres` on purpose: had the entrypoint created the
+      # application database, it would be owned by the superuser, and on PG15+ the
+      # app role could not create tables in its public schema. The init script
+      # creates it owned by the app role instead.
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+      POSTGRES_DB: postgres
+      GART_DB: ${GART_DB:-gart}
+      GART_DB_SHADOW: ${GART_DB_SHADOW:-gart_shadow}
+      GART_DB_USER: ${GART_DB_USER:-gart_app}
+      GART_DB_PASSWORD: ${GART_DB_PASSWORD:?set GART_DB_PASSWORD in .env}
+    ports:
+      - '${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - gart_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  gart_postgres_data:

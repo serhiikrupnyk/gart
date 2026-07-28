@@ -7,10 +7,10 @@
     "types": ["node"],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
     "sourceMap": true
   },
-  "include": ["src/**/*"],
+  // Broader than the build: `pnpm typecheck` should also cover the seed script
+  // and the Prisma config, neither of which is compiled into dist.
+  "include": ["src/**/*", "prisma/**/*.ts", "prisma.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
