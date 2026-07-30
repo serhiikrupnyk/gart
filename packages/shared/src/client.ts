@@ -17,6 +17,13 @@ export interface PublicClient {
   fullName: string;
   email: string;
   status: ClientStatus;
+  /**
+   * Whether the client has accepted an invite and has an account. Exposed as a
+   * boolean rather than the linked user id, which the trainer has no use for —
+   * it is what tells the UI whether restoring from the archive should return
+   * them to ACTIVE or back to INVITED.
+   */
+  hasAccount: boolean;
   invitedAt: string;
   createdAt: string;
   updatedAt: string;

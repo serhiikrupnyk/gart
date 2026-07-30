@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Gart">
+  <rect width="512" height="512" rx="96" fill="#0D0F14"/>
+  <text x="50%" y="50%" dy="0.34em" text-anchor="middle"
+        font-family="Inter, system-ui, sans-serif" font-size="300" font-weight="600" fill="#F2F4F8">g</text>
+  <circle cx="368" cy="330" r="26" fill="#FF6A3D"/>
+</svg>

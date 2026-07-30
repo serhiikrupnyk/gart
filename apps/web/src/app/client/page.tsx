@@ -1,3 +1,5 @@
+import { AuthLayout } from '@/components/layout/auth-layout';
+
 /**
  * The client-side shell, deliberately a placeholder.
  *
@@ -8,17 +10,10 @@
  */
 export default function ClientShellPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 py-12">
-      <div className="w-full max-w-sm text-center">
-        <p className="text-2xl font-semibold tracking-tight text-neutral-900">Gart</p>
-
-        <div className="mt-8 rounded-xl border border-neutral-200 bg-white p-6">
-          <h1 className="text-lg font-semibold text-neutral-900">Акаунт створено</h1>
-          <p className="mt-2 text-sm text-neutral-500">
-            Ваш тренер незабаром додасть тренування. Цей розділ скоро запрацює.
-          </p>
-        </div>
-      </div>
-    </main>
+    <AuthLayout
+      title="Акаунт створено"
+      subtitle="Ваш тренер незабаром додасть тренування."
+      footer="Цей розділ скоро запрацює."
+    />
   );
 }

@@ -3,9 +3,8 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 4: clients and invites**. Trainers can register, sign in, add
-clients and invite them to create an account. No workout features yet, and no design system — the
-screens are deliberately plain.
+This repository is currently at **Step 5: design system and app shell**. Trainers can register, sign
+in, add clients and invite them, inside a themed application shell. No workout features yet.
 
 ## Requirements
 
@@ -175,11 +174,43 @@ do. They expire after 7 days, are single-use, and regenerating deletes the previ
 no longer resolves. An invite naming an address that already has an account is refused rather than
 linked: otherwise an invite would be a way to overwrite that account's password.
 
+## Design system
+
+Tokens are CSS custom properties declared in [globals.css](apps/web/src/app/globals.css) and wired
+into Tailwind v4's `@theme`, so utilities such as `bg-surface` resolve to `var(--color-surface)`.
+Dark theme redefines the same variables under `.dark`; nothing else changes.
+
+Contrast was measured rather than assumed, and two results shaped the palette's use:
+
+- **White text fails AA on almost every solid fill** — the ember accent is 3.55:1 in light theme and
+  2.85:1 in dark. Ink `#14171F` passes on both (5.05 / 6.30), so `--accent-contrast` is ink, as the
+  brand notes anticipated. `info` is the exception and keeps white, which is why on-colours are
+  per-token rather than one global value.
+- **Solid buttons therefore lighten on hover, not darken.** Darkening moves the fill toward the ink
+  label and drops contrast to 4.04:1; `--accent-solid-hover` lightens instead, reaching 5.50:1.
+  `--accent-hover` keeps its role on ghost and link hovers, where the label is not on the fill.
+- `--text-muted` is below AA for body copy (3.10:1), so it is reserved for decorative marks and
+  disabled controls. Anything that must be read — captions, hints, placeholders — uses
+  `--text-secondary`.
+
+Components live in [apps/web/src/components/ui](apps/web/src/components/ui) and are the only place
+raw colour utilities should appear.
+
+### Theming
+
+The preference (`light` / `dark` / `system`) is a cookie, not `localStorage`, so the **server** reads
+it and emits the correct `class` on `<html>` — there is no flash and it works with JavaScript off.
+`system` is the one case the server cannot resolve, since no request header carries the OS setting;
+a small inline script settles that before first paint.
+
+The trade-off: reading cookies in the root layout opts the whole app into dynamic rendering. Every
+route is now server-rendered per request rather than static.
+
 ## Workspace
 
 ```
 apps/api          NestJS API — auth, clients, invites, Prisma
-apps/web          Next.js App Router + TailwindCSS — auth, dashboard, invite pages
+apps/web          Next.js App Router + Tailwind v4 — design system, shell, screens
 packages/shared   @gart/shared — public wire types shared by api and web
 docker/postgres   container provisioning (app role, databases, citext)
 ```

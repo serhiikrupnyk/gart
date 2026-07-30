@@ -1,1 +1,158 @@
 @import 'tailwindcss';
+
+/*
+ * Dark mode is driven by a class on <html>, set server-side from a cookie so
+ * there is no flash. See components/theme.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * "Forged Ember" — graphite base, ember accent.
+ *
+ * Contrast was measured, not assumed. Two results shaped these tokens:
+ *
+ *   1. White text fails WCAG AA on every solid accent and semantic fill
+ *      (accent is 3.55 light / 2.85 dark). Ink #14171F passes on all of them
+ *      (5.05 / 6.30). `info` is the sole exception and wants white in light
+ *      theme, so on-colours are per-token rather than one global value.
+ *
+ *   2. --text-muted is below AA for body copy (3.10 on bg, 2.89 on bg-subtle).
+ *      It is reserved for decorative marks and disabled controls, which WCAG
+ *      exempts. Anything the user must read uses --text-secondary (6.00 / 6.87).
+ */
+@theme {
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-border: #e4e7ec;
+  --color-border-strong: #cdd2db;
+
+  --color-text: #14171f;
+  --color-text-secondary: #5a6472;
+  --color-text-muted: #8a93a2;
+
+  --color-accent: #f0512b;
+  --color-accent-hover: #d8431c;
+  --color-accent-subtle: #feece6;
+  --color-accent-contrast: #14171f;
+
+  /*
+   * Solid buttons carry ink text, so darkening on hover moves the fill toward
+   * the label and *lowers* contrast (#D8431C would be 4.04, below AA). The
+   * solid hover therefore lightens instead: 5.50, above the resting 5.05.
+   * --color-accent-hover keeps its role on ghost, secondary and link hovers,
+   * where the label is not sitting on the fill.
+   */
+  --color-accent-solid-hover: #f15f3c;
+
+  --color-success: #16a34a;
+  --color-warning: #e8890c;
+  --color-danger: #e5484d;
+  --color-info: #2563eb;
+
+  --color-on-success: #14171f;
+  --color-on-warning: #14171f;
+  --color-on-danger: #14171f;
+  --color-on-info: #ffffff;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.125rem;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 2.625rem;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+}
+
+.dark {
+  --color-bg: #0d0f14;
+  --color-bg-subtle: #12151c;
+  --color-surface: #171b23;
+  --color-surface-raised: #1e232d;
+  --color-border: #262c38;
+  --color-border-strong: #333a48;
+
+  --color-text: #f2f4f8;
+  --color-text-secondary: #9ba4b4;
+  --color-text-muted: #6b7484;
+
+  --color-accent: #ff6a3d;
+  --color-accent-hover: #ff7e56;
+  --color-accent-subtle: #2a1912;
+  --color-accent-contrast: #14171f;
+
+  /* #FF7E56 against ink is 7.14 — the specified hover already works here. */
+  --color-accent-solid-hover: #ff7e56;
+
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #f0575b;
+  --color-info: #3b82f6;
+
+  --color-on-success: #14171f;
+  --color-on-warning: #14171f;
+  --color-on-danger: #14171f;
+  --color-on-info: #14171f;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Weights and figures the brand calls for: dense headings, aligned numerals. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  /* Every focusable thing gets the same visible ring — 3.55 light, 6.74 dark. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
