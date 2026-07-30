@@ -32,8 +32,23 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  trainer  Trainer?
-  sessions Session[]
+  trainer         Trainer?
+  sessions        Session[]
+  teamMemberships TeamMember[]
+  clientProfiles  Client[]
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+  NUTRITIONIST
+}
+
+enum ClientStatus {
+  INVITED
+  ACTIVE
+  ARCHIVED
 }
 
 /// Server-side session. The cookie carries a random token; only its SHA-256
@@ -68,4 +83,77 @@ model Trainer {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  teamMembers TeamMember[]
+  clients     Client[]
+  invites     ClientInvite[]
+}
+
+/// A user acting inside a trainer's account. The OWNER row is created alongside
+/// the trainer at registration, so a tenant always has exactly one owner.
+model TeamMember {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role TeamRole
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Also serves as the trainerId index: its leading column is trainerId.
+  @@unique([trainerId, userId])
+}
+
+/// A person a trainer coaches. Exists before they have an account — `userId` is
+/// filled in when they accept their invite.
+model Client {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  fullName String
+  email    String @db.Citext
+
+  status    ClientStatus @default(INVITED)
+  invitedAt DateTime     @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invites ClientInvite[]
+
+  // One row per person per trainer. The same address may belong to a different
+  // trainer's client — a person can train with more than one coach.
+  // Doubles as the trainerId index.
+  @@unique([trainerId, email])
+  @@index([userId])
+}
+
+/// A one-time link letting a client set their password. As with sessions, only
+/// the SHA-256 of the token is stored; the raw token exists solely in the link
+/// handed to the trainer once.
+model ClientInvite {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([clientId])
 }

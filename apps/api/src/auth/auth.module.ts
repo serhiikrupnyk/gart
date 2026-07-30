@@ -11,7 +11,8 @@ import { SessionService } from './session.service';
   imports: [DatabaseModule],
   controllers: [AuthController],
   providers: [AuthService, AuthGuard, PasswordService, SessionService],
-  // Exported so later feature modules can put routes behind the guard.
-  exports: [AuthGuard, SessionService],
+  // Exported so feature modules can put routes behind the guard, and so the
+  // invite flow can hash passwords and issue sessions for accepted clients.
+  exports: [AuthGuard, PasswordService, SessionService],
 })
 export class AuthModule {}

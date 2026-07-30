@@ -1,11 +1,9 @@
-import { createHash, randomBytes } from 'node:crypto';
-
 import { Injectable } from '@nestjs/common';
 
+import { generateToken, hashToken } from '../common/token';
 import { PrismaService } from '../database/prisma.service';
 import type { SessionModel, TrainerModel, UserModel } from '../generated/prisma/models.js';
 
-const TOKEN_BYTES = 32;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface IssuedSession {
@@ -17,23 +15,13 @@ export type SessionWithTenant = SessionModel & {
   user: UserModel & { trainer: TrainerModel | null };
 };
 
-/**
- * Only the SHA-256 of a session token is stored, so a database leak yields no
- * usable sessions. SHA-256 rather than argon2 is deliberate: the token is 256
- * bits of CSPRNG output, so there is nothing to brute-force, and lookups need to
- * be a single indexed query.
- */
-function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
-
 @Injectable()
 export class SessionService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Issues a session. The returned token is the only copy that ever leaves here. */
   async issue(userId: string): Promise<IssuedSession> {
-    const token = randomBytes(TOKEN_BYTES).toString('base64url');
+    const token = generateToken();
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
     await this.prisma.session.create({

@@ -6,7 +6,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.spec.json",
     "lint": "eslint .",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

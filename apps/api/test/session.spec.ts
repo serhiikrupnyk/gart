@@ -4,6 +4,7 @@ import {
   createHarness,
   type Harness,
   resetDatabase,
+  setCookieHeader,
   sessionCookie,
   validRegistration,
 } from './app-harness';
@@ -61,9 +62,7 @@ describe('session lifecycle', () => {
       .set('Cookie', cookie)
       .expect(204);
 
-    expect((response.headers as Record<string, string[]>)['set-cookie'].join(';')).toContain(
-      'gart_session=;',
-    );
+    expect(setCookieHeader(response.headers)).toContain('gart_session=;');
     expect(await harness.prisma.session.count()).toBe(0);
   });
 

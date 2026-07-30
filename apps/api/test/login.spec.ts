@@ -1,7 +1,13 @@
 import request from 'supertest';
 
 import { PasswordService } from '../src/auth/password.service';
-import { createHarness, type Harness, resetDatabase, validRegistration } from './app-harness';
+import {
+  createHarness,
+  type Harness,
+  resetDatabase,
+  setCookieHeader,
+  validRegistration,
+} from './app-harness';
 
 const GENERIC_ERROR = 'Невірний email або пароль';
 
@@ -35,9 +41,7 @@ describe('POST /auth/login', () => {
       user: { email: validRegistration.email },
       trainer: { displayName: validRegistration.displayName },
     });
-    expect((response.headers as Record<string, string[]>)['set-cookie'].join(';')).toContain(
-      'gart_session=',
-    );
+    expect(setCookieHeader(response.headers)).toContain('gart_session=');
   });
 
   it('accepts a differently-cased email', async () => {

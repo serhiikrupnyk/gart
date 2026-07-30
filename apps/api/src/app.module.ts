@@ -4,11 +4,19 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { AuthModule } from './auth/auth.module';
 import { globalThrottle } from './auth/throttle.config';
+import { ClientsModule } from './clients/clients.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthController } from './health/health.controller';
+import { InvitesModule } from './invites/invites.module';
 
 @Module({
-  imports: [ThrottlerModule.forRoot(globalThrottle()), DatabaseModule, AuthModule],
+  imports: [
+    ThrottlerModule.forRoot(globalThrottle()),
+    DatabaseModule,
+    AuthModule,
+    InvitesModule,
+    ClientsModule,
+  ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

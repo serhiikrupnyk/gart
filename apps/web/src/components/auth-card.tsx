@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 interface AuthCardProps {
   title: string;
   subtitle: string;
-  children: ReactNode;
+  /** Omitted when the card only reports a state, such as an unusable invite. */
+  children?: ReactNode;
   footer: ReactNode;
 }
 

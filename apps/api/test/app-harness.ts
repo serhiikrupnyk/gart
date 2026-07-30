@@ -1,5 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import type { ClientWithInvite, PublicClient } from '@gart/shared';
+import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
@@ -38,9 +40,11 @@ export async function createHarness(): Promise<Harness> {
   };
 }
 
-/** Clears every table between tests. CASCADE also removes dependent sessions. */
+/** Clears every table between tests. CASCADE also removes dependent rows. */
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
-  await prisma.$executeRawUnsafe('TRUNCATE TABLE "Session", "Trainer", "User" CASCADE');
+  await prisma.$executeRawUnsafe(
+    'TRUNCATE TABLE "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
+  );
 }
 
 export const validRegistration = {
@@ -49,10 +53,70 @@ export const validRegistration = {
   displayName: 'Олена Ковальчук',
 };
 
-/** Pulls the session cookie out of a response so it can be replayed. */
-export function sessionCookie(headers: Record<string, unknown>): string {
+export const secondRegistration = {
+  email: 'other-trainer@gart.fit',
+  password: 'correct-horse-battery',
+  displayName: 'Іван Мельник',
+};
+
+/** Registers a trainer and returns their session cookie. */
+export async function registerTrainer(
+  harness: Harness,
+  registration: typeof validRegistration = validRegistration,
+): Promise<string> {
+  const response = await request(harness.app.getHttpServer())
+    .post('/auth/register')
+    .send(registration)
+    .expect(201);
+
+  return sessionCookie(response.headers as Record<string, unknown>);
+}
+
+/** Creates a client for the trainer holding `cookie`, returning it and its invite. */
+export async function createClient(
+  harness: Harness,
+  cookie: string,
+  overrides: Partial<{ fullName: string; email: string }> = {},
+): Promise<{ client: PublicClient; inviteUrl: string; token: string }> {
+  const response = await request(harness.app.getHttpServer())
+    .post('/clients')
+    .set('Cookie', cookie)
+    .send({ fullName: 'Марія Бондаренко', email: 'maria@example.com', ...overrides })
+    .expect(201);
+
+  const body = response.body as ClientWithInvite;
+
+  return { ...body, token: tokenFromInviteUrl(body.inviteUrl) };
+}
+
+export function tokenFromInviteUrl(inviteUrl: string): string {
+  const token = inviteUrl.split('/invite/')[1];
+
+  if (token === undefined || token.length === 0) {
+    throw new Error(`Invite URL had no token: ${inviteUrl}`);
+  }
+
+  return token;
+}
+
+/** Supertest types `headers` loosely; these two helpers read it without casts. */
+type ResponseHeaders = Record<string, unknown>;
+
+/** Every Set-Cookie directive as one string, for asserting flags. */
+export function setCookieHeader(headers: ResponseHeaders): string {
   const raw = headers['set-cookie'];
-  const cookies = Array.isArray(raw) ? (raw as string[]) : [];
+
+  if (Array.isArray(raw)) {
+    return raw.join(';');
+  }
+
+  return typeof raw === 'string' ? raw : '';
+}
+
+/** Pulls the session cookie out of a response so it can be replayed. */
+export function sessionCookie(headers: ResponseHeaders): string {
+  const raw = headers['set-cookie'];
+  const cookies: string[] = Array.isArray(raw) ? raw.filter((v) => typeof v === 'string') : [];
   const session = cookies.find((cookie) => cookie.startsWith('gart_session='));
 
   if (session === undefined) {

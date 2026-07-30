@@ -4,6 +4,7 @@ import {
   createHarness,
   type Harness,
   resetDatabase,
+  setCookieHeader,
   sessionCookie,
   validRegistration,
 } from './app-harness';
@@ -40,7 +41,7 @@ describe('POST /auth/register', () => {
     const cookie = sessionCookie(response.headers as Record<string, unknown>);
     expect(cookie).toMatch(/^gart_session=.+/);
 
-    const setCookie = (response.headers as Record<string, string[]>)['set-cookie'].join(';');
+    const setCookie = setCookieHeader(response.headers);
     expect(setCookie).toContain('HttpOnly');
     expect(setCookie).toContain('SameSite=Lax');
   });
@@ -53,6 +54,24 @@ describe('POST /auth/register', () => {
 
     expect(await harness.prisma.user.count()).toBe(1);
     expect(await harness.prisma.trainer.count()).toBe(1);
+  });
+
+  it('makes the registering user the OWNER of the new tenant', async () => {
+    await request(harness.app.getHttpServer())
+      .post('/auth/register')
+      .send(validRegistration)
+      .expect(201);
+
+    const members = await harness.prisma.teamMember.findMany();
+    const user = await harness.prisma.user.findUniqueOrThrow({
+      where: { email: validRegistration.email },
+    });
+    const trainer = await harness.prisma.trainer.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+
+    expect(members).toHaveLength(1);
+    expect(members[0]).toMatchObject({ role: 'OWNER', userId: user.id, trainerId: trainer.id });
   });
 
   it('stores an argon2id hash, never the password', async () => {
@@ -115,6 +134,29 @@ describe('POST /auth/register', () => {
     } finally {
       await harness.prisma.$executeRawUnsafe(
         'ALTER TABLE "Trainer" DROP CONSTRAINT "tmp_force_failure"',
+      );
+    }
+  });
+
+  it('rolls back the user and trainer when the owner membership fails', async () => {
+    // The membership is the last statement of the transaction, so this proves
+    // the whole thing unwinds rather than just its tail.
+    await harness.prisma.$executeRawUnsafe(
+      'ALTER TABLE "TeamMember" ADD CONSTRAINT "tmp_force_failure" CHECK (false) NOT VALID',
+    );
+
+    try {
+      await request(harness.app.getHttpServer())
+        .post('/auth/register')
+        .send(validRegistration)
+        .expect(500);
+
+      expect(await harness.prisma.user.count()).toBe(0);
+      expect(await harness.prisma.trainer.count()).toBe(0);
+      expect(await harness.prisma.teamMember.count()).toBe(0);
+    } finally {
+      await harness.prisma.$executeRawUnsafe(
+        'ALTER TABLE "TeamMember" DROP CONSTRAINT "tmp_force_failure"',
       );
     }
   });

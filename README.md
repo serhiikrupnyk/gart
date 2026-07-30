@@ -3,9 +3,9 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 3: trainer authentication**. Registration, login, logout and
-session handling are in place on top of Postgres and Prisma. No clients or invites yet, and no
-design system — the auth screens are deliberately plain.
+This repository is currently at **Step 4: clients and invites**. Trainers can register, sign in, add
+clients and invite them to create an account. No workout features yet, and no design system — the
+screens are deliberately plain.
 
 ## Requirements
 
@@ -92,8 +92,10 @@ the API runs with can never create a database.
 
 ## Database
 
-The schema lives in [apps/api/prisma/schema.prisma](apps/api/prisma/schema.prisma) and holds two
-models: `User` (identity) and `Trainer` (the tenant, one-to-one with a user, cascading on delete).
+The schema lives in [apps/api/prisma/schema.prisma](apps/api/prisma/schema.prisma): `User`
+(identity), `Trainer` (the tenant), `Session`, `TeamMember` (who may act inside a tenant — the OWNER
+row is created with the trainer at registration), `Client`, and `ClientInvite`. Everything a trainer
+owns cascades from `Trainer`.
 
 `User.email` is a `citext` column, so uniqueness is case-insensitive in the database itself and no
 code path can bypass it by forgetting to lowercase. `citext` has been a _trusted_ extension since
@@ -146,12 +148,39 @@ Decisions worth knowing:
 - Rate limiting is applied per route via `@nestjs/throttler`, `helmet` sets security headers, and
   CORS admits exactly one origin — no wildcard is possible alongside credentials, and none is wanted.
 
+## Clients and invites
+
+A trainer adds a client by name and email; the API creates the client as `INVITED` together with a
+one-time invite link. The client opens the link, sets a password, and their account is created and
+linked in a single transaction.
+
+| Endpoint                   | Behaviour                                                       |
+| -------------------------- | --------------------------------------------------------------- |
+| `POST /clients`            | Creates the client and returns the one-time invite link         |
+| `GET /clients`             | This trainer's clients; `?status=` filters                      |
+| `GET /clients/:id`         | One client, or 404                                              |
+| `PATCH /clients/:id`       | Rename, or archive                                              |
+| `POST /clients/:id/invite` | Issues a fresh link and invalidates the previous one            |
+| `GET /invites/:token`      | Public. Who invited whom — 410 if expired, 404 otherwise        |
+| `POST /auth/accept-invite` | Public. Creates the account, links the client, starts a session |
+
+**Tenant isolation** is enforced in three places rather than by discipline. Every `ClientsService`
+method takes `trainerId` as its first parameter and there is no overload that omits it; the
+controller's only source for that value is the AuthGuard. Single-record access goes through one
+helper using `findFirst({ id, trainerId })` — never `findUnique` plus a check that a later edit
+could drop. A miss raises **404, not 403**, because 403 would confirm the record exists.
+
+**Invites** carry a 256-bit random token of which only the SHA-256 is stored, exactly as sessions
+do. They expire after 7 days, are single-use, and regenerating deletes the previous one so its hash
+no longer resolves. An invite naming an address that already has an account is refused rather than
+linked: otherwise an invite would be a way to overwrite that account's password.
+
 ## Workspace
 
 ```
-apps/api          NestJS API — auth, Prisma, GET /health
-apps/web          Next.js App Router + TailwindCSS — /register, /login, /dashboard
-packages/shared   @gart/shared — PublicUser / PublicTrainer / AuthSession
+apps/api          NestJS API — auth, clients, invites, Prisma
+apps/web          Next.js App Router + TailwindCSS — auth, dashboard, invite pages
+packages/shared   @gart/shared — public wire types shared by api and web
 docker/postgres   container provisioning (app role, databases, citext)
 ```
 

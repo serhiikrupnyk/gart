@@ -42,17 +42,26 @@ export class AuthService {
   async register(dto: RegisterDto): Promise<AuthResult> {
     const passwordHash = await this.passwords.hash(dto.password);
 
-    // A nested create is a single transaction: the trainer cannot exist without
-    // its user, and a failure part-way leaves neither behind.
-    const user = await this.prisma.user
-      .create({
-        data: {
-          email: dto.email,
-          name: dto.displayName,
-          passwordHash,
-          trainer: { create: { displayName: dto.displayName } },
-        },
-        include: { trainer: true },
+    // An explicit transaction rather than a nested create: the OWNER membership
+    // needs the ids of both the user and the trainer, neither of which exists
+    // until the other statement has run. All three rows commit together or none
+    // of them do.
+    const { user, trainer } = await this.prisma
+      .$transaction(async (tx) => {
+        const createdUser = await tx.user.create({
+          data: { email: dto.email, name: dto.displayName, passwordHash },
+        });
+
+        const createdTrainer = await tx.trainer.create({
+          data: { userId: createdUser.id, displayName: dto.displayName },
+        });
+
+        // Every tenant has exactly one owner, from the moment it exists.
+        await tx.teamMember.create({
+          data: { trainerId: createdTrainer.id, userId: createdUser.id, role: 'OWNER' },
+        });
+
+        return { user: createdUser, trainer: createdTrainer };
       })
       .catch((error: unknown) => {
         if (isUniqueConstraintError(error)) {
@@ -64,16 +73,12 @@ export class AuthService {
         throw error;
       });
 
-    if (user.trainer === null) {
-      throw new Error('Registration completed without a trainer');
-    }
-
     const { token, expiresAt } = await this.sessions.issue(user.id);
 
     return {
       token,
       expiresAt,
-      session: { user: toPublicUser(user), trainer: toPublicTrainer(user.trainer) },
+      session: { user: toPublicUser(user), trainer: toPublicTrainer(trainer) },
     };
   }
 

@@ -3,5 +3,7 @@
   "compilerOptions": {
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*", "test/**/*"]
+  // Only the specs. Everything they import from src is still checked, but src is
+  // not listed here so it does not get jest globals in scope.
+  "include": ["test/**/*"]
 }
