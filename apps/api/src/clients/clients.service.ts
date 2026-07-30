@@ -32,7 +32,7 @@ function isUniqueConstraintError(error: unknown): boolean {
 /**
  * Every method takes `trainerId` first, and there is no overload that omits it —
  * the type system, not diligence, is what keeps one tenant out of another's data.
- * The controller's only source for that value is the AuthGuard.
+ * The controller's only source for that value is the TrainerGuard.
  */
 @Injectable()
 export class ClientsService {

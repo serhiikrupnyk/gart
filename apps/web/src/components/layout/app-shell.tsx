@@ -12,8 +12,12 @@ import { Wordmark } from './wordmark';
 
 /**
  * The trainer shell: header, side navigation, content. Guards the routes beneath
- * it by loading the session once and redirecting to /login on 401, so no page
- * has to repeat that.
+ * it by loading the session once, so no page has to repeat that.
+ *
+ * On 401 it probes the client /auth/client/me before choosing a destination: a
+ * signed-in client who wandered onto /dashboard belongs in their own app, not
+ * on a trainer login form that would reject them. The probe only ever asks
+ * about the caller's own cookie, so nothing leaks.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -28,7 +32,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         if (active) setSession(loaded);
       })
       .catch(() => {
-        router.replace('/login');
+        apiFetch('/auth/client/me')
+          .then(() => {
+            router.replace('/client');
+          })
+          .catch(() => {
+            router.replace('/login');
+          });
       });
 
     return () => {

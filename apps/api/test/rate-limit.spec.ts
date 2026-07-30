@@ -56,4 +56,19 @@ describe('credential endpoints are rate limited', () => {
 
     expect(lastStatus).toBe(429);
   });
+
+  it('rate limits client login — a token door is a credential door', async () => {
+    const statuses: number[] = [];
+
+    for (let index = 0; index < LIMIT + 1; index += 1) {
+      const response = await request(harness.app.getHttpServer())
+        .post('/auth/client/login')
+        .send({ email: 'nobody@example.com', password: 'whatever-value' });
+
+      statuses.push(response.status);
+    }
+
+    expect(statuses.slice(0, LIMIT)).toEqual(Array<number>(LIMIT).fill(401));
+    expect(statuses.at(-1)).toBe(429);
+  });
 });

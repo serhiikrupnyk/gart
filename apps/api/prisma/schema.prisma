@@ -51,21 +51,40 @@ enum ClientStatus {
   ARCHIVED
 }
 
+/// Which hat a session was issued for. Stored on the row rather than derived
+/// per request: a user may be both a trainer and someone's client, and deriving
+/// would make every request guess — an ambiguous principal and an escalation
+/// path. A CLIENT token stays a CLIENT token no matter what the user becomes.
+enum SessionContext {
+  TRAINER
+  CLIENT
+}
+
 /// Server-side session. The cookie carries a random token; only its SHA-256
 /// lives here, so a database leak yields no usable sessions. Deleting the row
 /// revokes the session immediately — the reason we chose this over a stateless
 /// JWT, given the guard already loads the tenant from the database anyway.
+///
+/// CLIENT sessions bind to one Client row at issue time, which fixes the tenant
+/// exactly and leaves multi-trainer switching open: a new session per tenant.
+/// The migration adds a CHECK enforcing context=CLIENT ⇔ clientId set.
 model Session {
   id String @id @default(cuid())
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  context SessionContext
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
   tokenHash String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([clientId])
 }
 
 model Trainer {
@@ -129,7 +148,8 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  invites ClientInvite[]
+  invites  ClientInvite[]
+  sessions Session[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.

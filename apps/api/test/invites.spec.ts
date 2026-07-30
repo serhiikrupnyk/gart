@@ -6,6 +6,7 @@ import {
   type Harness,
   registerTrainer,
   resetDatabase,
+  sessionCookie,
   setCookieHeader,
   tokenFromInviteUrl,
 } from './app-harness';
@@ -100,6 +101,22 @@ describe('client invites', () => {
         where: { clientId: client.id },
       });
       expect(invite.acceptedAt).not.toBeNull();
+    });
+
+    it('issues a client-context session, not a trainer one', async () => {
+      const { token } = await createClient(harness, cookie);
+      const accepted = await accept(token).expect(204);
+      const clientCookie = sessionCookie(accepted.headers as Record<string, unknown>);
+
+      // The cookie opens the client app and nothing else.
+      await request(harness.app.getHttpServer())
+        .get('/auth/client/me')
+        .set('Cookie', clientCookie)
+        .expect(200);
+      await request(harness.app.getHttpServer())
+        .get('/auth/me')
+        .set('Cookie', clientCookie)
+        .expect(401);
     });
 
     it('cannot be used twice', async () => {

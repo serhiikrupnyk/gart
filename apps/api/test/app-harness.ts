@@ -89,6 +89,32 @@ export async function createClient(
   return { ...body, token: tokenFromInviteUrl(body.inviteUrl) };
 }
 
+export const CLIENT_PASSWORD = 'client-password-1';
+
+/**
+ * Registers a trainer, creates a client and accepts the invite — the full path
+ * to an ACTIVE client with an account. Returns the client-context cookie along
+ * with everything needed to log in again later.
+ */
+export async function createAcceptedClient(
+  harness: Harness,
+  trainerCookie: string,
+  overrides: Partial<{ fullName: string; email: string }> = {},
+): Promise<{ clientCookie: string; clientId: string; email: string }> {
+  const { client, token } = await createClient(harness, trainerCookie, overrides);
+
+  const accepted = await request(harness.app.getHttpServer())
+    .post('/auth/accept-invite')
+    .send({ token, password: CLIENT_PASSWORD })
+    .expect(204);
+
+  return {
+    clientCookie: sessionCookie(accepted.headers as Record<string, unknown>),
+    clientId: client.id,
+    email: client.email,
+  };
+}
+
 export function tokenFromInviteUrl(inviteUrl: string): string {
   const token = inviteUrl.split('/invite/')[1];
 

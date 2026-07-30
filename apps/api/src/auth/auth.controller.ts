@@ -16,7 +16,7 @@ import type { Request, Response } from 'express';
 import { toPublicTrainer } from '../trainers/trainer.mapper';
 import { toPublicUser } from '../users/user.mapper';
 import { type AuthContext, CurrentAuth } from './auth-context';
-import { AuthGuard } from './auth.guard';
+import { TrainerGuard } from './trainer.guard';
 import { type AuthResult, AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -53,7 +53,7 @@ export class AuthController {
   }
 
   /**
-   * Deliberately not behind AuthGuard: logging out with an already-invalid
+   * Deliberately not behind any guard: logging out with an already-invalid
    * cookie should quietly succeed rather than return 401.
    */
   @Post('logout')
@@ -72,7 +72,7 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(AuthGuard)
+  @UseGuards(TrainerGuard)
   me(@CurrentAuth() auth: AuthContext): AuthSession {
     return { user: toPublicUser(auth.user), trainer: toPublicTrainer(auth.trainer) };
   }

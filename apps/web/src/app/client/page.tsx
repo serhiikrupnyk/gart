@@ -1,19 +1,18 @@
-import { AuthLayout } from '@/components/layout/auth-layout';
+import { EmptyState } from '@/components/ui';
 
 /**
- * The client-side shell, deliberately a placeholder.
- *
- * Accepting an invite issues a session cookie, but there is no client-facing API
- * yet — AuthGuard resolves the trainer tenant and so answers only to trainers.
- * Client login and the real shell are a later step; this page exists so the
- * invite flow ends somewhere honest rather than on a 404.
+ * The client home. Phase 1 replaces this with the day's workout; until then the
+ * shell around it is the deliverable and the emptiness is stated honestly.
  */
-export default function ClientShellPage() {
+export default function ClientHomePage() {
   return (
-    <AuthLayout
-      title="Акаунт створено"
-      subtitle="Ваш тренер незабаром додасть тренування."
-      footer="Цей розділ скоро запрацює."
-    />
+    <>
+      <h1 className="pb-6 text-2xl font-semibold tracking-tight text-text">Мої тренування</h1>
+
+      <EmptyState
+        title="Тренувань ще немає"
+        description="Ваш тренер незабаром складе вашу першу програму — вона з'явиться тут."
+      />
+    </>
   );
 }

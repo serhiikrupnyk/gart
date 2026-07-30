@@ -3,8 +3,9 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 5: design system and app shell**. Trainers can register, sign
-in, add clients and invite them, inside a themed application shell. No workout features yet.
+This repository is currently at **Step 6: client authentication** — the end of Phase 0. Trainers
+run their side of the app; their clients sign in to a minimal branded shell of their own. No workout
+features yet: that is Phase 1.
 
 ## Requirements
 
@@ -146,6 +147,24 @@ Decisions worth knowing:
   decoy hash so the timing matches too.
 - Rate limiting is applied per route via `@nestjs/throttler`, `helmet` sets security headers, and
   CORS admits exactly one origin — no wildcard is possible alongside credentials, and none is wanted.
+
+### Two kinds of principal
+
+A session is issued wearing one of two hats and never changes it: `Session.context` is `TRAINER` or
+`CLIENT`, set by which door issued it (`/auth/login` and registration issue trainer sessions;
+`/auth/client/login` and accept-invite issue client ones). Guards check the row, never guess from
+what the user could be — one person may be both a trainer and someone's client, and a client-context
+cookie must stay powerless on trainer routes no matter what its owner becomes. A database CHECK
+enforces that client sessions (and only they) bind to a specific client profile, which also fixes
+the tenant for the session's lifetime and leaves multi-trainer switching open as "issue another
+session".
+
+Client endpoints: `POST /auth/client/login` (same hardening as trainer login — generic errors, decoy
+verification, rate limit; an address that is a trainer but nobody's client gets the same generic
+refusal) and `GET /auth/client/me`, which returns the client's profile plus their trainer's brand
+and nothing else. `/auth/logout` revokes either kind of session. Wrong-context requests get a bare
+401 identical to having no cookie at all — a 403 would confirm the cookie names a real session of
+the other type. Archived clients are cut off at the guard, not just at login.
 
 ## Clients and invites
 

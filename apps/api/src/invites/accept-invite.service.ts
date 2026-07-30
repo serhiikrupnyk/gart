@@ -77,6 +77,8 @@ export class AcceptInviteService {
       return createdUser;
     });
 
-    return this.sessions.issue(user.id);
+    // The invite names the client profile, so the session binds to it — the
+    // recipient lands in the client app wearing exactly one, unambiguous hat.
+    return this.sessions.issueClientSession(user.id, invite.clientId);
   }
 }

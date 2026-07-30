@@ -31,7 +31,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
         </div>
 
         {footer !== undefined && (
-          <p className="mt-6 text-center text-sm text-text-secondary">{footer}</p>
+          <div className="mt-6 space-y-1 text-center text-sm text-text-secondary">{footer}</div>
         )}
       </div>
     </main>

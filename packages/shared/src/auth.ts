@@ -1,3 +1,4 @@
+import type { PublicClient } from './client';
 import type { PublicTrainer } from './trainer';
 import type { PublicUser } from './user';
 
@@ -9,6 +10,23 @@ import type { PublicUser } from './user';
 export interface AuthSession {
   user: PublicUser;
   trainer: PublicTrainer;
+}
+
+/**
+ * The slice of a trainer their client is allowed to see: enough to brand the
+ * client app, nothing about the business behind it.
+ */
+export interface TrainerBrand {
+  displayName: string;
+  brandName: string | null;
+  brandLogoUrl: string | null;
+  brandColor: string | null;
+}
+
+/** The client-context counterpart of {@link AuthSession}. */
+export interface ClientSession {
+  client: PublicClient;
+  trainer: TrainerBrand;
 }
 
 export interface RegisterRequest {

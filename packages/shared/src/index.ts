@@ -1,4 +1,10 @@
-export type { AuthSession, LoginRequest, RegisterRequest } from './auth';
+export type {
+  AuthSession,
+  ClientSession,
+  LoginRequest,
+  RegisterRequest,
+  TrainerBrand,
+} from './auth';
 export type {
   ClientStatus,
   ClientWithInvite,

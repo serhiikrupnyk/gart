@@ -73,7 +73,7 @@ export class AuthService {
         throw error;
       });
 
-    const { token, expiresAt } = await this.sessions.issue(user.id);
+    const { token, expiresAt } = await this.sessions.issueTrainerSession(user.id);
 
     return {
       token,
@@ -101,7 +101,7 @@ export class AuthService {
       throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
 
-    const { token, expiresAt } = await this.sessions.issue(user.id);
+    const { token, expiresAt } = await this.sessions.issueTrainerSession(user.id);
 
     return {
       token,

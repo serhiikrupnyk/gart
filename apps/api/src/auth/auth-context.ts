@@ -22,9 +22,9 @@ export const CurrentAuth = createParamDecorator(
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     if (request.auth === undefined) {
-      // Unreachable through AuthGuard; this catches the decorator being used on
+      // Unreachable through TrainerGuard; this catches the decorator being used on
       // a route that forgot the guard.
-      throw new Error('CurrentAuth used on a route that is not behind AuthGuard');
+      throw new Error('CurrentAuth used on a route that is not behind TrainerGuard');
     }
 
     return request.auth;

@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
-import type { AuthSession } from '@gart/shared';
+import type { ClientSession } from '@gart/shared';
 
 import { AuthLayout } from '@/components/layout/auth-layout';
 import { Button, FormField, Input } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { validateEmail } from '@/lib/validation';
 
-export default function LoginPage() {
+export default function ClientLoginPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState('');
@@ -26,8 +26,7 @@ export default function LoginPage() {
 
     const emailError = validateEmail(email);
     if (emailError !== undefined) errors.email = emailError;
-    // No length rule here: the API answers a short password exactly as it
-    // answers a wrong one, and the form should not imply otherwise.
+    // No length rule: the API answers a short password exactly as a wrong one.
     if (password.length === 0) errors.password = 'Введіть пароль';
 
     setFieldErrors(errors);
@@ -38,11 +37,11 @@ export default function LoginPage() {
     setPending(true);
 
     try {
-      await apiFetch<AuthSession>('/auth/login', {
+      await apiFetch<ClientSession>('/auth/client/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      router.replace('/dashboard');
+      router.replace('/client');
     } catch (error) {
       setFormError(error instanceof ApiError ? error.message : 'Не вдалося увійти');
       setPending(false);
@@ -51,23 +50,17 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      title="Вхід"
-      subtitle="Увійдіть у свій кабінет тренера"
+      title="Вхід для клієнтів"
+      subtitle="Увійдіть, щоб бачити свої тренування"
       footer={
         <>
           <p>
-            Ще не маєте акаунта?{' '}
-            <Link href="/register" className="font-medium text-text underline underline-offset-4">
-              Зареєструватися
-            </Link>
+            Отримали запрошення? Скористайтеся посиланням від тренера — воно створить ваш акаунт.
           </p>
           <p>
-            Ви клієнт?{' '}
-            <Link
-              href="/client/login"
-              className="font-medium text-text underline underline-offset-4"
-            >
-              Вхід для клієнтів
+            Ви тренер?{' '}
+            <Link href="/login" className="font-medium text-text underline underline-offset-4">
+              Вхід для тренерів
             </Link>
           </p>
         </>

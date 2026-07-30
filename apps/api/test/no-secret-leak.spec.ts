@@ -1,8 +1,11 @@
 import request from 'supertest';
 
 import {
+  CLIENT_PASSWORD,
+  createAcceptedClient,
   createHarness,
   type Harness,
+  registerTrainer,
   resetDatabase,
   sessionCookie,
   validRegistration,
@@ -57,6 +60,33 @@ describe('responses never leak credentials', () => {
       .set('Cookie', sessionCookie(loggedIn.headers as Record<string, unknown>))
       .expect(200);
     assertClean(me.body);
+  });
+
+  it('keeps client login and client/me clean too', async () => {
+    const trainerCookie = await registerTrainer(harness);
+    const { email } = await createAcceptedClient(harness, trainerCookie);
+
+    const loggedIn = await request(harness.app.getHttpServer())
+      .post('/auth/client/login')
+      .send({ email, password: CLIENT_PASSWORD })
+      .expect(200);
+    assertClean(loggedIn.body);
+    expect(JSON.stringify(loggedIn.body)).not.toContain(CLIENT_PASSWORD);
+
+    const me = await request(harness.app.getHttpServer())
+      .get('/auth/client/me')
+      .set('Cookie', sessionCookie(loggedIn.headers as Record<string, unknown>))
+      .expect(200);
+    assertClean(me.body);
+
+    // The brand is the whole trainer surface a client may see — no ids that
+    // could be replayed against trainer routes, no timestamps, nothing extra.
+    expect(Object.keys((me.body as { trainer: object }).trainer).sort()).toEqual([
+      'brandColor',
+      'brandLogoUrl',
+      'brandName',
+      'displayName',
+    ]);
   });
 
   it('keeps the session token out of the body, leaving it only in the cookie', async () => {
