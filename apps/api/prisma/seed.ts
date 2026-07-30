@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 import { PrismaPg } from '@prisma/adapter-pg';
 import { hash } from '@node-rs/argon2';
+import type { MuscleGroup } from '@gart/shared';
 
 import { ARGON2_OPTIONS } from '../src/auth/argon2-options';
 import { requireEnv } from '../src/env';
@@ -12,9 +13,59 @@ import { toPublicUser } from '../src/users/user.mapper.js';
 const DEMO_EMAIL = 'demo@gart.fit';
 const DEMO_NAME = 'Демо Тренер';
 
+const GLOBAL_CATEGORIES = ['Сила', 'Кардіо', 'Розтяжка', 'Функціональні', 'Мобільність'];
+
 /**
- * Creates the single demo trainer. Idempotent: both writes are upserts keyed on
- * a unique column, so re-running updates in place instead of duplicating.
+ * A handful of common exercises so the global library is visible in dev. The
+ * full Ukrainian base set is a separate Phase 1 content task.
+ */
+const GLOBAL_EXERCISES: {
+  name: string;
+  primaryMuscleGroup: MuscleGroup;
+  muscleGroups: MuscleGroup[];
+}[] = [
+  { name: 'Присідання зі штангою', primaryMuscleGroup: 'LEGS', muscleGroups: ['GLUTES', 'CORE'] },
+  { name: 'Станова тяга', primaryMuscleGroup: 'BACK', muscleGroups: ['LEGS', 'GLUTES', 'CORE'] },
+  { name: 'Жим лежачи', primaryMuscleGroup: 'CHEST', muscleGroups: ['SHOULDERS', 'ARMS'] },
+  { name: 'Підтягування', primaryMuscleGroup: 'BACK', muscleGroups: ['ARMS'] },
+  { name: 'Віджимання', primaryMuscleGroup: 'CHEST', muscleGroups: ['SHOULDERS', 'ARMS', 'CORE'] },
+  { name: 'Планка', primaryMuscleGroup: 'CORE', muscleGroups: ['SHOULDERS', 'GLUTES'] },
+];
+
+type Seeder = InstanceType<typeof PrismaClient>;
+
+/**
+ * Global rows have trainerId NULL, which Postgres unique indexes treat as
+ * distinct — so the seed cannot upsert and instead is the sole writer of
+ * globals, enforcing their uniqueness by name lookup. Idempotent either way.
+ */
+async function seedGlobalLibrary(prisma: Seeder): Promise<void> {
+  for (const name of GLOBAL_CATEGORIES) {
+    const existing = await prisma.category.findFirst({ where: { trainerId: null, name } });
+
+    if (existing === null) {
+      await prisma.category.create({ data: { name } });
+    }
+  }
+
+  const strength = await prisma.category.findFirstOrThrow({
+    where: { trainerId: null, name: 'Сила' },
+  });
+
+  for (const exercise of GLOBAL_EXERCISES) {
+    const existing = await prisma.exercise.findFirst({
+      where: { trainerId: null, name: exercise.name },
+    });
+
+    if (existing === null) {
+      await prisma.exercise.create({ data: { ...exercise, categoryId: strength.id } });
+    }
+  }
+}
+
+/**
+ * Creates the demo trainer and the global exercise library. Idempotent: safe to
+ * re-run after every migration.
  */
 async function seed(): Promise<void> {
   const prisma = new PrismaClient({
@@ -36,10 +87,15 @@ async function seed(): Promise<void> {
       create: { userId: user.id, displayName: DEMO_NAME },
     });
 
+    await seedGlobalLibrary(prisma);
+
     console.log('Seeded demo trainer:', {
       user: toPublicUser(user),
       trainer: toPublicTrainer(trainer),
     });
+    console.log(
+      `Seeded global library: ${String(GLOBAL_CATEGORIES.length)} categories, ${String(GLOBAL_EXERCISES.length)} exercises`,
+    );
   } finally {
     await prisma.$disconnect();
   }

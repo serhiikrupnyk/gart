@@ -106,6 +106,81 @@ model Trainer {
   teamMembers TeamMember[]
   clients     Client[]
   invites     ClientInvite[]
+  exercises   Exercise[]
+  categories  Category[]
+}
+
+/// The anatomical vocabulary. A closed set trainers do not extend, so an enum
+/// rather than a table: no joins, no seed prerequisite, filterable with `has`.
+/// Ukrainian labels live in @gart/shared (MUSCLE_GROUP_LABELS), the same split
+/// as ClientStatus and its labels. Extending later is one additive migration.
+enum MuscleGroup {
+  CHEST
+  BACK
+  SHOULDERS
+  ARMS
+  LEGS
+  GLUTES
+  CORE
+  CALVES
+  FULL_BODY
+}
+
+/// An exercise in the library. `trainerId` NULL means the global base library,
+/// visible to every trainer and mutable by none — writes go through a where
+/// clause that matches the caller's own trainerId, which a NULL row can never
+/// satisfy. A set trainerId is one trainer's custom exercise, invisible to the
+/// rest.
+model Exercise {
+  id String @id @default(cuid())
+
+  trainerId String?
+  trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+
+  primaryMuscleGroup MuscleGroup
+  /// Secondary groups; the primary is not repeated here.
+  muscleGroups       MuscleGroup[]
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Plain URLs until Step 8 brings real media storage. Validated http(s)-only
+  // at the boundary so nothing executable can ever be stored and re-rendered.
+  videoUrl         String?
+  audioUrl         String?
+  textInstructions String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Step 10: ProgramExercise will reference this with onDelete: Restrict, and
+  // the delete endpoint then maps the violation to a 409.
+  @@index([trainerId])
+}
+
+/// Exercise grouping (Сила, Кардіо…). Same global-vs-custom split as Exercise,
+/// but trainers create their own, so it is a table with CRUD rather than an
+/// enum. Postgres treats NULLs as distinct in unique indexes, so the constraint
+/// below governs each trainer's names only; global rows are written solely by
+/// the idempotent seed, which enforces their uniqueness itself.
+model Category {
+  id String @id @default(cuid())
+
+  trainerId String?
+  trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  exercises Exercise[]
+
+  // Doubles as the trainerId index: its leading column is trainerId.
+  @@unique([trainerId, name])
 }
 
 /// A user acting inside a trainer's account. The OWNER row is created alongside

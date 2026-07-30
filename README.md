@@ -3,9 +3,9 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 6: client authentication** — the end of Phase 0. Trainers
-run their side of the app; their clients sign in to a minimal branded shell of their own. No workout
-features yet: that is Phase 1.
+This repository is currently at **Step 7: the exercise library** — the start of Phase 1. A global
+base library plus per-trainer custom exercises and categories, full CRUD over the API. Media upload
+and the library UI are the next two steps.
 
 ## Requirements
 
@@ -165,6 +165,40 @@ refusal) and `GET /auth/client/me`, which returns the client's profile plus thei
 and nothing else. `/auth/logout` revokes either kind of session. Wrong-context requests get a bare
 401 identical to having no cookie at all — a 403 would confirm the cookie names a real session of
 the other type. Archived clients are cut off at the guard, not just at login.
+
+## Exercise library
+
+Exercises and categories share one ownership model: `trainerId` NULL is the global base library,
+visible to every trainer and mutable by none; a set `trainerId` is one trainer's custom row,
+invisible to the rest. The policy lives in three private helpers per service — reads go through
+`visibleTo` (global OR own), writes through `requireOwned`, whose `{ id, trainerId }` clause can
+never match a NULL row — so globals are immutable **by construction**, with no "if global" branch to
+forget. Misses are bare 404s, indistinguishable from nonexistent ids.
+
+| Endpoint                            | Behaviour                                                        |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| `GET /exercises`                    | Global + own; `?muscleGroup=`, `?categoryId=`, `?search=`, paged |
+| `GET /exercises/:id`                | Global or own, else 404                                          |
+| `POST /exercises`                   | Creates a custom exercise for the caller                         |
+| `PATCH /exercises/:id`              | Own only — globals and foreign rows 404                          |
+| `DELETE /exercises/:id`             | Own only; hard delete while nothing references exercises         |
+| `GET /muscle-groups`                | The anatomical vocabulary with Ukrainian labels                  |
+| `GET/POST/PATCH/DELETE /categories` | Same split; deleting a category uncategorises its exercises      |
+
+Details that matter:
+
+- **Muscle groups are a Postgres enum** (closed anatomical vocabulary), with Ukrainian labels in
+  `@gart/shared` — the same enum-plus-labels split as `ClientStatus`. Categories are a table,
+  because trainers create their own.
+- A `categoryId` in a request body is a cross-tenant reference vector: it must resolve to a global
+  or own category, else 400 — with one body for "foreign" and "nonexistent" alike.
+- Media URLs are plain strings until Step 8, but validated http(s)-only now, so a `javascript:` URL
+  can never be stored and later rendered into the client app.
+- The wire shape exposes `isCustom`, never the raw `trainerId`.
+- Deletes are hard while nothing references exercises. Step 10's `ProgramExercise` FK will be
+  `onDelete: Restrict`, and the delete endpoint then maps the violation to a 409.
+- The seed provides five global categories and six common exercises; the full Ukrainian base
+  library is a separate Phase 1 content task.
 
 ## Clients and invites
 
