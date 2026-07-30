@@ -1,10 +1,11 @@
 # Gart
 
-Vertical SaaS for personal trainers (Ukrainian market). See [gart-master-plan.md](gart-master-plan.md)
-for product scope and roadmap.
+Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
+documents kept outside version control.
 
-This repository is currently at **Step 2: database layer**. Postgres, Prisma and the two identity
-models are in place. No auth, no design system, no feature modules yet.
+This repository is currently at **Step 3: trainer authentication**. Registration, login, logout and
+session handling are in place on top of Postgres and Prisma. No clients or invites yet, and no
+design system — the auth screens are deliberately plain.
 
 ## Requirements
 
@@ -61,8 +62,11 @@ Verify:
 
 ```bash
 curl http://localhost:4001/health   # => {"status":"ok","db":"ok"}
-open http://localhost:3000          # => centered "Gart"
+open http://localhost:3000/register # => create a trainer account
+open http://localhost:3000/login    # => sign in, lands on /dashboard
 ```
+
+The seeded demo trainer is `demo@gart.fit` with the password from `SEED_DEMO_PASSWORD`.
 
 `/health` returns **503** with `{"status":"error","db":"error"}` when the database is unreachable.
 
@@ -73,11 +77,14 @@ To run a single app: `pnpm --filter @gart/api dev` or `pnpm --filter @gart/web d
 
 ## Environment
 
-| File                  | Read by            | Holds                                             |
-| --------------------- | ------------------ | ------------------------------------------------- |
-| `.env`                | `docker compose`   | superuser + app role credentials, `POSTGRES_PORT` |
-| `apps/api/.env`       | API and Prisma CLI | `DATABASE_URL`, `SHADOW_DATABASE_URL`, `PORT`     |
-| `apps/web/.env.local` | Next.js            | `NEXT_PUBLIC_API_URL` (unused so far)             |
+| File                  | Read by            | Holds                                                                      |
+| --------------------- | ------------------ | -------------------------------------------------------------------------- |
+| `.env`                | `docker compose`   | superuser + app role credentials, `POSTGRES_PORT`                          |
+| `apps/api/.env`       | API and Prisma CLI | database URLs, `PORT`, `WEB_ORIGIN`, throttle limits, `SEED_DEMO_PASSWORD` |
+| `apps/web/.env.local` | Next.js            | `NEXT_PUBLIC_API_URL` — where the browser sends credentialed requests      |
+
+`WEB_ORIGIN` is the single origin allowed to hold a session cookie for this API. It must match the
+web app's URL exactly, or the browser will refuse the credentialed request.
 
 `SHADOW_DATABASE_URL` points at a second, pre-created database that Prisma needs for
 `migrate dev`. Pre-creating it is what allows the app role to stay `NOCREATEDB` — the credentials
@@ -101,6 +108,10 @@ Run from `apps/api` (or with `pnpm --filter @gart/api`):
 | `pnpm db:generate` | Regenerate the Prisma client (Turborepo runs this for you) |
 | `pnpm db:seed`     | Create the demo trainer — idempotent, safe to re-run       |
 
+`pnpm test` runs against the separate `gart_test` database, which the container provisions
+alongside the others. The suite truncates it between tests, so never point `TEST_DATABASE_URL` at a
+database holding anything you want to keep.
+
 The seed creates one `User` + `Trainer` for `demo@gart.fit`. Both writes are upserts keyed on a
 unique column, so running it twice updates rather than duplicates.
 
@@ -108,12 +119,39 @@ Prisma 7 generates its client as TypeScript **into the repository**, at
 `apps/api/src/generated/prisma`. That directory is git-ignored and rebuilt from the schema; never
 edit or commit it.
 
+## Authentication
+
+Trainers register with an email, a password and a display name; registration creates the `User` and
+its `Trainer` tenant in a single transaction, so neither can exist without the other.
+
+| Endpoint              | Behaviour                                                     |
+| --------------------- | ------------------------------------------------------------- |
+| `POST /auth/register` | Creates the account, starts a session, returns user + trainer |
+| `POST /auth/login`    | Starts a session, returns user + trainer                      |
+| `POST /auth/logout`   | Revokes the session and clears the cookie                     |
+| `GET /auth/me`        | Current user + trainer, or 401                                |
+
+Decisions worth knowing:
+
+- **argon2id**, OWASP parameters `m=19456, t=2, p=1`. Parameters live in the stored PHC string, so
+  they can be raised later without invalidating existing hashes.
+- **Server-side sessions, not stateless JWT.** The guard has to load the `Trainer` tenant on every
+  protected request anyway, which removes JWT's only real advantage here — and a session row buys
+  genuine revocation, so logging out actually ends the session.
+- The cookie carries a 256-bit random token; the database stores **only its SHA-256**, so a database
+  leak yields no usable sessions.
+- **Login never reveals whether an email exists.** A wrong password and an unknown address return
+  byte-identical responses, and an unknown address still performs an argon2 verification against a
+  decoy hash so the timing matches too.
+- Rate limiting is applied per route via `@nestjs/throttler`, `helmet` sets security headers, and
+  CORS admits exactly one origin — no wildcard is possible alongside credentials, and none is wanted.
+
 ## Workspace
 
 ```
-apps/api          NestJS API — Prisma, GET /health
-apps/web          Next.js App Router + TailwindCSS — one page: /
-packages/shared   @gart/shared — PublicUser / PublicTrainer, shared by api and web
+apps/api          NestJS API — auth, Prisma, GET /health
+apps/web          Next.js App Router + TailwindCSS — /register, /login, /dashboard
+packages/shared   @gart/shared — PublicUser / PublicTrainer / AuthSession
 docker/postgres   container provisioning (app role, databases, citext)
 ```
 
@@ -130,6 +168,7 @@ Run from the repository root; each fans out to every package via Turborepo.
 | `pnpm dev`          | Run API and web together          |
 | `pnpm build`        | Production build of every package |
 | `pnpm typecheck`    | TypeScript strict check, no emit  |
+| `pnpm test`         | Auth unit and e2e suites          |
 | `pnpm lint`         | ESLint across the workspace       |
 | `pnpm format`       | Prettier write                    |
 | `pnpm format:check` | Prettier check (CI-friendly)      |

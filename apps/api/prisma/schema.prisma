@@ -24,10 +24,33 @@ model User {
   email String @unique @db.Citext
   name  String
 
+  // argon2id PHC string. Non-nullable: an account without a credential has no
+  // defined meaning today, and allowing null would force every auth path to
+  // handle it forever.
+  passwordHash String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  trainer Trainer?
+  trainer  Trainer?
+  sessions Session[]
+}
+
+/// Server-side session. The cookie carries a random token; only its SHA-256
+/// lives here, so a database leak yields no usable sessions. Deleting the row
+/// revokes the session immediately — the reason we chose this over a stateless
+/// JWT, given the guard already loads the tenant from the database anyway.
+model Session {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Trainer {

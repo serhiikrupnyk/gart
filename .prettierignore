@@ -7,5 +7,7 @@ next-env.d.ts
 apps/api/src/generated/
 apps/api/prisma/migrations/
 
-# Hand-maintained product doc — Prettier would rewrap its prose and tables.
+# Hand-maintained planning docs — Prettier would rewrap their prose and tables.
 gart-master-plan.md
+gart-roadmap.md
+gart-presentation.md

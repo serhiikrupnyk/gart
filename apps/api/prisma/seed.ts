@@ -1,7 +1,9 @@
 import 'dotenv/config';
 
 import { PrismaPg } from '@prisma/adapter-pg';
+import { hash } from '@node-rs/argon2';
 
+import { ARGON2_OPTIONS } from '../src/auth/argon2-options';
 import { requireEnv } from '../src/env';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { toPublicTrainer } from '../src/trainers/trainer.mapper.js';
@@ -19,11 +21,13 @@ async function seed(): Promise<void> {
     adapter: new PrismaPg({ connectionString: requireEnv('DATABASE_URL') }),
   });
 
+  const passwordHash = await hash(requireEnv('SEED_DEMO_PASSWORD'), ARGON2_OPTIONS);
+
   try {
     const user = await prisma.user.upsert({
       where: { email: DEMO_EMAIL },
-      update: { name: DEMO_NAME },
-      create: { email: DEMO_EMAIL, name: DEMO_NAME },
+      update: { name: DEMO_NAME, passwordHash },
+      create: { email: DEMO_EMAIL, name: DEMO_NAME, passwordHash },
     });
 
     const trainer = await prisma.trainer.upsert({

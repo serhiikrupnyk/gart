@@ -29,3 +29,8 @@ npm-debug.log*
 
 # local tool settings
 .claude/settings.local.json
+
+# planning documents — working notes, deliberately not part of the repository
+gart-master-plan.md
+gart-roadmap.md
+gart-presentation.md

@@ -13,6 +13,7 @@ services:
       POSTGRES_DB: postgres
       GART_DB: ${GART_DB:-gart}
       GART_DB_SHADOW: ${GART_DB_SHADOW:-gart_shadow}
+      GART_DB_TEST: ${GART_DB_TEST:-gart_test}
       GART_DB_USER: ${GART_DB_USER:-gart_app}
       GART_DB_PASSWORD: ${GART_DB_PASSWORD:?set GART_DB_PASSWORD in .env}
     ports:

@@ -18,6 +18,10 @@
     "typecheck": {
       "dependsOn": ["^build", "db:generate"]
     },
+    "test": {
+      "dependsOn": ["^build", "db:generate"],
+      "cache": false
+    },
     "lint": {}
   }
 }
