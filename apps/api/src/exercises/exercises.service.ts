@@ -3,7 +3,7 @@ import type { ExercisePage, PublicExercise } from '@gart/shared';
 
 import { PrismaService } from '../database/prisma.service';
 import type { Prisma } from '../generated/prisma/client.js';
-import type { ExerciseModel } from '../generated/prisma/models.js';
+import type { ExerciseMediaModel, ExerciseModel } from '../generated/prisma/models.js';
 import { toPublicExercise } from './exercise.mapper';
 import type { CreateExerciseDto } from './dto/create-exercise.dto';
 import type { ListExercisesQuery } from './dto/list-exercises.query';
@@ -11,6 +11,9 @@ import type { UpdateExerciseDto } from './dto/update-exercise.dto';
 
 /** Same body whether the category is foreign or nonexistent — no leak either way. */
 const CATEGORY_NOT_FOUND_MESSAGE = 'Категорію не знайдено';
+
+/** An exercise with its media rows — what the gates return and the mapper takes. */
+export type ExerciseWithMedia = ExerciseModel & { media: ExerciseMediaModel[] };
 
 /**
  * The entire global-vs-custom policy lives in the three private members at the
@@ -53,6 +56,7 @@ export class ExercisesService {
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
+        include: { media: true },
       }),
       this.prisma.exercise.count({ where }),
     ]);
@@ -82,10 +86,9 @@ export class ExercisesService {
         primaryMuscleGroup: dto.primaryMuscleGroup,
         muscleGroups: dto.muscleGroups ?? [],
         categoryId: dto.categoryId ?? null,
-        videoUrl: dto.videoUrl ?? null,
-        audioUrl: dto.audioUrl ?? null,
         textInstructions: dto.textInstructions ?? null,
       },
+      include: { media: true },
     });
 
     return toPublicExercise(exercise);
@@ -114,10 +117,9 @@ export class ExercisesService {
           : { primaryMuscleGroup: dto.primaryMuscleGroup }),
         ...(dto.muscleGroups === undefined ? {} : { muscleGroups: dto.muscleGroups }),
         ...(dto.categoryId === undefined ? {} : { categoryId: dto.categoryId }),
-        ...(dto.videoUrl === undefined ? {} : { videoUrl: dto.videoUrl }),
-        ...(dto.audioUrl === undefined ? {} : { audioUrl: dto.audioUrl }),
         ...(dto.textInstructions === undefined ? {} : { textInstructions: dto.textInstructions }),
       },
+      include: { media: true },
     });
 
     return toPublicExercise(updated);
@@ -137,10 +139,14 @@ export class ExercisesService {
     return { OR: [{ trainerId: null }, { trainerId }] };
   }
 
-  /** Read gate: global or own, else the same 404 a nonexistent id produces. */
-  private async requireVisible(trainerId: string, exerciseId: string): Promise<ExerciseModel> {
+  /**
+   * Read gate: global or own, else the same 404 a nonexistent id produces.
+   * Public because the media service reuses it — one ownership model, not two.
+   */
+  async requireVisible(trainerId: string, exerciseId: string): Promise<ExerciseWithMedia> {
     const exercise = await this.prisma.exercise.findFirst({
       where: { id: exerciseId, ...this.visibleTo(trainerId) },
+      include: { media: true },
     });
 
     if (exercise === null) {
@@ -154,10 +160,12 @@ export class ExercisesService {
    * Write gate: `{ id, trainerId }` matches only this trainer's own rows —
    * a global row's NULL trainerId can never equal a real id, so globals and
    * foreign rows alike fall through to the same 404.
+   * Public because the media service reuses it — one ownership model, not two.
    */
-  private async requireOwned(trainerId: string, exerciseId: string): Promise<ExerciseModel> {
+  async requireOwned(trainerId: string, exerciseId: string): Promise<ExerciseWithMedia> {
     const exercise = await this.prisma.exercise.findFirst({
       where: { id: exerciseId, trainerId },
+      include: { media: true },
     });
 
     if (exercise === null) {

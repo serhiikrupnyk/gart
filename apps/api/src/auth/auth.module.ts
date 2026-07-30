@@ -9,6 +9,7 @@ import { ClientAuthService } from './client-auth.service';
 import { ClientGuard } from './client.guard';
 import { PasswordService } from './password.service';
 import { SessionService } from './session.service';
+import { TrainerOrClientGuard } from './trainer-or-client.guard';
 import { TrainerGuard } from './trainer.guard';
 
 @Module({
@@ -20,11 +21,12 @@ import { TrainerGuard } from './trainer.guard';
     AuthenticatedGuard,
     TrainerGuard,
     ClientGuard,
+    TrainerOrClientGuard,
     PasswordService,
     SessionService,
   ],
   // Exported so feature modules can put routes behind either guard, and so the
   // invite flow can hash passwords and issue sessions for accepted clients.
-  exports: [TrainerGuard, ClientGuard, PasswordService, SessionService],
+  exports: [TrainerGuard, ClientGuard, TrainerOrClientGuard, PasswordService, SessionService],
 })
 export class AuthModule {}

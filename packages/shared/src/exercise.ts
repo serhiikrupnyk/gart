@@ -42,9 +42,9 @@ export interface PublicExercise {
   primaryMuscleGroup: MuscleGroup;
   muscleGroups: MuscleGroup[];
   categoryId: string | null;
-  videoUrl: string | null;
-  audioUrl: string | null;
   textInstructions: string | null;
+  /** Stored renditions — metadata only, never storage keys. */
+  media: ExerciseMediaInfo[];
   isCustom: boolean;
   createdAt: string;
   updatedAt: string;
@@ -70,8 +70,6 @@ export interface CreateExerciseRequest {
   primaryMuscleGroup: MuscleGroup;
   muscleGroups?: MuscleGroup[];
   categoryId?: string | null;
-  videoUrl?: string | null;
-  audioUrl?: string | null;
   textInstructions?: string | null;
 }
 
@@ -86,4 +84,48 @@ export interface CreateCategoryRequest {
 export interface MuscleGroupOption {
   value: MuscleGroup;
   label: string;
+}
+
+/** The media renditions an exercise can carry; THUMBNAIL joins later. */
+export const MEDIA_KINDS = ['VIDEO', 'AUDIO'] as const;
+
+export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+/**
+ * A stored rendition as the UI sees it: enough to render a player and an
+ * upload state, and nothing that names the underlying object. Fresh play URLs
+ * come from GET /exercises/:id/media-url per request.
+ */
+export interface ExerciseMediaInfo {
+  kind: MediaKind;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+}
+
+export interface PresignMediaRequest {
+  kind: MediaKind;
+  contentType: string;
+  sizeBytes: number;
+}
+
+/**
+ * The one place an object key crosses the wire: the client uploads to
+ * `uploadUrl` and then confirms `key` back via the finalize endpoint.
+ */
+export interface PresignMediaResponse {
+  uploadUrl: string;
+  key: string;
+  expiresAt: string;
+}
+
+export interface FinalizeMediaRequest {
+  kind: MediaKind;
+  key: string;
+}
+
+/** A short-lived play URL; request a fresh one when it expires. */
+export interface MediaUrlResponse {
+  url: string;
+  expiresAt: string;
 }

@@ -27,5 +27,45 @@ services:
       timeout: 5s
       retries: 12
 
+  # S3-compatible object storage for exercise media (dev). Private bucket; the
+  # API serves media only through short-lived presigned URLs. In production any
+  # S3-compatible provider works — ideally an egress-free one (R2/B2-class),
+  # since egress, not storage, is where video costs live.
+  minio:
+    image: minio/minio:latest
+    container_name: gart_minio
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-gart_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    ports:
+      - '${MINIO_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - gart_minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # One-shot: creates the private media bucket, then exits. No anonymous
+  # access policy is ever attached — private is the default and stays so.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: 'no'
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        mc alias set local http://minio:9000
+        '${MINIO_ROOT_USER:-gart_minio}' '${MINIO_ROOT_PASSWORD}'
+        && mc mb --ignore-existing local/gart-media
+
 volumes:
   gart_postgres_data:
+  gart_minio_data:

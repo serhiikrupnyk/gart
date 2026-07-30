@@ -6,10 +6,14 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
 import { configureSecurity } from '../src/security';
+import { StorageService } from '../src/storage/storage.service';
+import { FakeStorage } from './fake-storage';
 
 export interface Harness {
   app: INestApplication;
   prisma: PrismaService;
+  /** Bound to the StorageService token — no test ever needs a real bucket. */
+  storage: FakeStorage;
   close: () => Promise<void>;
 }
 
@@ -20,7 +24,10 @@ export interface Harness {
  * never leak between suites.
  */
 export async function createHarness(): Promise<Harness> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(StorageService)
+    .useValue(new FakeStorage())
+    .compile();
 
   // Silenced because one test deliberately triggers a 500, and Nest would print
   // its stack trace as though something had gone wrong. Assertions are the
@@ -30,10 +37,12 @@ export async function createHarness(): Promise<Harness> {
   await app.init();
 
   const prisma = app.get(PrismaService);
+  const storage = app.get(StorageService) as FakeStorage;
 
   return {
     app,
     prisma,
+    storage,
     close: async () => {
       await app.close();
     },

@@ -66,10 +66,7 @@ describe('exercise library', () => {
 
   describe('create', () => {
     it('creates a custom exercise owned by the caller, without exposing the tenant', async () => {
-      const created = await createCustom(cookieA, 'Випади', {
-        muscleGroups: ['GLUTES'],
-        videoUrl: 'https://video.example.com/lunges',
-      });
+      const created = await createCustom(cookieA, 'Випади', { muscleGroups: ['GLUTES'] });
 
       expect(created).toMatchObject({
         name: 'Випади',
@@ -117,10 +114,6 @@ describe('exercise library', () => {
         [
           'an unknown secondary group',
           { name: 'Вправа', primaryMuscleGroup: 'LEGS', muscleGroups: ['NECK'] },
-        ],
-        [
-          'a javascript: video URL',
-          { name: 'Вправа', primaryMuscleGroup: 'LEGS', videoUrl: 'javascript:alert(1)' },
         ],
         [
           'an unknown extra property',
@@ -270,16 +263,20 @@ describe('exercise library', () => {
     it('updates an own exercise, clearing nullable fields with null', async () => {
       const own = await createCustom(cookieA, 'Моя вправа', {
         description: 'старий опис',
-        videoUrl: 'https://video.example.com/old',
+        textInstructions: 'старі інструкції',
       });
 
       const response = await request(harness.app.getHttpServer())
         .patch(`/exercises/${own.id}`)
         .set('Cookie', cookieA)
-        .send({ name: 'Оновлена', description: null, videoUrl: null })
+        .send({ name: 'Оновлена', description: null, textInstructions: null })
         .expect(200);
 
-      expect(response.body).toMatchObject({ name: 'Оновлена', description: null, videoUrl: null });
+      expect(response.body).toMatchObject({
+        name: 'Оновлена',
+        description: null,
+        textInstructions: null,
+      });
     });
 
     it('rejects null for non-nullable fields with a 400, not a 500', async () => {

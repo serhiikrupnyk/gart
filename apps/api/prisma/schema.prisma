@@ -147,18 +147,44 @@ model Exercise {
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  // Plain URLs until Step 8 brings real media storage. Validated http(s)-only
-  // at the boundary so nothing executable can ever be stored and re-rendered.
-  videoUrl         String?
-  audioUrl         String?
   textInstructions String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  media ExerciseMedia[]
+
   // Step 10: ProgramExercise will reference this with onDelete: Restrict, and
   // the delete endpoint then maps the violation to a 409.
   @@index([trainerId])
+}
+
+enum MediaKind {
+  VIDEO
+  AUDIO
+}
+
+/// One stored rendition of an exercise's media. Ownership is not duplicated
+/// here: media belongs to its exercise, and every access path goes through the
+/// exercise's own visibleTo/requireOwned gates.
+///
+/// `storageKey` names a private object — the bucket has no public access, and
+/// the key never crosses the wire except in the presign response that created
+/// it. Serving happens via short-lived presigned GETs minted per request.
+model ExerciseMedia {
+  id String @id @default(cuid())
+
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  kind        MediaKind
+  storageKey  String    @unique
+  contentType String
+  sizeBytes   Int
+  uploadedAt  DateTime  @default(now())
+
+  // One rendition per kind; doubles as the exerciseId lookup index.
+  @@unique([exerciseId, kind])
 }
 
 /// Exercise grouping (Сила, Кардіо…). Same global-vs-custom split as Exercise,

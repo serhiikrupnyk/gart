@@ -5,7 +5,6 @@ import {
   IsIn,
   IsOptional,
   IsString,
-  IsUrl,
   MaxLength,
   MinLength,
   ValidateIf,
@@ -18,10 +17,7 @@ import {
   EXERCISE_NAME_MAX_LENGTH,
   ID_MAX_LENGTH,
   INSTRUCTIONS_MAX_LENGTH,
-  URL_MAX_LENGTH,
 } from './create-exercise.dto';
-
-const URL_OPTIONS = { protocols: ['http', 'https'], require_protocol: true };
 
 /** Validate unless the field is absent — so an explicit `null` still gets checked. */
 const ifPresent = (_object: object, value: unknown): boolean => value !== undefined;
@@ -62,16 +58,6 @@ export class UpdateExerciseDto {
   @IsString({ message: 'Некоректна категорія' })
   @MaxLength(ID_MAX_LENGTH, { message: 'Некоректна категорія' })
   categoryId?: string | null;
-
-  @IsOptional()
-  @IsUrl(URL_OPTIONS, { message: 'Некоректне посилання на відео' })
-  @MaxLength(URL_MAX_LENGTH, { message: 'Посилання задовге' })
-  videoUrl?: string | null;
-
-  @IsOptional()
-  @IsUrl(URL_OPTIONS, { message: 'Некоректне посилання на аудіо' })
-  @MaxLength(URL_MAX_LENGTH, { message: 'Посилання задовге' })
-  audioUrl?: string | null;
 
   @IsOptional()
   @Transform(trimmed)

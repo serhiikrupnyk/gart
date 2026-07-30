@@ -3,9 +3,8 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 7: the exercise library** — the start of Phase 1. A global
-base library plus per-trainer custom exercises and categories, full CRUD over the API. Media upload
-and the library UI are the next two steps.
+This repository is currently at **Step 8: exercise media** — secure video/audio upload and
+hosting on S3-compatible storage. The library UI is the next step.
 
 ## Requirements
 
@@ -199,6 +198,42 @@ Details that matter:
   `onDelete: Restrict`, and the delete endpoint then maps the violation to a 409.
 - The seed provides five global categories and six common exercises; the full Ukrainian base
   library is a separate Phase 1 content task.
+
+## Exercise media
+
+Uploads go **direct to storage** — the API never carries the bytes. It authorises an upload by
+issuing a presigned PUT whose key, content type and byte count are all part of the signature, so
+MinIO/S3 itself rejects an upload that deviates (verified live: wrong type → 403, wrong size → 403,
+exact match → 200). The media record exists only after finalize re-verifies what actually landed:
+existence, size, allowlisted type, and **magic bytes** — a well-formed request wrapping non-media
+bytes is refused and the stray object deleted.
+
+```
+POST /exercises/:id/media/presign   own exercise only; type allowlist + size cap enforced
+PUT  <presigned url>                browser → storage, constraints in the signature
+POST /exercises/:id/media           finalize: verify object, then record
+GET  /exercises/:id/media-url       short-lived play URL — trainer, or that trainer's client
+DELETE /exercises/:id/media         own only; removes object and record
+```
+
+The rules, in one place ([media-types.ts](apps/api/src/exercises/media-types.ts)): `video/mp4`,
+`video/webm` ≤ 100 MB; `audio/mpeg`, `audio/mp4` ≤ 20 MB. Keys are server-generated and random
+under `exercises/{id}/{kind}/` — no user filename ever becomes a key, and finalize refuses a key
+outside the exercise's own prefix. The bucket is private; nothing public-read exists, no permanent
+URL ever leaves the API, and play URLs are presigned per request (10-minute TTL). Read access uses
+the same `visibleTo` gate as everything else, through `TrainerOrClientGuard`: a trainer sees their
+library, a client sees their trainer's.
+
+**Cost model.** 100 MB ≈ 45–60 s of phone-quality 1080p — a demo clip cap, not a training film.
+Storage is cents (20 GB per heavy trainer ≈ $0.30/mo); **egress is the real video cost**, since
+every client view re-streams the clip. Hence: private presigned serving (no hotlinking), and prod
+should sit on an egress-free S3 provider (R2/B2-class). Transcoding to a single ~720p rendition and
+a thumbnail would hook into finalize later; a storage lifecycle rule for never-finalized objects is
+recommended once volume warrants it.
+
+Dev storage is MinIO in docker-compose (`localhost:9000`, console `:9001`); a one-shot `mc`
+container creates the private `gart-media` bucket. Tests bind an in-memory fake to the
+StorageService token — no bucket needed in CI.
 
 ## Clients and invites
 
