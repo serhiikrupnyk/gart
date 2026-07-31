@@ -80,7 +80,7 @@ describe('AppShell', () => {
     // Тренування links to the exercise library since Step 9; the current
     // section is /dashboard, so it must not read as active.
     const workouts = screen.getByRole('link', { name: 'Тренування' });
-    expect(workouts).toHaveAttribute('href', '/dashboard/exercises');
+    expect(workouts).toHaveAttribute('href', '/dashboard/programs');
     expect(workouts).not.toHaveAttribute('aria-current');
 
     // Still-unbuilt sections are visible but are not links, so keyboard users

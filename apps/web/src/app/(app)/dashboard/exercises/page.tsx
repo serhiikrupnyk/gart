@@ -16,6 +16,7 @@ import {
 } from '@/components/exercises/exercise-filters';
 import { ExerciseFormModal } from '@/components/exercises/exercise-form-modal';
 import { PageHeader } from '@/components/layout/page-header';
+import { WorkoutTabs } from '@/components/layout/workout-tabs';
 import {
   Badge,
   Button,
@@ -127,6 +128,8 @@ export default function ExercisesPage() {
 
   return (
     <>
+      <WorkoutTabs active="/dashboard/exercises" />
+
       <PageHeader
         title="Бібліотека вправ"
         description="Глобальна база та ваші власні вправи"

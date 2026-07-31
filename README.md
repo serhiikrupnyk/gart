@@ -3,9 +3,9 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 10: the program builder model and API** — programs as
-structured, ordered trees of typed sections and prescribed exercises, full CRUD. The builder UI is
-next.
+This repository is currently at **Step 11: the program builder UI** — the trainer visually
+assembles programs from typed sections and library exercises, with drag-reorder and full
+prescriptions. Assignment to clients is next.
 
 ## Requirements
 
@@ -229,6 +229,28 @@ strength warm-up with an AMRAP finisher.
   and deleting a referenced exercise answers 409 «Вправа використовується у програмі»; unreferenced
   customs still delete (and now also retire their media objects from storage). Deleting a program
   cascades its tree and never touches Exercise rows.
+
+## Program builder UI
+
+«Тренування» now lands on `/dashboard/programs` (the library moved behind a sub-tab row —
+Програми | Бібліотека вправ). The builder is a routed document editor, not a modal: all edits are
+local, saving sends the whole tree per Step 10's full-replace contract.
+
+- **The client mirrors `program-rules` as existence, not validation**: each section type renders
+  only its own config fields (AMRAP → time cap; EMOM → interval + rounds; CIRCUIT → rounds + rest),
+  and retyping a section drops now-forbidden values from the draft — a stale AMRAP time cap cannot
+  ride into a STRENGTH payload. Prescription inputs per line are likewise type-driven. The API
+  stays the authority; its 400s surface as the form error.
+- **The load XOR rule is unrepresentable**: one mode select (— | кг | %1ПМ | RPE | текст) renders
+  one input; switching clears the other representation.
+- **Reordering**: ↑/↓ move buttons on every section and line are the accessible, tested path (with
+  a polite `aria-live` announcement); dependency-free HTML5 drag on the ⋮⋮ handles is sugar on the
+  same array operations. Requests still carry no order fields — the array is the order.
+- **The exercise picker is Step 9's composition reused verbatim** (ExerciseFilters + paged
+  listExercises in a modal), multi-add, without losing builder state.
+- **Unsaved changes**: `beforeunload` guards close/refresh; the builder's own exits confirm via a
+  modal. Honest boundary: App Router offers no supported route-blocking, so sidebar navigation
+  mid-edit stays unguarded rather than monkey-patched.
 
 ## Exercise library UI
 

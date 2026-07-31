@@ -8,6 +8,8 @@ import { cx } from '@/lib/cx';
 interface NavItem {
   label: string;
   href?: string;
+  /** Paths that light this item up besides its own href (sub-areas). */
+  activeUnder?: string[];
 }
 
 /**
@@ -17,7 +19,11 @@ interface NavItem {
  */
 const ITEMS: NavItem[] = [
   { label: 'Клієнти', href: '/dashboard' },
-  { label: 'Тренування', href: '/dashboard/exercises' },
+  {
+    label: 'Тренування',
+    href: '/dashboard/programs',
+    activeUnder: ['/dashboard/programs', '/dashboard/exercises'],
+  },
   { label: 'Прогрес' },
   { label: 'Платежі' },
 ];
