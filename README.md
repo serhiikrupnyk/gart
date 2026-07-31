@@ -3,8 +3,9 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 8: exercise media** — secure video/audio upload and
-hosting on S3-compatible storage. The library UI is the next step.
+This repository is currently at **Step 9: the exercise library UI** — the trainer's first real
+working screen: browse, filter and search the library, create and edit custom exercises, upload and
+play media. The program builder is next.
 
 ## Requirements
 
@@ -198,6 +199,31 @@ Details that matter:
   `onDelete: Restrict`, and the delete endpoint then maps the violation to a 409.
 - The seed provides five global categories and six common exercises; the full Ukrainian base
   library is a separate Phase 1 content task.
+
+## Exercise library UI
+
+«Тренування» in the trainer shell now opens `/dashboard/exercises`: a paged table of the global
+library plus the trainer's customs (accent «Моя» badge from `isCustom`), with combining filters —
+debounced Cyrillic-aware search, muscle group (labels from `@gart/shared`), category — and real
+pagination against the paged API. Detail, create/edit and delete-confirm are modals over the list,
+so filters, page and scroll survive every round-trip.
+
+Choices that matter:
+
+- **Media is never fetched for browsing.** The list shows presence glyphs from metadata alone; the
+  detail modal shows a placeholder card, and only an explicit «Відтворити» fetches a presigned URL
+  and mounts the player — matching the Step 8 egress model. Expiry mid-session is handled by one
+  silent re-fetch on playback error.
+- **Uploads run the Step 8 flow verbatim**: save the exercise, then per staged file presign with
+  `file.type`/`file.size` unchanged → XHR PUT (progress bar) with the exact Content-Type →
+  finalize. Files are pre-checked against `MEDIA_RULES` from `@gart/shared` — the same table the
+  API enforces — so oversized or wrong-type files fail instantly, client-side, with no presign. A
+  media failure never loses the exercise: the row saves first, the error stays inline, saving again
+  retries only the media.
+- **Global exercises show no edit/delete affordances at all** — absent, not disabled, mirroring the
+  API's 404 stance.
+- Custom categories can be created inline from the form («+ Нова категорія…»); rename/delete stay
+  API-only until a management UI is warranted.
 
 ## Exercise media
 

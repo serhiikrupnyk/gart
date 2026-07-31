@@ -1,4 +1,4 @@
-import type { MediaKind } from '@gart/shared';
+import { MEDIA_RULES, type MediaKind } from '@gart/shared';
 
 /**
  * The entire media-type policy in one table: what each kind accepts, the file
@@ -49,14 +49,15 @@ export const MEDIA_TYPE_RULES: Record<MediaKind, Record<string, MediaTypeRule>> 
 };
 
 /**
- * Cost guardrails, not just security ones. 100 MB ≈ 45–60 s of phone-quality
- * 1080p — a demo clip, never a training film. Egress is the real video cost
- * (every client view re-streams the clip), which is why serving is presigned
- * (no hotlinking) and production should sit on an egress-free S3 provider.
+ * Cost guardrails, not just security ones — the numbers live in @gart/shared
+ * (MEDIA_RULES) so the web pre-checks against exactly what the API enforces.
+ * Egress is the real video cost (every client view re-streams the clip), which
+ * is why serving is presigned (no hotlinking) and production should sit on an
+ * egress-free S3 provider.
  */
 export const MEDIA_SIZE_LIMITS: Record<MediaKind, number> = {
-  VIDEO: 100 * 1024 * 1024,
-  AUDIO: 20 * 1024 * 1024,
+  VIDEO: MEDIA_RULES.VIDEO.maxSizeBytes,
+  AUDIO: MEDIA_RULES.AUDIO.maxSizeBytes,
 };
 
 /** How many leading bytes finalize fetches for the magic check. */

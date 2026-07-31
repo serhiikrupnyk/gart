@@ -17,13 +17,20 @@ interface NavItem {
  */
 const ITEMS: NavItem[] = [
   { label: 'Клієнти', href: '/dashboard' },
-  { label: 'Тренування' },
+  { label: 'Тренування', href: '/dashboard/exercises' },
   { label: 'Прогрес' },
   { label: 'Платежі' },
 ];
 
 export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+
+  // The longest matching href wins: /dashboard is a prefix of every section, so
+  // a plain startsWith would light «Клієнти» up on /dashboard/exercises too.
+  const activeHref = ITEMS.filter(
+    (item): item is NavItem & { href: string } =>
+      item.href !== undefined && (pathname === item.href || pathname.startsWith(`${item.href}/`)),
+  ).sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
     <nav aria-label="Основна навігація">
@@ -40,7 +47,7 @@ export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
             );
           }
 
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = item.href === activeHref;
 
           return (
             <li key={item.label}>

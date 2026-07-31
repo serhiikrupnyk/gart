@@ -77,11 +77,16 @@ describe('AppShell', () => {
       'page',
     );
 
-    // Unbuilt sections are visible but are not links, so keyboard users never
-    // land on a control that does nothing.
-    expect(screen.queryByRole('link', { name: /Тренування/ })).not.toBeInTheDocument();
-    expect(screen.getByText('Тренування')).toBeInTheDocument();
-    expect(screen.getAllByText('скоро')).toHaveLength(3);
+    // Тренування links to the exercise library since Step 9; the current
+    // section is /dashboard, so it must not read as active.
+    const workouts = screen.getByRole('link', { name: 'Тренування' });
+    expect(workouts).toHaveAttribute('href', '/dashboard/exercises');
+    expect(workouts).not.toHaveAttribute('aria-current');
+
+    // Still-unbuilt sections are visible but are not links, so keyboard users
+    // never land on a control that does nothing.
+    expect(screen.queryByRole('link', { name: /Прогрес/ })).not.toBeInTheDocument();
+    expect(screen.getAllByText('скоро')).toHaveLength(2);
   });
 
   it('sends an unauthenticated visitor to the login page', async () => {

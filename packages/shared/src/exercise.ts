@@ -92,6 +92,21 @@ export const MEDIA_KINDS = ['VIDEO', 'AUDIO'] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 
 /**
+ * The upload contract, shared verbatim by both sides: the web pre-checks files
+ * against it for fast feedback, the API enforces it at presign and finalize.
+ * 100 MB ≈ 45–60 s of phone-quality 1080p — a demo clip, never a training film.
+ */
+export const MEDIA_RULES: Record<MediaKind, { contentTypes: string[]; maxSizeBytes: number }> = {
+  VIDEO: { contentTypes: ['video/mp4', 'video/webm'], maxSizeBytes: 100 * 1024 * 1024 },
+  AUDIO: { contentTypes: ['audio/mpeg', 'audio/mp4'], maxSizeBytes: 20 * 1024 * 1024 },
+};
+
+export const MEDIA_KIND_LABELS: Record<MediaKind, string> = {
+  VIDEO: 'Відео',
+  AUDIO: 'Аудіо',
+};
+
+/**
  * A stored rendition as the UI sees it: enough to render a player and an
  * upload state, and nothing that names the underlying object. Fresh play URLs
  * come from GET /exercises/:id/media-url per request.

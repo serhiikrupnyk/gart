@@ -13,7 +13,9 @@ export type {
   UpdateClientRequest,
 } from './client';
 export {
+  MEDIA_KIND_LABELS,
   MEDIA_KINDS,
+  MEDIA_RULES,
   MUSCLE_GROUP_LABELS,
   MUSCLE_GROUPS,
   type CreateCategoryRequest,

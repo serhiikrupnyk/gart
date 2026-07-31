@@ -12,9 +12,11 @@ export interface ModalProps {
   children: ReactNode;
   /** Rendered bottom-right; typically the confirm and cancel buttons. */
   footer?: ReactNode;
+  /** `lg` for forms that need room; default fits confirmations and short forms. */
+  size?: 'md' | 'lg';
 }
 
-export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+export function Modal({ open, onClose, title, children, footer, size = 'md' }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -66,7 +68,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative w-full max-w-md rounded-card border border-border bg-surface-raised shadow-xl outline-none"
+        className={`relative w-full ${size === 'lg' ? 'max-w-2xl' : 'max-w-md'} rounded-card border border-border bg-surface-raised shadow-xl outline-none`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <h2 id={titleId} className="text-base font-semibold text-text">
