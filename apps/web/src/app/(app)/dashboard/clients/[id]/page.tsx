@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { PublicClient } from '@gart/shared';
 
+import { ClientAssignments } from '@/components/clients/client-assignments';
 import { ClientStatusBadge } from '@/components/clients/client-status-badge';
 import { InviteLink } from '@/components/clients/invite-link';
 import { PageHeader } from '@/components/layout/page-header';
@@ -155,6 +156,8 @@ export default function ClientDetailPage() {
           )}
         </div>
       </Card>
+
+      <ClientAssignments clientId={client.id} />
     </>
   );
 }

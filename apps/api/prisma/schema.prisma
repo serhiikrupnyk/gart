@@ -109,6 +109,7 @@ model Trainer {
   exercises   Exercise[]
   categories  Category[]
   programs    Program[]
+  assignments Assignment[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -153,8 +154,9 @@ model Exercise {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  media            ExerciseMedia[]
-  programExercises ProgramExercise[]
+  media               ExerciseMedia[]
+  programExercises    ProgramExercise[]
+  assignmentExercises AssignmentExercise[]
 
   @@index([trainerId])
 }
@@ -249,8 +251,9 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  invites  ClientInvite[]
-  sessions Session[]
+  invites     ClientInvite[]
+  sessions    Session[]
+  assignments Assignment[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.
@@ -314,7 +317,8 @@ model Program {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sections ProgramSection[]
+  sections    ProgramSection[]
+  assignments Assignment[]
 
   @@index([trainerId])
 }
@@ -356,6 +360,108 @@ model ProgramExercise {
 
   // Restrict settles the Step 7 contract: deleting an exercise that a program
   // still references is refused, and the endpoint maps it to a 409.
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  order Int
+
+  sets Int?
+  reps Int?
+
+  loadValue Decimal?  @db.Decimal(6, 2)
+  loadUnit  LoadUnit?
+  loadText  String?
+
+  restSeconds Int?
+  tempo       String?
+  notes       String?
+
+  durationSeconds Int?
+  distanceMeters  Int?
+
+  @@unique([sectionId, order])
+  @@index([exerciseId])
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+/// A program assigned to a client — as an independent SNAPSHOT, the invariant
+/// Steps 10–11 designed toward. The tree below (AssignmentSection/-Exercise) is
+/// written once in the assign transaction and has no update path at all:
+/// editing or deleting the source template cannot reach it by construction.
+/// `sourceProgramId` is provenance only — never read for the tree — and goes
+/// NULL when the template is deleted.
+///
+/// Schedule is weekly recurrence: startDate, optional endDate, ISO weekdays
+/// (Пн=1). Step 13's «today» is one query; Step 14 addresses an occurrence as
+/// (assignmentExerciseId, date).
+model Assignment {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  sourceProgramId String?
+  sourceProgram   Program? @relation(fields: [sourceProgramId], references: [id], onDelete: SetNull)
+
+  name        String
+  description String?
+  type        WorkoutType
+
+  status AssignmentStatus @default(ACTIVE)
+
+  startDate  DateTime  @db.Date
+  endDate    DateTime? @db.Date
+  daysOfWeek Int[]
+
+  assignedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sections AssignmentSection[]
+
+  @@index([trainerId])
+  @@index([clientId])
+}
+
+model AssignmentSection {
+  id String @id @default(cuid())
+
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  name  String?
+  type  WorkoutType
+  order Int
+
+  timeCapSeconds           Int?
+  intervalSeconds          Int?
+  rounds                   Int?
+  restBetweenRoundsSeconds Int?
+
+  exercises AssignmentExercise[]
+
+  @@unique([assignmentId, order])
+}
+
+/// One frozen prescription line. Unlike template rows, this id is durable —
+/// Step 14's WorkoutLog references it as a real foreign key. The prescription
+/// is snapshotted; the exercise itself stays a live library reference (name,
+/// instructions, video should show the trainer's latest fixes), protected by
+/// Restrict exactly like template references.
+model AssignmentExercise {
+  id String @id @default(cuid())
+
+  sectionId String
+  section   AssignmentSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
   exerciseId String
   exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
 

@@ -10,5 +10,7 @@ import { ClientsService } from './clients.service';
   imports: [DatabaseModule, AuthModule, InvitesModule],
   controllers: [ClientsController],
   providers: [ClientsService],
+  // AssignmentsModule gates client ownership through the same requireOwned.
+  exports: [ClientsService],
 })
 export class ClientsModule {}

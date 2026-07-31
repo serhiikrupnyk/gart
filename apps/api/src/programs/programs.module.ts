@@ -10,5 +10,7 @@ import { ProgramsService } from './programs.service';
   imports: [DatabaseModule, AuthModule, ExercisesModule],
   controllers: [ProgramsController],
   providers: [ProgramsService],
+  // AssignmentsModule reads templates for copy-on-assign through getTree.
+  exports: [ProgramsService],
 })
 export class ProgramsModule {}

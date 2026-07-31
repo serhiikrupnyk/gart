@@ -1,3 +1,15 @@
+export {
+  ASSIGNMENT_STATUS_LABELS,
+  ASSIGNMENT_STATUSES,
+  DAY_OF_WEEK_LABELS,
+  DAYS_OF_WEEK,
+  type AssignmentStatus,
+  type CreateAssignmentRequest,
+  type DayOfWeek,
+  type PublicAssignment,
+  type PublicAssignmentDetail,
+  type UpdateAssignmentRequest,
+} from './assignment';
 export type {
   AuthSession,
   ClientSession,

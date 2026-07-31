@@ -120,8 +120,9 @@ export class ClientsService {
    * is no intermediate state in which the row has been fetched but not yet
    * verified, so no later edit can accidentally drop the check. A miss raises
    * 404 rather than 403, since 403 would confirm the row exists.
+   * Public because assignments reuse it — one ownership model, not two.
    */
-  private async requireOwned(trainerId: string, clientId: string): Promise<ClientModel> {
+  async requireOwned(trainerId: string, clientId: string): Promise<ClientModel> {
     const client = await this.prisma.client.findFirst({ where: { id: clientId, trainerId } });
 
     if (client === null) {

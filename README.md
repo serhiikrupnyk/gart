@@ -3,9 +3,9 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 11: the program builder UI** — the trainer visually
-assembles programs from typed sections and library exercises, with drag-reorder and full
-prescriptions. Assignment to clients is next.
+This repository is currently at **Step 12: snapshot-based assignment** — a trainer assigns a
+program to a client with a weekly schedule, as an independent copy of the template. The
+client-facing workout view is next.
 
 ## Requirements
 
@@ -229,6 +229,34 @@ strength warm-up with an AMRAP finisher.
   and deleting a referenced exercise answers 409 «Вправа використовується у програмі»; unreferenced
   customs still delete (and now also retire their media objects from storage). Deleting a program
   cascades its tree and never touches Exercise rows.
+
+## Assignments
+
+Assigning a program **snapshots** it — the invariant Steps 10–11 designed toward. The tree
+(sections + prescriptions + type config) is copied into `AssignmentSection`/`AssignmentExercise`
+rows in one transaction; afterwards the template can be edited beyond recognition or deleted
+outright and the assignment cannot change, because _no code path updates the snapshot tree_ and
+`sourceProgramId` is provenance only (SET NULL on template delete). Snapshot rows are written once,
+so their ids are durable — exactly what Step 14's logs will reference as real foreign keys.
+
+Two deliberate boundaries:
+
+- **Prescriptions are frozen; exercise identity stays live.** Snapshot lines keep their FK to the
+  library (Restrict, extending the Step 7/10 delete contract) so the client always sees the
+  exercise's current name, instructions and video — a typo fix or a better clip should reach them;
+  the prescribed numbers must not drift.
+- **The assigned tree is not editable** — PATCH covers schedule and status only. Per-client
+  tweaking of an assigned copy is a real future feature with its own invariants (especially once
+  logs exist), not a PATCH away.
+
+Schedule is weekly recurrence: `startDate`, optional `endDate`, ISO weekdays (Пн=1). Step 13's
+«today» is one query; Step 14 addresses an occurrence as (assignmentExerciseId, date). Assigning to
+an archived client is refused; a foreign template ≡ nonexistent (identical 400), a foreign client ≡
+nonexistent (identical 404) — the house rule for body vs path references.
+
+The UI lives on the **client detail page** («Програми клієнта»): assignment cards with schedule and
+status, a row menu (Завершити / Архівувати / Активувати / Видалити), and the assign dialog —
+template select, dates, weekday chips — which states the snapshot semantics in one quiet line.
 
 ## Program builder UI
 

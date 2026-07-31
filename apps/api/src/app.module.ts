@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
+import { AssignmentsModule } from './assignments/assignments.module';
 import { AuthModule } from './auth/auth.module';
 import { globalThrottle } from './auth/throttle.config';
 import { ClientsModule } from './clients/clients.module';
@@ -20,6 +21,7 @@ import { ProgramsModule } from './programs/programs.module';
     ClientsModule,
     ExercisesModule,
     ProgramsModule,
+    AssignmentsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

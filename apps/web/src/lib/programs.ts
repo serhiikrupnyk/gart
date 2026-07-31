@@ -9,10 +9,8 @@ import { apiFetch } from './api';
 
 export const PROGRAMS_PAGE_SIZE = 20;
 
-export function listPrograms(page: number): Promise<ProgramPage> {
-  return apiFetch<ProgramPage>(
-    `/programs?page=${String(page)}&pageSize=${String(PROGRAMS_PAGE_SIZE)}`,
-  );
+export function listPrograms(page: number, pageSize = PROGRAMS_PAGE_SIZE): Promise<ProgramPage> {
+  return apiFetch<ProgramPage>(`/programs?page=${String(page)}&pageSize=${String(pageSize)}`);
 }
 
 export function getProgram(id: string): Promise<PublicProgramDetail> {

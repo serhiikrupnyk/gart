@@ -10,7 +10,7 @@ import type {
   UpdateProgramDto,
 } from './dto/create-program.dto';
 import type { ProgramSectionDto } from './dto/program-tree.dto';
-import { toPublicProgram, toPublicProgramDetail } from './program.mapper';
+import { toPublicProgram, toPublicProgramDetail, type ProgramTree } from './program.mapper';
 import { validateProgramTree } from './program-rules';
 
 /** The full nested read, ordered by the persisted order columns. */
@@ -69,14 +69,21 @@ export class ProgramsService {
   }
 
   async findOne(trainerId: string, programId: string): Promise<PublicProgramDetail> {
+    return toPublicProgramDetail(await this.getTree(trainerId, programId));
+  }
+
+  /**
+   * The owned tree, raw. Public because copy-on-assign reads the template
+   * through the same gate as every other access — no parallel ownership code
+   * in the assignments module.
+   */
+  async getTree(trainerId: string, programId: string): Promise<ProgramTree> {
     await this.requireOwned(trainerId, programId);
 
-    const program = await this.prisma.program.findUniqueOrThrow({
+    return this.prisma.program.findUniqueOrThrow({
       where: { id: programId },
       include: TREE_INCLUDE,
     });
-
-    return toPublicProgramDetail(program);
   }
 
   async create(trainerId: string, dto: CreateProgramDto): Promise<PublicProgramDetail> {

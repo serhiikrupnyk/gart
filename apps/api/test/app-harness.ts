@@ -52,7 +52,7 @@ export async function createHarness(): Promise<Harness> {
 /** Clears every table between tests. CASCADE also removes dependent rows. */
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
+    'TRUNCATE TABLE "AssignmentExercise", "AssignmentSection", "Assignment", "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
   );
 }
 
