@@ -1,7 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { ExercisePage, PublicExercise } from '@gart/shared';
 
 import { PrismaService } from '../database/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import type { Prisma } from '../generated/prisma/client.js';
 import type { ExerciseMediaModel, ExerciseModel } from '../generated/prisma/models.js';
 import { toPublicExercise } from './exercise.mapper';
@@ -11,6 +17,11 @@ import type { UpdateExerciseDto } from './dto/update-exercise.dto';
 
 /** Same body whether the category is foreign or nonexistent — no leak either way. */
 const CATEGORY_NOT_FOUND_MESSAGE = 'Категорію не знайдено';
+/** Likewise for exercise references arriving in request bodies. */
+const EXERCISE_NOT_FOUND_MESSAGE = 'Вправу не знайдено';
+const EXERCISE_IN_USE_MESSAGE = 'Вправа використовується у програмі';
+
+const FK_CONSTRAINT_ERROR = 'P2003';
 
 /** An exercise with its media rows — what the gates return and the mapper takes. */
 export type ExerciseWithMedia = ExerciseModel & { media: ExerciseMediaModel[] };
@@ -27,7 +38,10 @@ export type ExerciseWithMedia = ExerciseModel & { media: ExerciseMediaModel[] };
  */
 @Injectable()
 export class ExercisesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async list(trainerId: string, query: ListExercisesQuery): Promise<ExercisePage> {
     const where: Prisma.ExerciseWhereInput = {
@@ -128,10 +142,44 @@ export class ExercisesService {
   async remove(trainerId: string, exerciseId: string): Promise<void> {
     const exercise = await this.requireOwned(trainerId, exerciseId);
 
-    // Step 10: ProgramExercise will reference exercises with onDelete: Restrict.
-    // This delete must then map the FK violation (P2003) to a 409
-    // «Вправа використовується у програмі» instead of letting it become a 500.
-    await this.prisma.exercise.delete({ where: { id: exercise.id } });
+    // The Step 7 contract, settled in Step 10: ProgramExercise references
+    // exercises with onDelete: Restrict, so deleting a referenced exercise is
+    // refused by the database and answered as a clean 409.
+    await this.prisma.exercise.delete({ where: { id: exercise.id } }).catch((error: unknown) => {
+      if ((error as { code?: unknown }).code === FK_CONSTRAINT_ERROR) {
+        throw new ConflictException(EXERCISE_IN_USE_MESSAGE);
+      }
+      throw error;
+    });
+
+    // Only after the row is gone: retire its media objects, or they orphan in
+    // the bucket as pure storage cost. exercise.media is loaded by requireOwned.
+    for (const media of exercise.media) {
+      await this.storage.delete(media.storageKey);
+    }
+  }
+
+  /**
+   * Batch counterpart of requireVisible, for exercise ids arriving in request
+   * bodies (a cross-tenant reference vector): every id must name a global or
+   * own exercise, else a 400 whose body is identical for foreign and
+   * nonexistent — the categoryId precedent.
+   */
+  async assertAllVisible(trainerId: string, exerciseIds: string[]): Promise<void> {
+    const unique = [...new Set(exerciseIds)];
+
+    if (unique.length === 0) {
+      return;
+    }
+
+    const visible = await this.prisma.exercise.findMany({
+      where: { id: { in: unique }, ...this.visibleTo(trainerId) },
+      select: { id: true },
+    });
+
+    if (visible.length !== unique.length) {
+      throw new BadRequestException(EXERCISE_NOT_FOUND_MESSAGE);
+    }
   }
 
   /** What this trainer may read: the global library plus their own rows. */

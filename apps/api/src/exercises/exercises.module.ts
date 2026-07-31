@@ -21,5 +21,8 @@ import { MuscleGroupsController } from './muscle-groups.controller';
     MuscleGroupsController,
   ],
   providers: [ExercisesService, ExerciseMediaService, CategoriesService],
+  // ProgramsModule validates exercise references through the same visibleTo
+  // gate — exported so no parallel ownership code ever grows there.
+  exports: [ExercisesService],
 })
 export class ExercisesModule {}

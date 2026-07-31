@@ -108,6 +108,7 @@ model Trainer {
   invites     ClientInvite[]
   exercises   Exercise[]
   categories  Category[]
+  programs    Program[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -152,10 +153,9 @@ model Exercise {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  media ExerciseMedia[]
+  media            ExerciseMedia[]
+  programExercises ProgramExercise[]
 
-  // Step 10: ProgramExercise will reference this with onDelete: Restrict, and
-  // the delete endpoint then maps the violation to a 409.
   @@index([trainerId])
 }
 
@@ -277,4 +277,104 @@ model ClientInvite {
   createdAt  DateTime  @default(now())
 
   @@index([clientId])
+}
+
+/// One vocabulary for both levels: Program.type is the headline (and Step 11's
+/// default for new sections); ProgramSection.type is what actually governs
+/// execution, so one session can mix a strength warm-up with an AMRAP finisher.
+enum WorkoutType {
+  STRENGTH
+  RUNNING
+  AMRAP
+  EMOM
+  CIRCUIT
+  CUSTOM
+}
+
+enum LoadUnit {
+  KG
+  PERCENT_1RM
+  RPE
+}
+
+/// A trainer's program template. No client link — Step 12's Assignment will
+/// snapshot a template rather than reference this live tree, which is also why
+/// tree updates may replace rows wholesale: nothing durable ever hangs off
+/// section or line ids.
+model Program {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  type        WorkoutType
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sections ProgramSection[]
+
+  @@index([trainerId])
+}
+
+/// An ordered block of a program. The four structure fields are the entire
+/// type-specific vocabulary; which are required or forbidden per type is
+/// enforced by program-rules.ts, not by the schema — but order uniqueness is.
+model ProgramSection {
+  id String @id @default(cuid())
+
+  programId String
+  program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  name  String?
+  type  WorkoutType
+  order Int
+
+  timeCapSeconds           Int?
+  intervalSeconds          Int?
+  rounds                   Int?
+  restBetweenRoundsSeconds Int?
+
+  exercises ProgramExercise[]
+
+  // The array position of the payload is the only source of order; this backstop
+  // guarantees no duplicates survive a write. Doubles as the ordered-read index.
+  @@unique([programId, order])
+}
+
+/// One prescribed line. Prescription fields are deliberately all optional —
+/// structure is validated, methodology is not legislated: a strength section
+/// legitimately holds a 40-second plank. Load is either a number with a unit or
+/// free text, never both (cross-validated at the boundary).
+model ProgramExercise {
+  id String @id @default(cuid())
+
+  sectionId String
+  section   ProgramSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  // Restrict settles the Step 7 contract: deleting an exercise that a program
+  // still references is refused, and the endpoint maps it to a 409.
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  order Int
+
+  sets Int?
+  reps Int?
+
+  loadValue Decimal?  @db.Decimal(6, 2)
+  loadUnit  LoadUnit?
+  loadText  String?
+
+  restSeconds Int?
+  tempo       String?
+  notes       String?
+
+  durationSeconds Int?
+  distanceMeters  Int?
+
+  @@unique([sectionId, order])
+  @@index([exerciseId])
 }

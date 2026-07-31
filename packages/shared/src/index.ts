@@ -34,5 +34,22 @@ export {
   type UpdateExerciseRequest,
 } from './exercise';
 export type { AcceptInviteRequest, InvitePreview } from './invite';
+export {
+  LOAD_UNIT_LABELS,
+  LOAD_UNITS,
+  WORKOUT_TYPE_LABELS,
+  WORKOUT_TYPES,
+  type CreateProgramRequest,
+  type LoadUnit,
+  type ProgramExerciseInput,
+  type ProgramPage,
+  type ProgramSectionInput,
+  type PublicProgram,
+  type PublicProgramDetail,
+  type PublicProgramExercise,
+  type PublicProgramSection,
+  type UpdateProgramRequest,
+  type WorkoutType,
+} from './program';
 export type { PublicTrainer } from './trainer';
 export type { PublicUser } from './user';

@@ -3,9 +3,9 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 9: the exercise library UI** — the trainer's first real
-working screen: browse, filter and search the library, create and edit custom exercises, upload and
-play media. The program builder is next.
+This repository is currently at **Step 10: the program builder model and API** — programs as
+structured, ordered trees of typed sections and prescribed exercises, full CRUD. The builder UI is
+next.
 
 ## Requirements
 
@@ -199,6 +199,36 @@ Details that matter:
   `onDelete: Restrict`, and the delete endpoint then maps the violation to a 409.
 - The seed provides five global categories and six common exercises; the full Ukrainian base
   library is a separate Phase 1 content task.
+
+## Programs
+
+A program is a trainer-owned template: an ordered tree of typed sections, each an ordered list of
+prescribed exercise lines. One `WorkoutType` vocabulary serves both levels — the program's type is
+the headline and the UI default, each section's type governs execution, so one session can mix a
+strength warm-up with an AMRAP finisher.
+
+- **Type-specific structure is four fields, not a forest**: `timeCapSeconds` (AMRAP, required
+  there), `intervalSeconds` + `rounds` (EMOM), `rounds` (CIRCUIT; optional elsewhere — 8×400 м is
+  rounds of a running section), `restBetweenRoundsSeconds` (only alongside rounds). The whole
+  required/forbidden table lives in [program-rules.ts](apps/api/src/programs/program-rules.ts).
+- **Prescriptions are validated as structure, not legislated as methodology**: every field
+  (`sets/reps`, `durationSeconds/distanceMeters`, `restSeconds/tempo/notes`) is optional, because a
+  strength section legitimately holds a timed plank. The one coherence rule: load is either
+  `loadValue + loadUnit` (кг | %1ПМ | RPE, `Decimal(6,2)`) **or** `loadText` («до відмови») — never
+  both, so Phase 2 progression math gets numbers while coaching intent stays honest text.
+- **The array is the order.** Requests carry no `order` or `id` fields; the server writes array
+  indexes, backed by `@@unique([programId, order])` / `@@unique([sectionId, order])`. Saving a tree
+  replaces it wholesale in one transaction — section/line ids churn on save _by design_, because
+  nothing durable may reference the live tree: Step 12 assignments and Step 14 logs snapshot
+  prescriptions, since editing a template must never rewrite an assigned program or a logged
+  workout.
+- Every `exerciseId` in a payload passes the same `visibleTo` gate as everything else (via
+  `ExercisesService.assertAllVisible`) — a foreign custom exercise 400s identically to a
+  nonexistent one.
+- **The Step 7 delete contract is settled**: `ProgramExercise.exerciseId` is `onDelete: Restrict`,
+  and deleting a referenced exercise answers 409 «Вправа використовується у програмі»; unreferenced
+  customs still delete (and now also retire their media objects from storage). Deleting a program
+  cascades its tree and never touches Exercise rows.
 
 ## Exercise library UI
 
