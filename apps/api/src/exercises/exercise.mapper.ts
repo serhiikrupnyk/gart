@@ -7,7 +7,7 @@ import type { ExerciseWithMedia } from './exercises.service';
  * A media row as the UI sees it: metadata only. The storage key stays behind —
  * play URLs are minted per request by the media-url endpoint.
  */
-function toMediaInfo(media: ExerciseMediaModel): ExerciseMediaInfo {
+export function toMediaInfo(media: ExerciseMediaModel): ExerciseMediaInfo {
   return {
     kind: media.kind,
     contentType: media.contentType,

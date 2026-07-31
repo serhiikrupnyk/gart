@@ -18,6 +18,14 @@ export type {
   TrainerBrand,
 } from './auth';
 export type {
+  ClientAssignment,
+  ClientExerciseInfo,
+  ClientWorkout,
+  ClientWorkoutDay,
+  ClientWorkoutExercise,
+  ClientWorkoutSection,
+} from './client-workout';
+export type {
   ClientStatus,
   ClientWithInvite,
   CreateClientRequest,

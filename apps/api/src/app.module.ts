@@ -10,6 +10,7 @@ import { DatabaseModule } from './database/database.module';
 import { ExercisesModule } from './exercises/exercises.module';
 import { HealthController } from './health/health.controller';
 import { InvitesModule } from './invites/invites.module';
+import { MeModule } from './me/me.module';
 import { ProgramsModule } from './programs/programs.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { ProgramsModule } from './programs/programs.module';
     ExercisesModule,
     ProgramsModule,
     AssignmentsModule,
+    MeModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

@@ -3,9 +3,9 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 12: snapshot-based assignment** — a trainer assigns a
-program to a client with a weekly schedule, as an independent copy of the template. The
-client-facing workout view is next.
+This repository is currently at **Step 13: client workout view** — a client signs in and sees
+today's assigned workout(s) with prescriptions, technique notes and media, under their trainer's
+brand. Workout logging is next.
 
 ## Requirements
 
@@ -257,6 +257,37 @@ nonexistent (identical 404) — the house rule for body vs path references.
 The UI lives on the **client detail page** («Програми клієнта»): assignment cards with schedule and
 status, a row menu (Завершити / Архівувати / Активувати / Видалити), and the assign dialog —
 template select, dates, weekday chips — which states the snapshot semantics in one quiet line.
+
+## Client workout view («Сьогодні»)
+
+The client's own reads live under `/me`, behind `ClientGuard` — the tenant scope IS the session
+(`clientAuth.trainer.id` + `clientAuth.client.id` pin every query), so there are no ids in the
+path prefix and nothing to enumerate. A foreign assignment ≡ nonexistent (identical bare 404); an
+archived client is cut at the guard with the uniform 401.
+
+```
+GET /me/workouts?date=YYYY-MM-DD    the day's workouts, full trees
+GET /me/assignments                 ACTIVE plan summaries, newest first
+GET /me/assignments/:id             one plan's tree
+```
+
+- **The device owns «сьогодні».** The server never consults its own clock: the client app sends
+  its local calendar date and the API answers `status = ACTIVE ∧ startDate ≤ day ≤ (endDate ?? ∞)
+∧ isoWeekday(day) ∈ daysOfWeek`. Schedules mean the client's day, wherever they wake up. The
+  date param is validated against the real calendar — V8 would quietly roll `2026-02-31` into
+  March, so the parse round-trips before it queries.
+- **Frozen numbers, live library.** The wire shape pairs each snapshot prescription line (durable
+  id — the future log anchor) with the exercise's current name, instructions and media metadata.
+  A typo fix or a better clip reaches the client at once; the prescribed numbers cannot drift.
+  Client shapes carry no provenance (`sourceProgramId`) and no storage keys.
+- **Media plays through the existing `GET /exercises/:id/media-url`** — same guard, same
+  trainer-library scope, same short-lived URLs; there is no parallel client media path.
+
+The home screen is phone-first: «Сьогодні» with a tappable week strip (dots on scheduled days,
+today ringed — tapping re-queries that date), workout cards with the prescription as the big line
+(«5×5 · 82,5 кг · відпочинок 90 с»), technique notes and media behind a tap (nothing streams
+uninvited), a calm rest-day state that names the next session, and «Мій план» with the active
+programs. No logging controls yet — that is Step 14's contract.
 
 ## Program builder UI
 

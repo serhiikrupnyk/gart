@@ -75,17 +75,21 @@ describe('ClientShell', () => {
     expect(screen.queryByRole('link', { name: /gart/ })).not.toBeInTheDocument();
   });
 
-  it('marks the coming sections as such, with no dead controls', async () => {
+  it('links «Тренування» and marks the coming sections, with no dead controls', async () => {
     apiFetch.mockResolvedValue(session());
     renderShell();
 
     await screen.findByText('вміст клієнта');
 
-    for (const label of ['Тренування', 'Прогрес', 'Харчування']) {
+    const workouts = screen.getByRole('link', { name: 'Тренування' });
+    expect(workouts).toHaveAttribute('href', '/client');
+    expect(workouts).toHaveAttribute('aria-current', 'page');
+
+    for (const label of ['Прогрес', 'Харчування']) {
       expect(screen.getByText(label)).toBeInTheDocument();
       expect(screen.queryByRole('link', { name: label })).not.toBeInTheDocument();
     }
-    expect(screen.getAllByText('скоро')).toHaveLength(3);
+    expect(screen.getAllByText('скоро')).toHaveLength(2);
   });
 
   it('sends a visitor with no session of any kind to the client login', async () => {

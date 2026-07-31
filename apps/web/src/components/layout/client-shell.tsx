@@ -1,16 +1,20 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { ClientSession } from '@gart/shared';
 
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { Avatar, DropdownItem, DropdownMenu, Spinner } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
+import { cx } from '@/lib/cx';
 import { Wordmark } from './wordmark';
 
-/** The client-app sections Phase 1 will fill; visible now so the frame is honest. */
-const UPCOMING_SECTIONS = ['Тренування', 'Прогрес', 'Харчування'];
+const NAV_ITEMS = [{ label: 'Тренування', href: '/client' }];
+
+/** The client-app sections later phases will fill; visible so the frame is honest. */
+const UPCOMING_SECTIONS = ['Прогрес', 'Харчування'];
 
 /**
  * The client's app shell: the trainer's brand up top, the client's own identity
@@ -24,6 +28,7 @@ const UPCOMING_SECTIONS = ['Тренування', 'Прогрес', 'Харчу
  */
 export function ClientShell({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [session, setSession] = useState<ClientSession | undefined>();
 
   useEffect(() => {
@@ -105,6 +110,26 @@ export function ClientShell({ children }: { children: ReactNode }) {
         <aside className="hidden w-48 shrink-0 py-6 sm:block">
           <nav aria-label="Основна навігація">
             <ul className="space-y-0.5">
+              {NAV_ITEMS.map(({ label, href }) => {
+                const active = pathname === href;
+
+                return (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      aria-current={active ? 'page' : undefined}
+                      className={cx(
+                        'block rounded-control px-3 py-2 text-sm font-medium transition-colors',
+                        active
+                          ? 'bg-accent-subtle text-accent'
+                          : 'text-text-secondary hover:bg-bg-subtle hover:text-text',
+                      )}
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
               {UPCOMING_SECTIONS.map((label) => (
                 <li key={label}>
                   {/* Plain text, not a control: keyboard users must never land
