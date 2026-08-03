@@ -95,8 +95,19 @@ export class ClientsService {
     }));
   }
 
-  async findOne(trainerId: string, clientId: string): Promise<PublicClient> {
-    return toPublicClient(await this.requireOwned(trainerId, clientId));
+  /** The detail view carries the same pulse as the list, from the same source. */
+  async findOne(trainerId: string, clientId: string): Promise<ClientListItem> {
+    const client = await this.requireOwned(trainerId, clientId);
+    const activity =
+      client.status === 'ACTIVE'
+        ? (await this.activity.forClients(trainerId, [client.id])).get(client.id)
+        : undefined;
+
+    return {
+      ...toPublicClient(client),
+      lastLoggedAt: activity?.lastLoggedAt ?? null,
+      attention: activity?.attention ?? null,
+    };
   }
 
   async update(trainerId: string, clientId: string, dto: UpdateClientDto): Promise<PublicClient> {

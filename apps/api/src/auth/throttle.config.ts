@@ -3,6 +3,8 @@ import type { ThrottlerModuleOptions } from '@nestjs/throttler';
 const DEFAULT_GLOBAL_LIMIT = 120;
 const DEFAULT_AUTH_LIMIT = 10;
 const DEFAULT_WINDOW_MS = 60_000;
+const DEFAULT_MESSAGE_LIMIT = 20;
+const DEFAULT_MESSAGE_WINDOW_MS = 60 * 60_000;
 
 function numberFromEnv(name: string, fallback: number): number {
   const parsed = Number(process.env[name]);
@@ -35,5 +37,17 @@ export function authThrottle(): Record<string, { limit: () => number; ttl: () =>
       ttl: () => numberFromEnv('AUTH_THROTTLE_TTL_MS', DEFAULT_WINDOW_MS),
       limit: () => numberFromEnv('AUTH_THROTTLE_LIMIT', DEFAULT_AUTH_LIMIT),
     },
+  };
+}
+
+/**
+ * A budget for messages a trainer sends their clients. Generous enough for a
+ * working day, tight enough that the channel cannot become a firehose —
+ * counted per trainer by TrainerThrottlerGuard, not per address.
+ */
+export function messageThrottle(): { limit: () => number; ttl: () => number } {
+  return {
+    ttl: () => numberFromEnv('MESSAGE_THROTTLE_TTL_MS', DEFAULT_MESSAGE_WINDOW_MS),
+    limit: () => numberFromEnv('MESSAGE_THROTTLE_LIMIT', DEFAULT_MESSAGE_LIMIT),
   };
 }

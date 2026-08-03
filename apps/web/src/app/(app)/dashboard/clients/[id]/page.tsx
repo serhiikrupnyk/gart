@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { PublicClient } from '@gart/shared';
+import { INACTIVITY_DAYS, type ClientListItem } from '@gart/shared';
 
 import { ClientActivity } from '@/components/clients/client-activity';
 import { ClientHabits } from '@/components/habits/client-habits';
 import { ClientProgressPanel } from '@/components/progress/client-progress';
 import { ClientAssignments } from '@/components/clients/client-assignments';
 import { ClientStatusBadge } from '@/components/clients/client-status-badge';
+import { MessageClient } from '@/components/clients/message-client';
 import { InviteLink } from '@/components/clients/invite-link';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button, Card, EmptyState, Spinner, useToast } from '@/components/ui';
@@ -22,7 +23,9 @@ export default function ClientDetailPage() {
   const clientId = params.id;
   const { notify } = useToast();
 
-  const [client, setClient] = useState<PublicClient | undefined>();
+  const [client, setClient] = useState<ClientListItem | undefined>();
+  // Read once, not on every render: the clock is not React state.
+  const [now] = useState(() => Date.now());
   const [inviteUrl, setInviteUrl] = useState<string | undefined>();
   const [notFound, setNotFound] = useState(false);
   const [pending, setPending] = useState(false);
@@ -96,6 +99,8 @@ export default function ClientDetailPage() {
         <PageHeader title={client.fullName} description={client.email} />
       </div>
 
+      <InactivityBanner client={client} now={now} />
+
       <Card>
         <div className="flex items-center justify-between gap-4">
           <span className="text-sm text-text-secondary">Статус</span>
@@ -135,7 +140,11 @@ export default function ClientDetailPage() {
                   // account returns to ACTIVE. The API rejects ACTIVE without a
                   // linked user, so the choice has to match reality.
                   const next = client.hasAccount ? 'ACTIVE' : 'INVITED';
-                  setClient(await updateClient(client.id, { status: next }));
+                  const updated = await updateClient(client.id, { status: next });
+
+                  setClient((current) =>
+                    current === undefined ? undefined : { ...current, ...updated },
+                  );
                   notify('Клієнта відновлено', 'success');
                 })
               }
@@ -148,7 +157,11 @@ export default function ClientDetailPage() {
               disabled={pending}
               onClick={() =>
                 void run(async () => {
-                  setClient(await updateClient(client.id, { status: 'ARCHIVED' }));
+                  const updated = await updateClient(client.id, { status: 'ARCHIVED' });
+
+                  setClient((current) =>
+                    current === undefined ? undefined : { ...current, ...updated },
+                  );
                   setInviteUrl(undefined);
                   notify('Клієнта архівовано', 'success');
                 })
@@ -168,5 +181,36 @@ export default function ClientDetailPage() {
 
       <ClientHabits clientId={client.id} />
     </>
+  );
+}
+
+/**
+ * The prompt an inactivity alert exists to create. It reports exactly what it
+ * measures — days since the last recorded workout — and offers the one action
+ * worth taking, rather than merely stating a problem.
+ */
+function InactivityBanner({ client, now }: { client: ClientListItem; now: number }) {
+  if (client.status !== 'ACTIVE') {
+    return null;
+  }
+
+  const days =
+    client.lastLoggedAt === null
+      ? null
+      : Math.floor((now - new Date(client.lastLoggedAt).getTime()) / 86_400_000);
+
+  if (days !== null && days <= INACTIVITY_DAYS) {
+    return null;
+  }
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-warning/30 bg-warning/10 px-4 py-3">
+      <p className="text-sm text-text">
+        {days === null
+          ? 'Записів тренувань ще немає.'
+          : `Немає записів тренувань уже ${String(days)} днів.`}
+      </p>
+      <MessageClient clientId={client.id} clientName={client.fullName} />
+    </div>
   );
 }

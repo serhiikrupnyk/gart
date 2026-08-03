@@ -2,10 +2,14 @@ import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@ne
 import { Queue, Worker } from 'bullmq';
 import IORedis, { type Redis } from 'ioredis';
 
+import { InactivityService } from './inactivity.service';
 import { NotificationQueue, type PushJob } from './notification-queue';
 import { PushDeliveryService } from './push-delivery.service';
 
 const QUEUE_NAME = 'notifications:push';
+const PUSH_JOB = 'push';
+const SWEEP_JOB = 'inactivity-sweep';
+const DEFAULT_SWEEP_CRON = '0 9 * * *';
 
 /**
  * The only file in the codebase that knows Redis exists.
@@ -31,7 +35,10 @@ export class BullMqNotificationQueue
   private readonly queue: Queue<PushJob>;
   private worker?: Worker<PushJob>;
 
-  constructor(private readonly delivery: PushDeliveryService) {
+  constructor(
+    private readonly delivery: PushDeliveryService,
+    private readonly inactivity: InactivityService,
+  ) {
     super();
 
     this.connection = createConnection();
@@ -56,10 +63,30 @@ export class BullMqNotificationQueue
     this.worker = new Worker<PushJob>(
       QUEUE_NAME,
       async (job) => {
+        if (job.name === SWEEP_JOB) {
+          await this.inactivity.sweep();
+
+          return;
+        }
+
         await this.delivery.deliver(job.data);
       },
       { connection: createConnection() },
     );
+
+    // The repeatable job that justified BullMQ in Step 18. Upserting is
+    // idempotent, so a restart re-declares rather than duplicates it — and if
+    // Redis is unreachable the scheduler simply is not installed, which costs
+    // alerts until it returns and nothing else.
+    void this.queue
+      .upsertJobScheduler(
+        SWEEP_JOB,
+        { pattern: process.env.INACTIVITY_SWEEP_CRON ?? DEFAULT_SWEEP_CRON },
+        { name: SWEEP_JOB },
+      )
+      .catch((error: Error) => {
+        this.logger.warn(`Inactivity sweep not scheduled: ${error.message}`);
+      });
 
     this.worker.on('error', (error: Error) => {
       this.logger.warn(`Push worker error: ${error.message}`);
@@ -76,7 +103,7 @@ export class BullMqNotificationQueue
   }
 
   async enqueuePush(job: PushJob): Promise<void> {
-    await this.queue.add('push', job);
+    await this.queue.add(PUSH_JOB, job);
   }
 
   async isReady(): Promise<boolean> {

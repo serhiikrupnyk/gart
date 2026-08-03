@@ -736,6 +736,8 @@ enum NotificationType {
   PROGRESS_LOGGED
   HABIT_STREAK
   ASSIGNMENT_CREATED
+  CLIENT_INACTIVE
+  TRAINER_MESSAGE
 }
 
 /// One thing that happened and somebody may care about.

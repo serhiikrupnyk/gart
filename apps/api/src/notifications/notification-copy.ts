@@ -15,6 +15,8 @@ export const TRAINER_EVENT_TEXT: Record<NotificationType, string> = {
   PROGRESS_LOGGED: 'Новий замір',
   HABIT_STREAK: 'Серія звички',
   ASSIGNMENT_CREATED: 'Нова програма',
+  CLIENT_INACTIVE: 'Немає активності',
+  TRAINER_MESSAGE: 'Повідомлення',
 };
 
 export function trainerBody(type: NotificationType, detail: string | null): string {

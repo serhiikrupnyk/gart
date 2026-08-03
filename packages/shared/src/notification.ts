@@ -4,6 +4,8 @@ export const NOTIFICATION_TYPES = [
   'PROGRESS_LOGGED',
   'HABIT_STREAK',
   'ASSIGNMENT_CREATED',
+  'CLIENT_INACTIVE',
+  'TRAINER_MESSAGE',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -48,3 +50,16 @@ export interface PushPublicKeyResponse {
 
 /** Habit streaks worth a congratulation, rather than every daily tick. */
 export const HABIT_STREAK_MILESTONES = [7, 30, 100];
+
+/**
+ * Silence for MORE than this many days, with something to have been doing,
+ * is what the daily sweep reports. Recording exactly seven days ago is not a
+ * lapse; the eighth day is.
+ */
+export const INACTIVITY_DAYS = 7;
+
+export const MESSAGE_MAX_LENGTH = 500;
+
+export interface SendMessageRequest {
+  text: string;
+}

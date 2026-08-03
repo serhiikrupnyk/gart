@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 
 import { AuthModule } from '../auth/auth.module';
+import { ClientsModule } from '../clients/clients.module';
 import { DatabaseModule } from '../database/database.module';
 import { BullMqNotificationQueue } from './bullmq-notification-queue';
+import { InactivityService } from './inactivity.service';
+import { MessagesController } from './messages.controller';
 import { NotificationQueue } from './notification-queue';
 import { NotificationService } from './notification.service';
 import { NotificationsController } from './notifications.controller';
@@ -20,15 +23,16 @@ import { WebPushSenderImpl } from './web-push.sender';
  * through it and stays ignorant of queues and VAPID.
  */
 @Module({
-  imports: [DatabaseModule, AuthModule],
-  controllers: [NotificationsController],
+  imports: [DatabaseModule, AuthModule, ClientsModule],
+  controllers: [NotificationsController, MessagesController],
   providers: [
     NotificationService,
     PushSubscriptionsService,
     PushDeliveryService,
+    InactivityService,
     { provide: WebPushSender, useClass: WebPushSenderImpl },
     { provide: NotificationQueue, useClass: BullMqNotificationQueue },
   ],
-  exports: [NotificationService, NotificationQueue],
+  exports: [NotificationService, NotificationQueue, InactivityService],
 })
 export class NotificationsModule {}

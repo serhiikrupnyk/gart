@@ -15,8 +15,8 @@ export function listClients(status?: ClientStatus): Promise<ClientListItem[]> {
   return apiFetch<ClientListItem[]>(`/clients${query}`);
 }
 
-export function getClient(id: string): Promise<PublicClient> {
-  return apiFetch<PublicClient>(`/clients/${id}`);
+export function getClient(id: string): Promise<ClientListItem> {
+  return apiFetch<ClientListItem>(`/clients/${id}`);
 }
 
 export function createClient(body: CreateClientRequest): Promise<ClientWithInvite> {

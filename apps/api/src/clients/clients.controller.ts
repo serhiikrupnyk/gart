@@ -35,7 +35,10 @@ export class ClientsController {
   }
 
   @Get(':id')
-  async findOne(@CurrentAuth() auth: AuthContext, @Param('id') id: string): Promise<PublicClient> {
+  async findOne(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id') id: string,
+  ): Promise<ClientListItem> {
     return this.clients.findOne(auth.trainer.id, id);
   }
 

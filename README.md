@@ -537,6 +537,60 @@ blocked permanently. A quiet card in the bell panel explains why, and only its b
 [the service worker](apps/web/public/sw.js), asks permission and subscribes. Denial shows one calm
 line and is never asked again; a browser that cannot do push renders no control at all.
 
+## Inactivity alerts and messages
+
+The first triggers on Step 18's delivery mechanism. Both are call sites of `notifyTrainer` /
+`notifyClient` and nothing more — there is no second notification path.
+
+### When a client goes quiet
+
+**Inactive = recorded nothing for more than 7 days, with something to have been doing.** No workout
+log, no habit log, no measurement — and, crucially, at least one scheduled session (via Step 15's
+`occurrenceDates`, so COMPLETED plans still count and ARCHIVED ones stop) or at least one habit.
+That second clause is what keeps the alert worth reading: a client invited last week with no
+programme and no habits is a fact about the trainer's backlog, not about the client.
+
+Every date compared is a `@db.Date` holding the **client's own calendar day**, which is what Steps
+13–17 stored — so date-to-date comparison is honest whatever hour the server keeps. The threshold
+is strict: recording exactly seven days ago is not a lapse, the eighth day is.
+
+**One alert per episode, derived rather than stored.** The sweep alerts only when there is no
+`CLIENT_INACTIVE` notification newer than the client's last recorded day (or their creation date,
+if they have never recorded anything). No `alertedAt` column to drift when a log is corrected —
+the same instinct as derived streaks in Step 17 — and the lifecycle falls out for free: silent on
+days 9, 10, 11; alerts again only after the client returns and lapses once more.
+
+The sweep is a BullMQ **repeatable job** (`INACTIVITY_SWEEP_CRON`, 09:00 daily) — the delayed-jobs
+capability that justified BullMQ in Step 18. `upsertJobScheduler` is idempotent, so restarts
+re-declare rather than duplicate it, and if Redis is unreachable the scheduler simply is not
+installed: alerts resume when it returns and nothing else notices. The rule itself lives in a plain
+`InactivityService.sweep()` the worker merely calls, so **it is tested without Redis**.
+
+### Messaging a client
+
+```
+POST /clients/:id/messages   { text }
+```
+
+Behind `TrainerGuard` and `requireOwned`, so another trainer's client answers with the same bare
+404 as one that does not exist. Plain text, trimmed, 1–500 characters — it reaches two renderers
+and neither interprets markup: React escapes it in the panel, and the service worker hands it to
+`showNotification` as a string.
+
+**Rate limited per trainer, not per address.** The stock guard tracks by IP, which would throttle a
+gym's whole office together and give one trainer with two devices two budgets — and it cannot be
+fixed by overriding the tracker, because the global throttler runs _before_ route guards, when no
+tenant is attached yet. So [TrainerThrottlerGuard](apps/api/src/auth/trainer-throttler.guard.ts)
+counts explicitly against the same storage with the key it actually wants (20/hour by default), and
+the global per-address limit stays underneath as a coarse backstop.
+
+Broadcasting to every client is deliberately **not** here: audience selection, per-client wording
+and a delivery report make that a feature of its own rather than a variation on this one.
+
+On the client page, an inactivity banner states exactly what it measures — days since the last
+recorded workout — and carries «Написати клієнту» beside it, so the alert produces an action rather
+than just a worry.
+
 ## Program builder UI
 
 «Тренування» now lands on `/dashboard/programs` (the library moved behind a sub-tab row —

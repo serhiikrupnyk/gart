@@ -99,6 +99,8 @@ export type {
 } from './habit';
 export {
   HABIT_STREAK_MILESTONES,
+  INACTIVITY_DAYS,
+  MESSAGE_MAX_LENGTH,
   NOTIFICATION_TYPES,
   NOTIFICATIONS_PER_PAGE,
 } from './notification';
@@ -108,6 +110,7 @@ export type {
   PublicNotification,
   PushPublicKeyResponse,
   PushSubscriptionRequest,
+  SendMessageRequest,
   UnsubscribePushRequest,
 } from './notification';
 export type {
