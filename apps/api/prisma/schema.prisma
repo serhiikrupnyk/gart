@@ -110,6 +110,7 @@ model Trainer {
   categories  Category[]
   programs    Program[]
   assignments Assignment[]
+  workoutLogs WorkoutLog[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -254,6 +255,7 @@ model Client {
   invites     ClientInvite[]
   sessions    Session[]
   assignments Assignment[]
+  workoutLogs WorkoutLog[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.
@@ -481,6 +483,68 @@ model AssignmentExercise {
   durationSeconds Int?
   distanceMeters  Int?
 
+  logs WorkoutLog[]
+
   @@unique([sectionId, order])
   @@index([exerciseId])
+}
+
+/// What the client actually did, for one snapshot exercise on one date.
+///
+/// The prescription is frozen and this table never touches it: logging only
+/// ever READS `AssignmentExercise` (to gate ownership and prefill defaults), so
+/// planned and actual can never contaminate each other.
+///
+/// `@@unique([assignmentExerciseId, date])` puts the upsert invariant in the
+/// database: editing today's record updates it, and no retried request can
+/// double-count volume in Phase 2's charts. `trainerId`/`clientId` are
+/// denormalised from the parent assignment, where both are immutable (PATCH
+/// whitelists schedule and status), so they cannot drift — and Step 15's
+/// trainer queries get an index instead of a three-table join.
+model WorkoutLog {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  assignmentExerciseId String
+  assignmentExercise   AssignmentExercise @relation(fields: [assignmentExerciseId], references: [id], onDelete: Cascade)
+
+  date DateTime @db.Date
+
+  /// false is a deliberate record — «I skipped this», with the reason in notes.
+  completed Boolean
+  notes     String?
+
+  sets WorkoutSetLog[]
+
+  loggedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assignmentExerciseId, date])
+  @@index([clientId, date])
+  @@index([trainerId, date])
+}
+
+/// One actual set. Load is always kilograms: %1ПМ and RPE are prescription
+/// languages for choosing a weight, while this records the weight actually
+/// moved — one unit keeps Phase 2's volume math correct without unit-aware
+/// aggregation, and keeps the load XOR rule out of the actuals entirely.
+model WorkoutSetLog {
+  id String @id @default(cuid())
+
+  logId String
+  log   WorkoutLog @relation(fields: [logId], references: [id], onDelete: Cascade)
+
+  order Int
+
+  reps            Int?
+  loadKg          Decimal? @db.Decimal(6, 2)
+  durationSeconds Int?
+  distanceMeters  Int?
+
+  @@unique([logId, order])
 }

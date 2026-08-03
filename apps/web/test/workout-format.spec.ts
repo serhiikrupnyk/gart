@@ -1,6 +1,12 @@
-import type { ClientAssignment, ClientWorkoutExercise, ClientWorkoutSection } from '@gart/shared';
+import type {
+  ClientAssignment,
+  ClientWorkoutExercise,
+  ClientWorkoutSection,
+  ClientWorkoutSetLog,
+} from '@gart/shared';
 
 import {
+  actualLine,
   formatSeconds,
   formatShortDate,
   pluralUk,
@@ -19,6 +25,7 @@ function line(overrides: Partial<ClientWorkoutExercise> = {}): ClientWorkoutExer
       textInstructions: null,
       media: [],
     },
+    log: null,
     sets: null,
     reps: null,
     loadValue: null,
@@ -117,6 +124,41 @@ describe('sectionConfigLine', () => {
 
   it('is null for a plain section', () => {
     expect(sectionConfigLine(section())).toBeNull();
+  });
+});
+
+describe('actualLine', () => {
+  function set(overrides: Partial<ClientWorkoutSetLog> = {}): ClientWorkoutSetLog {
+    return { reps: null, loadKg: null, durationSeconds: null, distanceMeters: null, ...overrides };
+  }
+
+  it('collapses identical sets', () => {
+    expect(actualLine(Array.from({ length: 5 }, () => set({ reps: 5, loadKg: 82.5 })))).toBe(
+      '5×5 · 82,5 кг',
+    );
+  });
+
+  it('keeps a set that differed visible instead of averaging it away', () => {
+    expect(
+      actualLine([
+        set({ reps: 5, loadKg: 82.5 }),
+        set({ reps: 5, loadKg: 82.5 }),
+        set({ reps: 3, loadKg: 82.5 }),
+      ]),
+    ).toBe('5 · 82,5 кг · 5 · 82,5 кг · 3 · 82,5 кг');
+  });
+
+  it('reads a single set plainly and counts repeated duration sets', () => {
+    expect(actualLine([set({ reps: 8, loadKg: 60 })])).toBe('8 · 60 кг');
+    expect(actualLine([set({ durationSeconds: 45 })])).toBe('45 с');
+    expect(actualLine([set({ durationSeconds: 45 }), set({ durationSeconds: 45 })])).toBe(
+      '2× 45 с',
+    );
+    expect(actualLine([set({ distanceMeters: 400 })])).toBe('400 м');
+  });
+
+  it('is empty when nothing numeric was recorded', () => {
+    expect(actualLine([])).toBe('');
   });
 });
 

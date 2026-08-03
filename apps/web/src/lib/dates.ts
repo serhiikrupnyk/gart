@@ -1,4 +1,4 @@
-import type { ClientAssignment, DayOfWeek } from '@gart/shared';
+import { LOG_WINDOW_DAYS, type ClientAssignment, type DayOfWeek } from '@gart/shared';
 
 /**
  * Local calendar math for the client app. «Сьогодні» is the DEVICE's calendar
@@ -74,6 +74,22 @@ export function isScheduledOn(assignment: ClientAssignment, date: Date): boolean
   }
 
   return assignment.daysOfWeek.includes(isoWeekdayOf(date));
+}
+
+/**
+ * Whether a day may still be recorded, mirroring the API's window so the UI
+ * hides controls the server would refuse. Both dates are local calendar days.
+ */
+export function isWithinLogWindow(date: Date, today: Date): boolean {
+  const offset = Math.round(
+    (startOfDay(date).getTime() - startOfDay(today).getTime()) / 86_400_000,
+  );
+
+  return offset <= 0 && offset >= -LOG_WINDOW_DAYS;
+}
+
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 /** Far enough to bridge any weekly schedule's longest gap. */

@@ -1,17 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { ClientAssignment, ClientWorkoutDay } from '@gart/shared';
+import { LOG_WINDOW_DAYS, type ClientAssignment, type ClientWorkoutDay } from '@gart/shared';
 
 import { PlanList } from '@/components/client/plan-list';
 import { WeekStrip } from '@/components/client/week-strip';
-import { WorkoutCard } from '@/components/client/workout-card';
+import { WorkoutCard, type WorkoutLogMap } from '@/components/client/workout-card';
 import { EmptyState, Spinner, useToast } from '@/components/ui';
 import { getMyWorkouts, listMyAssignments } from '@/lib/client-workouts';
 import {
   formatDay,
   formatDayTitle,
   isScheduledOn,
+  isWithinLogWindow,
   localDateString,
   nextScheduledDate,
   parseLocalDate,
@@ -29,6 +30,7 @@ export default function ClientHomePage() {
   const [today] = useState(() => localDateString(new Date()));
   const [selected, setSelected] = useState(today);
   const [day, setDay] = useState<ClientWorkoutDay | undefined>();
+  const [logs, setLogs] = useState<WorkoutLogMap>({});
   const [plans, setPlans] = useState<ClientAssignment[] | undefined>();
 
   useEffect(() => {
@@ -36,7 +38,18 @@ export default function ClientHomePage() {
 
     getMyWorkouts(selected)
       .then((loaded) => {
-        if (active) setDay(loaded);
+        if (!active) return;
+
+        setDay(loaded);
+        // The API is the source of truth: every fetch reseeds the records.
+        setLogs(
+          Object.fromEntries(
+            loaded.workouts
+              .flatMap((workout) => workout.sections)
+              .flatMap((section) => section.exercises)
+              .map((line) => [line.id, line.log]),
+          ),
+        );
       })
       .catch(() => {
         notify('Не вдалося завантажити тренування', 'danger');
@@ -95,6 +108,7 @@ export default function ClientHomePage() {
   );
   const isToday = selected === today;
   const next = nextScheduledDate(plans, selectedDate);
+  const canLog = isWithinLogWindow(selectedDate, parseLocalDate(today));
 
   return (
     <>
@@ -124,7 +138,25 @@ export default function ClientHomePage() {
             }
           />
         ) : (
-          day.workouts.map((workout) => <WorkoutCard key={workout.id} workout={workout} />)
+          <>
+            {!canLog && (
+              <p className="rounded-card border border-dashed border-border-strong bg-surface px-4 py-3 text-sm text-text-secondary">
+                {`Записати тренування можна в день заняття або протягом ${String(LOG_WINDOW_DAYS)} днів після нього.`}
+              </p>
+            )}
+            {day.workouts.map((workout) => (
+              <WorkoutCard
+                key={workout.id}
+                workout={workout}
+                date={selected}
+                canLog={canLog}
+                logs={logs}
+                onLogged={(lineId, log) => {
+                  setLogs((current) => ({ ...current, [lineId]: log }));
+                }}
+              />
+            ))}
+          </>
         )}
       </div>
 

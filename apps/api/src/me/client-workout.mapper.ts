@@ -1,6 +1,7 @@
 import type {
   ClientAssignment,
   ClientWorkout,
+  ClientWorkoutLog,
   ClientWorkoutSection,
   DayOfWeek,
 } from '@gart/shared';
@@ -12,12 +13,20 @@ import type {
   AssignmentSectionModel,
   ExerciseMediaModel,
   ExerciseModel,
+  WorkoutLogModel,
+  WorkoutSetLogModel,
 } from '../generated/prisma/models.js';
 
+export type WorkoutLogWithSets = WorkoutLogModel & { sets: WorkoutSetLogModel[] };
+
 /**
- * The client tree joins the frozen snapshot rows with the LIVE exercise —
- * name, instructions and media come from the library so a fixed typo or a
- * fresh video reaches the client at once; every number stays snapshot-frozen.
+ * The client tree joins three things: the frozen snapshot prescription, the
+ * LIVE exercise (name, instructions and media come from the library so a fixed
+ * typo or a fresh video reaches the client at once), and — when a date is being
+ * read — that day's record of what actually happened.
+ *
+ * `logs` is absent when reading a plan rather than a day: a log without a date
+ * has no meaning, and its absence maps to the same `null` as «not yet logged».
  */
 export type ClientAssignmentTree = AssignmentModel & {
   sections: (AssignmentSectionModel & {
@@ -25,9 +34,25 @@ export type ClientAssignmentTree = AssignmentModel & {
       exercise: Pick<ExerciseModel, 'id' | 'name' | 'primaryMuscleGroup' | 'textInstructions'> & {
         media: ExerciseMediaModel[];
       };
+      logs?: WorkoutLogWithSets[];
     })[];
   })[];
 };
+
+export function toClientWorkoutLog(log: WorkoutLogWithSets): ClientWorkoutLog {
+  return {
+    completed: log.completed,
+    notes: log.notes,
+    sets: log.sets.map((set) => ({
+      reps: set.reps,
+      loadKg: set.loadKg === null ? null : Number(set.loadKg),
+      durationSeconds: set.durationSeconds,
+      distanceMeters: set.distanceMeters,
+    })),
+    loggedAt: log.loggedAt.toISOString(),
+    updatedAt: log.updatedAt.toISOString(),
+  };
+}
 
 export type ClientAssignmentWithCounts = AssignmentModel & {
   sections: { _count: { exercises: number } }[];
@@ -75,8 +100,10 @@ function toClientSection(section: ClientAssignmentTree['sections'][number]): Cli
     rounds: section.rounds,
     restBetweenRoundsSeconds: section.restBetweenRoundsSeconds,
     exercises: section.exercises.map((row) => ({
-      // The durable snapshot id — what Step 14's logs will reference.
+      // The durable snapshot id — what the log rows reference.
       id: row.id,
+      // At most one log exists per (exercise, date); the DB unique guarantees it.
+      log: row.logs?.[0] === undefined ? null : toClientWorkoutLog(row.logs[0]),
       exercise: {
         id: row.exercise.id,
         name: row.exercise.name,

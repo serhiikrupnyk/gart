@@ -5,15 +5,29 @@ import {
   WORKOUT_TYPE_LABELS,
   type ClientWorkout,
   type ClientWorkoutExercise,
+  type ClientWorkoutLog,
   type ClientWorkoutSection,
 } from '@gart/shared';
 
 import { MediaPlayer } from '@/components/exercises/media-player';
 import { Badge } from '@/components/ui';
 import { prescriptionLine, sectionConfigLine } from '@/lib/workout-format';
+import { ExerciseLog } from './exercise-log';
+
+export type WorkoutLogMap = Record<string, ClientWorkoutLog | null>;
+
+interface LoggingProps {
+  date: string;
+  canLog: boolean;
+  logs: WorkoutLogMap;
+  onLogged: (lineId: string, log: ClientWorkoutLog | null) => void;
+}
 
 /** One assigned workout, phone-first: big text, big targets, media on tap. */
-export function WorkoutCard({ workout }: { workout: ClientWorkout }) {
+export function WorkoutCard({ workout, ...logging }: { workout: ClientWorkout } & LoggingProps) {
+  const lines = workout.sections.flatMap((section) => section.exercises);
+  const done = lines.filter((line) => logging.logs[line.id]?.completed === true).length;
+
   return (
     <article className="overflow-hidden rounded-card border border-border bg-surface">
       <header className="border-b border-border px-4 py-3">
@@ -24,18 +38,23 @@ export function WorkoutCard({ workout }: { workout: ClientWorkout }) {
         {workout.description !== null && (
           <p className="mt-1 text-sm text-text-secondary">{workout.description}</p>
         )}
+        {lines.length > 0 && (
+          <p className="mt-1 text-sm text-text-secondary">
+            {done} з {lines.length} виконано
+          </p>
+        )}
       </header>
 
       <div className="divide-y divide-border">
         {workout.sections.map((section) => (
-          <SectionBlock key={section.id} section={section} />
+          <SectionBlock key={section.id} section={section} {...logging} />
         ))}
       </div>
     </article>
   );
 }
 
-function SectionBlock({ section }: { section: ClientWorkoutSection }) {
+function SectionBlock({ section, ...logging }: { section: ClientWorkoutSection } & LoggingProps) {
   const config = sectionConfigLine(section);
 
   return (
@@ -53,7 +72,7 @@ function SectionBlock({ section }: { section: ClientWorkoutSection }) {
       <ul className="mt-3 space-y-3">
         {section.exercises.map((line) => (
           <li key={line.id}>
-            <ExerciseCard line={line} />
+            <ExerciseCard line={line} {...logging} />
           </li>
         ))}
       </ul>
@@ -61,9 +80,18 @@ function SectionBlock({ section }: { section: ClientWorkoutSection }) {
   );
 }
 
-function ExerciseCard({ line }: { line: ClientWorkoutExercise }) {
+function ExerciseCard({
+  line,
+  date,
+  canLog,
+  logs,
+  onLogged,
+}: { line: ClientWorkoutExercise } & LoggingProps) {
   const [showInstructions, setShowInstructions] = useState(false);
   const prescription = prescriptionLine(line);
+
+  // The map is the live record; the tree's own `log` is only its seed.
+  const logged = { ...line, log: logs[line.id] ?? null };
 
   return (
     <div className="rounded-card border border-border bg-bg-subtle p-4">
@@ -100,6 +128,15 @@ function ExerciseCard({ line }: { line: ClientWorkoutExercise }) {
           ))}
         </div>
       )}
+
+      <ExerciseLog
+        line={logged}
+        date={date}
+        canLog={canLog}
+        onLogged={(log) => {
+          onLogged(line.id, log);
+        }}
+      />
     </div>
   );
 }

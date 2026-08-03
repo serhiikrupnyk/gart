@@ -3,9 +3,9 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 13: client workout view** — a client signs in and sees
-today's assigned workout(s) with prescriptions, technique notes and media, under their trainer's
-brand. Workout logging is next.
+This repository is currently at **Step 14: workout logging** — a client signs in, sees today's
+assigned workout under their trainer's brand, and records what they actually did. Trainer-facing
+monitoring of those records is next.
 
 ## Requirements
 
@@ -287,7 +287,47 @@ The home screen is phone-first: «Сьогодні» with a tappable week strip 
 today ringed — tapping re-queries that date), workout cards with the prescription as the big line
 («5×5 · 82,5 кг · відпочинок 90 с»), technique notes and media behind a tap (nothing streams
 uninvited), a calm rest-day state that names the next session, and «Мій план» with the active
-programs. No logging controls yet — that is Step 14's contract.
+programs.
+
+## Workout logging
+
+A record is addressed by **(snapshot exercise, date)** — the durable `AssignmentExercise` id that
+mirror tables were chosen for, as a real foreign key. Logs never reference the template or the
+library, so a template edited beyond recognition cannot change what a record means.
+
+```
+PUT    /me/assignment-exercises/:id/logs/:date   upsert, returns the record
+DELETE /me/assignment-exercises/:id/logs/:date   undo a mis-tap
+GET    /me/workouts?date=                        each exercise now carries `log`
+```
+
+- **Per-set, because the one-tap path costs nothing.** «Виконано» materialises the prescribed
+  sets, so the common case needs no typing; deviations stay honest per set («останній підхід — 3»),
+  which is what a coach reads and what Phase 2's volume, top-set and e1RM math needs. A
+  per-exercise average would be lossy the day it was written.
+- **Actual load is always kilograms.** %1ПМ and RPE are prescription languages for _choosing_ a
+  weight; the log records the weight that moved. One unit keeps aggregation correct and keeps the
+  load XOR rule out of the actuals entirely. Prefill happens only when the prescription was itself
+  in kilograms.
+- **Upsert, not append.** `@@unique([assignmentExerciseId, date])` puts the invariant in the
+  database: editing today's record updates it, and no retried request can double-count. Set rows
+  are replaced wholesale per write — the same contract as program trees and snapshots.
+- **The prescription is never touched.** Logging only ever _reads_ `AssignmentExercise`; planned
+  and actual live in different tables and cannot contaminate each other.
+- **Three states, deliberately distinct**: no record; `completed: true` (did it); `completed:
+false` (skipped, with the reason in notes — real signal for the trainer).
+- **You may log exactly what the day's workout view would have shown you** — the same schedule
+  predicate, shared as one function. Plus a window: **14 days back**, so a missed Friday can be
+  filled in over the weekend but a month of recall cannot be invented. This is the one place the
+  server reads its own clock, and only for bounds — a date's _meaning_ still comes from the device
+  (one day of forward tolerance covers calendars running ahead of UTC).
+- Deleting an assignment takes its records with it; the trainer's confirm dialog says so.
+
+On the card: «Виконано» (one tap) or «Записати інакше», which opens numbered set rows offering
+exactly the fields the prescription used — a plank asks for seconds, not reps and kilograms. A
+recorded exercise shows «Факт: 5×5 · 82,5 кг», reopens with the _logged_ values for correction,
+and can be undone. The workout header counts «2 з 5 виконано». Past days of the week are logged
+the same way through the week strip; a day that has not happened yet shows why it cannot be.
 
 ## Program builder UI
 

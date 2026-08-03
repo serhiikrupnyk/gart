@@ -19,10 +19,35 @@ export interface ClientExerciseInfo {
   media: ExerciseMediaInfo[];
 }
 
-/** One frozen prescription line. `id` is the durable snapshot id Step 14's logs anchor to. */
+/**
+ * One actual set. Load is always kilograms — %1ПМ and RPE are prescription
+ * languages for choosing a weight; this is the weight that moved.
+ */
+export interface ClientWorkoutSetLog {
+  reps: number | null;
+  loadKg: number | null;
+  durationSeconds: number | null;
+  distanceMeters: number | null;
+}
+
+/**
+ * What the client recorded for one exercise on one date. Its absence and
+ * `completed: false` mean different things: nothing recorded yet, versus a
+ * deliberate «I skipped this» with the reason in `notes`.
+ */
+export interface ClientWorkoutLog {
+  completed: boolean;
+  notes: string | null;
+  sets: ClientWorkoutSetLog[];
+  loggedAt: string;
+  updatedAt: string;
+}
+
+/** One frozen prescription line, plus whatever the client actually did. */
 export interface ClientWorkoutExercise {
   id: string;
   exercise: ClientExerciseInfo;
+  log: ClientWorkoutLog | null;
   sets: number | null;
   reps: number | null;
   loadValue: number | null;
@@ -68,4 +93,19 @@ export interface ClientWorkout extends ClientAssignment {
 export interface ClientWorkoutDay {
   date: string;
   workouts: ClientWorkout[];
+}
+
+/**
+ * How far back a missed workout may still be recorded. Past two weeks recall
+ * stops being data, and Phase 2's charts would plot it as fact.
+ */
+export const LOG_WINDOW_DAYS = 14;
+
+/** Sets carry no id: array position is the order, and writes replace the list. */
+export type ClientWorkoutSetInput = ClientWorkoutSetLog;
+
+export interface LogWorkoutExerciseRequest {
+  completed: boolean;
+  notes?: string | null;
+  sets: ClientWorkoutSetInput[];
 }

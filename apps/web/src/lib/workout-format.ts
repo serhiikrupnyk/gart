@@ -4,6 +4,7 @@ import {
   type ClientAssignment,
   type ClientWorkoutExercise,
   type ClientWorkoutSection,
+  type ClientWorkoutSetLog,
 } from '@gart/shared';
 
 /** Ukrainian three-form plural: 1 раунд, 2 раунди, 5 раундів (11–14 → many). */
@@ -118,6 +119,65 @@ export function sectionConfigLine(section: ClientWorkoutSection): string | null 
   }
 
   return parts.length === 0 ? null : parts.join(' · ');
+}
+
+function setDimensions(set: ClientWorkoutSetLog): string {
+  const parts: string[] = [];
+
+  if (set.reps !== null) {
+    parts.push(String(set.reps));
+  }
+  if (set.durationSeconds !== null) {
+    parts.push(formatSeconds(set.durationSeconds));
+  }
+  if (set.distanceMeters !== null) {
+    parts.push(formatDistance(set.distanceMeters));
+  }
+  if (set.loadKg !== null) {
+    parts.push(`${formatNumber(set.loadKg)} кг`);
+  }
+
+  return parts.join(' · ');
+}
+
+function sameSet(a: ClientWorkoutSetLog, b: ClientWorkoutSetLog): boolean {
+  return (
+    a.reps === b.reps &&
+    a.loadKg === b.loadKg &&
+    a.durationSeconds === b.durationSeconds &&
+    a.distanceMeters === b.distanceMeters
+  );
+}
+
+/**
+ * What the client actually did, in one line where it fits: identical sets
+ * collapse to «5×5 · 82,5 кг», and a working set that differed stays visible
+ * as «5 · 5 · 3 повторення» rather than being averaged away.
+ */
+export function actualLine(sets: ClientWorkoutSetLog[]): string {
+  const [first] = sets;
+
+  if (first === undefined) {
+    return '';
+  }
+
+  if (sets.every((set) => sameSet(set, first))) {
+    const dimensions = setDimensions(first);
+
+    if (sets.length === 1) {
+      return dimensions;
+    }
+    if (first.reps !== null) {
+      // «5×5 · 82,5 кг» — the count multiplies the reps, not the whole line.
+      const rest = setDimensions({ ...first, reps: null });
+
+      return [`${String(sets.length)}×${String(first.reps)}`, rest].filter(Boolean).join(' · ');
+    }
+
+    return `${String(sets.length)}× ${dimensions}`;
+  }
+
+  return sets.map(setDimensions).join(' · ');
 }
 
 export function formatShortDate(value: string): string {

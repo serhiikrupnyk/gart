@@ -17,13 +17,18 @@ export type {
   RegisterRequest,
   TrainerBrand,
 } from './auth';
+export { LOG_WINDOW_DAYS } from './client-workout';
 export type {
   ClientAssignment,
   ClientExerciseInfo,
   ClientWorkout,
   ClientWorkoutDay,
   ClientWorkoutExercise,
+  ClientWorkoutLog,
   ClientWorkoutSection,
+  ClientWorkoutSetInput,
+  ClientWorkoutSetLog,
+  LogWorkoutExerciseRequest,
 } from './client-workout';
 export type {
   ClientStatus,

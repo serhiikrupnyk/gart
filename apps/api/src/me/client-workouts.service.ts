@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { ClientAssignment, ClientWorkout, ClientWorkoutDay } from '@gart/shared';
 
 import { PrismaService } from '../database/prisma.service';
@@ -7,31 +7,52 @@ import {
   toClientWorkout,
   type ClientAssignmentTree,
 } from './client-workout.mapper';
+import { parseIsoDate, scheduledAssignmentWhere } from './schedule';
 
-const INVALID_DATE_MESSAGE = 'Некоректна дата';
+/** The live library fields a client sees — never the storage key. */
+const EXERCISE_SELECT = {
+  id: true,
+  name: true,
+  primaryMuscleGroup: true,
+  textInstructions: true,
+  media: true,
+} as const;
 
-/** The live-exercise join the client view is built from; ordered like the snapshot. */
-const CLIENT_TREE_INCLUDE = {
+const SECTION_ORDER = { order: 'asc' as const };
+
+/** Reading a plan: prescriptions only. A log without a date has no meaning. */
+const PLAN_TREE_INCLUDE = {
   sections: {
-    orderBy: { order: 'asc' as const },
+    orderBy: SECTION_ORDER,
     include: {
       exercises: {
-        orderBy: { order: 'asc' as const },
-        include: {
-          exercise: {
-            select: {
-              id: true,
-              name: true,
-              primaryMuscleGroup: true,
-              textInstructions: true,
-              media: true,
+        orderBy: SECTION_ORDER,
+        include: { exercise: { select: EXERCISE_SELECT } },
+      },
+    },
+  },
+};
+
+/** Reading a day: each prescription line carries that date's record, if any. */
+function dayTreeInclude(day: Date) {
+  return {
+    sections: {
+      orderBy: SECTION_ORDER,
+      include: {
+        exercises: {
+          orderBy: SECTION_ORDER,
+          include: {
+            exercise: { select: EXERCISE_SELECT },
+            logs: {
+              where: { date: day },
+              include: { sets: { orderBy: SECTION_ORDER } },
             },
           },
         },
       },
     },
-  },
-};
+  };
+}
 
 /**
  * Client-facing reads. Every query is pinned to BOTH ids the guard attached —
@@ -49,19 +70,12 @@ export class ClientWorkoutsService {
     clientId: string,
     date: string,
   ): Promise<ClientWorkoutDay> {
-    const day = parseDate(date);
+    const day = parseIsoDate(date);
 
     const assignments: ClientAssignmentTree[] = await this.prisma.assignment.findMany({
-      where: {
-        trainerId,
-        clientId,
-        status: 'ACTIVE',
-        startDate: { lte: day },
-        OR: [{ endDate: null }, { endDate: { gte: day } }],
-        daysOfWeek: { has: isoWeekday(day) },
-      },
+      where: scheduledAssignmentWhere(trainerId, clientId, day),
       orderBy: [{ assignedAt: 'asc' }, { id: 'asc' }],
-      include: CLIENT_TREE_INCLUDE,
+      include: dayTreeInclude(day),
     });
 
     return { date, workouts: assignments.map(toClientWorkout) };
@@ -85,7 +99,7 @@ export class ClientWorkoutsService {
   ): Promise<ClientWorkout> {
     const assignment: ClientAssignmentTree | null = await this.prisma.assignment.findFirst({
       where: { id: assignmentId, trainerId, clientId },
-      include: CLIENT_TREE_INCLUDE,
+      include: PLAN_TREE_INCLUDE,
     });
 
     if (assignment === null) {
@@ -94,26 +108,4 @@ export class ClientWorkoutsService {
 
     return toClientWorkout(assignment);
   }
-}
-
-/**
- * 'YYYY-MM-DD' → UTC midnight, matching the @db.Date columns. The DTO regex
- * lets impossible dates like 2026-02-31 through, and V8 quietly rolls those
- * over into March — the round-trip comparison rejects both cases.
- */
-function parseDate(value: string): Date {
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
-    throw new BadRequestException(INVALID_DATE_MESSAGE);
-  }
-
-  return parsed;
-}
-
-/** ISO weekday of a UTC-midnight date: Пн=1 … Нд=7, matching daysOfWeek. */
-function isoWeekday(day: Date): number {
-  const weekday = day.getUTCDay();
-
-  return weekday === 0 ? 7 : weekday;
 }

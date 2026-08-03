@@ -232,7 +232,8 @@ export function ClientAssignments({ clientId }: { clientId: string }) {
         }
       >
         <p className="text-sm text-text-secondary">
-          «{deleteTarget?.name}» зникне з програм клієнта. Шаблон програми залишиться.
+          «{deleteTarget?.name}» зникне з програм клієнта разом із його записами про виконання.
+          Шаблон програми залишиться.
         </p>
       </Modal>
     </section>
