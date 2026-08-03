@@ -11,10 +11,13 @@ import { apiFetch } from '@/lib/api';
 import { cx } from '@/lib/cx';
 import { Wordmark } from './wordmark';
 
-const NAV_ITEMS = [{ label: 'Тренування', href: '/client' }];
+const NAV_ITEMS = [
+  { label: 'Тренування', href: '/client' },
+  { label: 'Прогрес', href: '/client/progress' },
+];
 
 /** The client-app sections later phases will fill; visible so the frame is honest. */
-const UPCOMING_SECTIONS = ['Прогрес', 'Харчування'];
+const UPCOMING_SECTIONS = ['Харчування'];
 
 /**
  * The client's app shell: the trainer's brand up top, the client's own identity

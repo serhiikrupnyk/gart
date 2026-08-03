@@ -52,6 +52,32 @@ export type {
   TrainerWorkoutSession,
   WorkoutAdherence,
 } from './monitoring';
+export {
+  LOAD_METRIC_LABELS,
+  LOAD_METRICS,
+  PROGRESS_DEFAULT_DAYS,
+  PROGRESS_MAX_DAYS,
+  PROGRESS_PHOTO_RULES,
+  PROGRESS_SUGGESTIONS,
+  PROGRESS_VALUE_MAX,
+  PROGRESS_VALUE_MIN,
+} from './progress';
+export type {
+  ClientProgress,
+  CreateProgressVariableRequest,
+  ExerciseLoadHistory,
+  ExerciseLoadPoint,
+  FinalizeProgressPhotoRequest,
+  LoadMetric,
+  LoggedExerciseSummary,
+  PresignProgressPhotoRequest,
+  ProgressPhotoInfo,
+  ProgressPoint,
+  ProgressSeries,
+  PublicProgressVariable,
+  SaveProgressEntryRequest,
+  UpdateProgressVariableRequest,
+} from './progress';
 export type {
   ClientStatus,
   ClientWithInvite,

@@ -1,4 +1,4 @@
-import { MEDIA_RULES, type MediaKind } from '@gart/shared';
+import { MEDIA_RULES, PROGRESS_PHOTO_RULES, type MediaKind } from '@gart/shared';
 
 /**
  * The entire media-type policy in one table: what each kind accepts, the file
@@ -36,6 +36,35 @@ function isMp3(bytes: Buffer): boolean {
 
   return bytes.length >= 2 && bytes[0] === 0xff && ((bytes[1] ?? 0) & 0xe0) === 0xe0;
 }
+
+function isJpeg(bytes: Buffer): boolean {
+  return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+}
+
+function isPng(bytes: Buffer): boolean {
+  return bytes.length >= 8 && bytes.toString('latin1', 0, 8) === '\x89PNG\r\n\x1a\n';
+}
+
+/** RIFF container whose form type is WEBP. */
+function isWebp(bytes: Buffer): boolean {
+  return (
+    bytes.length >= 12 &&
+    bytes.toString('latin1', 0, 4) === 'RIFF' &&
+    bytes.toString('latin1', 8, 12) === 'WEBP'
+  );
+}
+
+/**
+ * Progress photos live in the same policy table rather than a parallel one:
+ * one place decides what may be stored and how its bytes must look.
+ */
+export const IMAGE_TYPE_RULES: Record<string, MediaTypeRule> = {
+  'image/jpeg': { extension: 'jpg', matchesMagic: isJpeg },
+  'image/png': { extension: 'png', matchesMagic: isPng },
+  'image/webp': { extension: 'webp', matchesMagic: isWebp },
+};
+
+export const IMAGE_SIZE_LIMIT = PROGRESS_PHOTO_RULES.maxSizeBytes;
 
 export const MEDIA_TYPE_RULES: Record<MediaKind, Record<string, MediaTypeRule>> = {
   VIDEO: {

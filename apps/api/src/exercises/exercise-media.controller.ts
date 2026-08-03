@@ -13,7 +13,11 @@ import {
 import type { ExerciseMediaInfo, MediaUrlResponse, PresignMediaResponse } from '@gart/shared';
 
 import { type AuthContext, CurrentAuth } from '../auth/auth-context';
-import { CurrentViewerTenant, TrainerOrClientGuard } from '../auth/trainer-or-client.guard';
+import {
+  CurrentViewerTenant,
+  TrainerOrClientGuard,
+  type ViewerTenant,
+} from '../auth/trainer-or-client.guard';
 import { TrainerGuard } from '../auth/trainer.guard';
 import { FinalizeMediaDto, MediaKindQuery, PresignMediaDto } from './dto/media.dto';
 import { ExerciseMediaService } from './exercise-media.service';
@@ -68,10 +72,12 @@ export class ExerciseMediaUrlController {
   @Get()
   @UseGuards(TrainerOrClientGuard)
   async getUrl(
-    @CurrentViewerTenant() viewerTrainerId: string,
+    @CurrentViewerTenant() viewer: ViewerTenant,
     @Param('id') id: string,
     @Query() query: MediaKindQuery,
   ): Promise<MediaUrlResponse> {
-    return this.media.getUrl(viewerTrainerId, id, query.kind);
+    // The exercise library is shared across a trainer's clients, so the tenant
+    // alone is the right lens here; a per-client narrowing would be wrong.
+    return this.media.getUrl(viewer.trainerId, id, query.kind);
   }
 }

@@ -40,12 +40,19 @@ export class TrainerOrClientGuard implements CanActivate {
 }
 
 /**
- * The tenant whose library the viewer is looking through: a trainer sees their
- * own; a client sees their trainer's. Behind TrainerOrClientGuard exactly one
- * of the two request contexts is present.
+ * The tenant whose data the viewer is looking through: a trainer sees their
+ * own; a client sees their trainer's. `clientId` is set only for the client
+ * hat — routes serving something that belongs to ONE client (a progress photo)
+ * narrow by it, while routes serving the shared library (exercise media)
+ * ignore it.
  */
+export interface ViewerTenant {
+  trainerId: string;
+  clientId: string | undefined;
+}
+
 export const CurrentViewerTenant = createParamDecorator(
-  (_data: unknown, context: ExecutionContext): string => {
+  (_data: unknown, context: ExecutionContext): ViewerTenant => {
     const request = context
       .switchToHttp()
       .getRequest<Request & AuthenticatedRequest & ClientAuthenticatedRequest>();
@@ -56,6 +63,6 @@ export const CurrentViewerTenant = createParamDecorator(
       throw new Error('CurrentViewerTenant used on a route without TrainerOrClientGuard');
     }
 
-    return trainerId;
+    return { trainerId, clientId: request.clientAuth?.client.id };
   },
 );

@@ -75,7 +75,7 @@ describe('ClientShell', () => {
     expect(screen.queryByRole('link', { name: /gart/ })).not.toBeInTheDocument();
   });
 
-  it('links «Тренування» and marks the coming sections, with no dead controls', async () => {
+  it('links the live sections and marks the coming ones, with no dead controls', async () => {
     apiFetch.mockResolvedValue(session());
     renderShell();
 
@@ -84,12 +84,14 @@ describe('ClientShell', () => {
     const workouts = screen.getByRole('link', { name: 'Тренування' });
     expect(workouts).toHaveAttribute('href', '/client');
     expect(workouts).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Прогрес' })).toHaveAttribute(
+      'href',
+      '/client/progress',
+    );
 
-    for (const label of ['Прогрес', 'Харчування']) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-      expect(screen.queryByRole('link', { name: label })).not.toBeInTheDocument();
-    }
-    expect(screen.getAllByText('скоро')).toHaveLength(2);
+    expect(screen.getByText('Харчування')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Харчування' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('скоро')).toHaveLength(1);
   });
 
   it('sends a visitor with no session of any kind to the client login', async () => {

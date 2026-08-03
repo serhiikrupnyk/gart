@@ -13,6 +13,7 @@ import { InvitesModule } from './invites/invites.module';
 import { MeModule } from './me/me.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { ProgramsModule } from './programs/programs.module';
+import { ProgressModule } from './progress/progress.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ProgramsModule } from './programs/programs.module';
     AssignmentsModule,
     MeModule,
     MonitoringModule,
+    ProgressModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

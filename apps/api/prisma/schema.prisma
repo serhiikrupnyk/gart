@@ -111,6 +111,9 @@ model Trainer {
   programs    Program[]
   assignments Assignment[]
   workoutLogs WorkoutLog[]
+
+  progressVariables ProgressVariable[]
+  progressPhotos    ProgressPhoto[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -256,6 +259,9 @@ model Client {
   sessions    Session[]
   assignments Assignment[]
   workoutLogs WorkoutLog[]
+
+  progressVariables ProgressVariable[]
+  progressPhotos    ProgressPhoto[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.
@@ -547,4 +553,97 @@ model WorkoutSetLog {
   distanceMeters  Int?
 
   @@unique([logId, order])
+}
+
+/// A dimension the trainer tracks for ONE client — «Вага», «Обхват талії»,
+/// «% жиру», or anything their method calls for.
+///
+/// Per client rather than a trainer-level template with assignments: a trainer
+/// tracks a handful of dimensions per person and *which* ones is itself a
+/// coaching decision, so one table with no assignment lifecycle says the same
+/// thing without the template-versus-instance questions (what a rename means
+/// for history, what unassigning does to past entries). Retyping a custom name
+/// is softened by suggestions, not by a second table.
+///
+/// `unit` is a free display label, and that does not contradict the load
+/// lesson from programs — there it was the VALUE that had to escape free text.
+/// The value below is always numeric; the unit is never read by a chart, so
+/// constraining it would only stop a trainer tracking «год сну».
+model ProgressVariable {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  name String
+  unit String
+
+  /// Whether the client may record this one themselves. Off by default: entries
+  /// upsert per date, so an open variable lets a client's own reading replace
+  /// the trainer's measurement for that day — a decision the trainer makes.
+  selfLog Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries ProgressEntry[]
+
+  @@unique([clientId, name])
+  @@index([trainerId])
+}
+
+/// One measurement on one date.
+///
+/// `@@unique([variableId, date])` makes it an upsert, for the same reason
+/// workout logs are: a measurement is a fact about a date, not an event
+/// stream. Re-measuring corrects the value; appending would force «latest
+/// wins» on every read and let a retried request bend a chart. The unique
+/// index is also the longitudinal index — variableId leads, date follows — so
+/// a series is one ordered range scan.
+///
+/// Decimal, never float: a chart of 84.10 → 83.95 must not drift.
+model ProgressEntry {
+  id String @id @default(cuid())
+
+  variableId String
+  variable   ProgressVariable @relation(fields: [variableId], references: [id], onDelete: Cascade)
+
+  date  DateTime @db.Date
+  value Decimal  @db.Decimal(8, 2)
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([variableId, date])
+}
+
+/// A progress photo — private media, the same model exercise media uses: the
+/// bucket has no public access, `storageKey` never crosses the wire, and
+/// viewing mints a short-lived presigned GET per request for the owning
+/// trainer or that client alone. These are more sensitive than exercise clips,
+/// which is exactly why they reuse that path rather than a new one.
+model ProgressPhoto {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  date  DateTime @db.Date
+  label String?
+
+  storageKey  String @unique
+  contentType String
+  sizeBytes   Int
+
+  uploadedAt DateTime @default(now())
+
+  @@index([clientId, date])
+  @@index([trainerId])
 }

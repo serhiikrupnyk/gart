@@ -3,10 +3,12 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 15: trainer monitoring** — the close of Phase 1. The core
-loop runs end to end: a trainer builds a program, assigns it, the client sees today's workout and
-records what they actually did, and the trainer sees planned against actual, adherence, and who
-needs attention.
+Phase 1 is complete — the core loop runs end to end: a trainer builds a program, assigns it, the
+client sees today's workout and records what they actually did, and the trainer sees planned
+against actual, adherence, and who needs attention.
+
+This repository is currently at **Step 16: progress measurement**, the first step of Phase 2 —
+custom tracked variables, measurements, private progress photos, and the first charts.
 
 ## Requirements
 
@@ -375,6 +377,60 @@ On the client page, «Активність» sits above «Програми кл�
 line, and one row per session that expands into Вправа | План | Факт | Стан with the two numbers
 side by side («5×5 · 82,5 кг» vs «5×4 · 80 кг»). Skip reasons are pulled up to the session row in
 `danger` tone — they are the first thing to read, not a footnote in row four.
+
+## Progress measurement
+
+Custom variables, their measurements, private photos, and the first longitudinal charts.
+
+- **A variable belongs to one client**, not to a trainer as a template. A trainer tracks a handful
+  of dimensions per person and _which_ ones is itself a coaching decision, so one table says that
+  without an assignment lifecycle or the template-versus-instance questions (what a rename means
+  for history, what unassigning does to past entries). The retyping cost is paid off with
+  suggestions, not a second table.
+- **`unit` is a free display label, and that does not contradict the load lesson from programs** —
+  there it was the VALUE that had to escape free text. The value here is always
+  `Decimal(8, 2)`, never a float, because a chart of 84.10 → 83.95 must not drift; the unit is
+  never read by a chart, so constraining it would only stop a trainer tracking «год сну».
+- **Entries upsert on `(variable, date)`**, the same reasoning as workout logs: a measurement is a
+  fact about a date, not an event stream. The unique index is also the longitudinal index, so a
+  series is one ordered range scan.
+- **Photos reuse the exercise-media path exactly** — same `StorageService`, same policy table
+  (extended with JPEG/PNG/WebP magic numbers and a 10 MB cap), same presign → direct PUT →
+  verify-and-finalize, same delete-on-failed-verification. Serving is a presigned GET minted per
+  request behind `TrainerOrClientGuard`, narrowed to the owning trainer **and that client**: a
+  sibling client of the same trainer gets the same 404 as for a photo that does not exist.
+  Progress photos are more sensitive than exercise clips, which is the argument for reusing this
+  path rather than writing a second one.
+
+```
+GET/POST   /clients/:id/progress[/variables]        the whole view, or its dimensions
+PATCH/DEL  /progress/variables/:id                  one dimension
+PUT/DEL    /progress/variables/:id/entries/:date    one measurement, upserted
+POST       /clients/:id/progress/photos[/presign]   the Step 8 flow, images only
+GET/DEL    /progress/photos/:id[/url]               presigned per view
+GET        /clients/:id/progress/exercises[/:id]    derived load history
+GET/PUT    /me/progress[/variables/:id/entries/:d]  the client's own view and self-log
+```
+
+**Per-exercise load history is derived, never stored** — the numbers already live in
+`WorkoutSetLog`, and a second table would be a copy that could disagree. One query reaches them
+through the columns denormalised onto `WorkoutLog`, and three metrics come out of the same rows
+because coaches read three different questions from one session: **топ-сет** (the heaviest set),
+**обʼєм** (Σ reps × kg, whether the workload is climbing) and **оцінка 1ПМ** (Epley, computed only
+for 1–12 reps where the estimate means anything — it is what makes 5×5 at 82,5 comparable with 3×3
+at 92,5). Two assignments carrying one exercise on the same day merge into one training day.
+
+**The client sees everything of their own and records only what the trainer opens up** — `selfLog`
+per variable, off by default. The flag exists because entries upsert per date: without it, a
+client's bathroom-scale reading would silently replace the trainer's caliper measurement for that
+day. A closed variable answers exactly like one that does not exist.
+
+**Charts are hand-rolled SVG — 0 KB of dependency.** A line is a `polyline` and some `circle`s;
+taking Recharts (~100 KB) or Chart.js (~70 KB) would make charting the largest thing in a bundle
+serving a phone-first PWA. Accessibility is the reason to hand-roll rather than a cost of it: the
+figure carries an `aria-label` that states the trend in words («Вага: 12 замірів з 3 січня по 28
+лютого, від 84,2 до 81,0 кг»), every point is a marker so nothing depends on colour, and one
+button reveals a real data table — which trainers want for the exact numbers anyway.
 
 ## Program builder UI
 

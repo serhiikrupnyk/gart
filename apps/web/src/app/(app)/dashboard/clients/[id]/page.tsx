@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import type { PublicClient } from '@gart/shared';
 
 import { ClientActivity } from '@/components/clients/client-activity';
+import { ClientProgressPanel } from '@/components/progress/client-progress';
 import { ClientAssignments } from '@/components/clients/client-assignments';
 import { ClientStatusBadge } from '@/components/clients/client-status-badge';
 import { InviteLink } from '@/components/clients/invite-link';
@@ -161,6 +162,8 @@ export default function ClientDetailPage() {
       <ClientActivity clientId={client.id} />
 
       <ClientAssignments clientId={client.id} />
+
+      <ClientProgressPanel clientId={client.id} />
     </>
   );
 }
