@@ -128,7 +128,6 @@ export function ExerciseLog({
           <ul className="space-y-2">
             {rows.map((row, index) => (
               // Rows have no identity of their own; position is the order.
-              // eslint-disable-next-line react/no-array-index-key
               <li key={index} className="flex items-center gap-2">
                 <span className="w-6 shrink-0 text-xs text-text-secondary">{index + 1}</span>
 

@@ -7,6 +7,23 @@ import {
   type ClientWorkoutSetLog,
 } from '@gart/shared';
 
+/**
+ * The prescription fields, structurally — the client's workout line and the
+ * trainer's snapshot line carry the same ones, so one formatter serves both.
+ */
+export type PrescriptionFields = Pick<
+  ClientWorkoutExercise,
+  | 'sets'
+  | 'reps'
+  | 'loadValue'
+  | 'loadUnit'
+  | 'loadText'
+  | 'restSeconds'
+  | 'tempo'
+  | 'durationSeconds'
+  | 'distanceMeters'
+>;
+
 /** Ukrainian three-form plural: 1 раунд, 2 раунди, 5 раундів (11–14 → many). */
 export function pluralUk(count: number, one: string, few: string, many: string): string {
   const mod100 = Math.abs(count) % 100;
@@ -49,7 +66,7 @@ function formatDistance(meters: number): string {
   return `${String(meters)} м`;
 }
 
-function formatLoad(line: ClientWorkoutExercise): string | null {
+function formatLoad(line: PrescriptionFields): string | null {
   if (line.loadText !== null) {
     return line.loadText;
   }
@@ -64,7 +81,7 @@ function formatLoad(line: ClientWorkoutExercise): string | null {
 }
 
 /** «5×5 · 82,5 кг · відпочинок 90 с» — the big line on the exercise card. */
-export function prescriptionLine(line: ClientWorkoutExercise): string {
+export function prescriptionLine(line: PrescriptionFields): string {
   const parts: string[] = [];
 
   if (line.sets !== null && line.reps !== null) {

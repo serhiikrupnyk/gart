@@ -11,6 +11,7 @@ import { ExercisesModule } from './exercises/exercises.module';
 import { HealthController } from './health/health.controller';
 import { InvitesModule } from './invites/invites.module';
 import { MeModule } from './me/me.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 import { ProgramsModule } from './programs/programs.module';
 
 @Module({
@@ -24,6 +25,7 @@ import { ProgramsModule } from './programs/programs.module';
     ProgramsModule,
     AssignmentsModule,
     MeModule,
+    MonitoringModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

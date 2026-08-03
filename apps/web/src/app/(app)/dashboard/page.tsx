@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import type { ClientWithInvite, PublicClient } from '@gart/shared';
+import type { ClientListItem, ClientWithInvite } from '@gart/shared';
 
 import { AddClientModal } from '@/components/clients/add-client-modal';
+import { ClientAttention } from '@/components/clients/client-attention';
 import { ClientStatusBadge } from '@/components/clients/client-status-badge';
 import { InviteLink } from '@/components/clients/invite-link';
 import { PageHeader } from '@/components/layout/page-header';
@@ -26,7 +27,7 @@ import { listClients } from '@/lib/clients';
 export default function DashboardPage() {
   const { notify } = useToast();
 
-  const [clients, setClients] = useState<PublicClient[] | undefined>();
+  const [clients, setClients] = useState<ClientListItem[] | undefined>();
   const [modalOpen, setModalOpen] = useState(false);
   const [created, setCreated] = useState<ClientWithInvite | undefined>();
   // Bumped to re-run the load; the effect owns the fetch so state is only ever
@@ -111,6 +112,7 @@ export default function DashboardPage() {
               <Th>Клієнт</Th>
               <Th>Email</Th>
               <Th>Статус</Th>
+              <Th>Активність</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -132,6 +134,9 @@ export default function DashboardPage() {
                 </Td>
                 <Td>
                   <ClientStatusBadge status={client.status} />
+                </Td>
+                <Td>
+                  <ClientAttention client={client} now={new Date()} />
                 </Td>
               </Tr>
             ))}

@@ -1,4 +1,5 @@
 import type {
+  ClientListItem,
   ClientStatus,
   ClientWithInvite,
   CreateClientRequest,
@@ -8,10 +9,10 @@ import type {
 
 import { apiFetch } from './api';
 
-export function listClients(status?: ClientStatus): Promise<PublicClient[]> {
+export function listClients(status?: ClientStatus): Promise<ClientListItem[]> {
   const query = status === undefined ? '' : `?status=${status}`;
 
-  return apiFetch<PublicClient[]>(`/clients${query}`);
+  return apiFetch<ClientListItem[]>(`/clients${query}`);
 }
 
 export function getClient(id: string): Promise<PublicClient> {

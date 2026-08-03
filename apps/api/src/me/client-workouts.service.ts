@@ -7,7 +7,8 @@ import {
   toClientWorkout,
   type ClientAssignmentTree,
 } from './client-workout.mapper';
-import { parseIsoDate, scheduledAssignmentWhere } from './schedule';
+import { parseIsoDate } from '../common/calendar';
+import { scheduledAssignmentWhere } from './schedule';
 
 /** The live library fields a client sees — never the storage key. */
 const EXERCISE_SELECT = {

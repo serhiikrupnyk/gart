@@ -2,6 +2,7 @@ import type {
   DayOfWeek,
   PublicAssignment,
   PublicAssignmentDetail,
+  PublicProgramExercise,
   PublicProgramSection,
 } from '@gart/shared';
 
@@ -12,11 +13,14 @@ import type {
   ExerciseModel,
 } from '../generated/prisma/models.js';
 
+/** A snapshot line with the live library fields the UI shows it by. */
+export type AssignmentExerciseWithLibrary = AssignmentExerciseModel & {
+  exercise: Pick<ExerciseModel, 'id' | 'name' | 'primaryMuscleGroup'>;
+};
+
 export type AssignmentTree = AssignmentModel & {
   sections: (AssignmentSectionModel & {
-    exercises: (AssignmentExerciseModel & {
-      exercise: Pick<ExerciseModel, 'id' | 'name' | 'primaryMuscleGroup'>;
-    })[];
+    exercises: AssignmentExerciseWithLibrary[];
   })[];
 };
 
@@ -59,6 +63,32 @@ export function toPublicAssignment(assignment: AssignmentWithCounts): PublicAssi
   );
 }
 
+/**
+ * One prescribed line on the wire. Exported because the trainer's monitoring
+ * pairs exactly this shape with the client's record — planned and actual, with
+ * no third vocabulary invented for the same fields.
+ */
+export function toPublicProgramExercise(row: AssignmentExerciseWithLibrary): PublicProgramExercise {
+  return {
+    id: row.id,
+    exercise: {
+      id: row.exercise.id,
+      name: row.exercise.name,
+      primaryMuscleGroup: row.exercise.primaryMuscleGroup,
+    },
+    sets: row.sets,
+    reps: row.reps,
+    loadValue: row.loadValue === null ? null : Number(row.loadValue),
+    loadUnit: row.loadUnit,
+    loadText: row.loadText,
+    restSeconds: row.restSeconds,
+    tempo: row.tempo,
+    notes: row.notes,
+    durationSeconds: row.durationSeconds,
+    distanceMeters: row.distanceMeters,
+  };
+}
+
 /** The snapshot reuses the program wire shape — identical structure, durable ids. */
 function toPublicSection(section: AssignmentTree['sections'][number]): PublicProgramSection {
   return {
@@ -69,24 +99,7 @@ function toPublicSection(section: AssignmentTree['sections'][number]): PublicPro
     intervalSeconds: section.intervalSeconds,
     rounds: section.rounds,
     restBetweenRoundsSeconds: section.restBetweenRoundsSeconds,
-    exercises: section.exercises.map((row) => ({
-      id: row.id,
-      exercise: {
-        id: row.exercise.id,
-        name: row.exercise.name,
-        primaryMuscleGroup: row.exercise.primaryMuscleGroup,
-      },
-      sets: row.sets,
-      reps: row.reps,
-      loadValue: row.loadValue === null ? null : Number(row.loadValue),
-      loadUnit: row.loadUnit,
-      loadText: row.loadText,
-      restSeconds: row.restSeconds,
-      tempo: row.tempo,
-      notes: row.notes,
-      durationSeconds: row.durationSeconds,
-      distanceMeters: row.distanceMeters,
-    })),
+    exercises: section.exercises.map(toPublicProgramExercise),
   };
 }
 

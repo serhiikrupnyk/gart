@@ -3,9 +3,10 @@
 Vertical SaaS for personal trainers (Ukrainian market). Product scope and roadmap live in planning
 documents kept outside version control.
 
-This repository is currently at **Step 14: workout logging** — a client signs in, sees today's
-assigned workout under their trainer's brand, and records what they actually did. Trainer-facing
-monitoring of those records is next.
+This repository is currently at **Step 15: trainer monitoring** — the close of Phase 1. The core
+loop runs end to end: a trainer builds a program, assigns it, the client sees today's workout and
+records what they actually did, and the trainer sees planned against actual, adherence, and who
+needs attention.
 
 ## Requirements
 
@@ -328,6 +329,52 @@ exactly the fields the prescription used — a plank asks for seconds, not reps 
 recorded exercise shows «Факт: 5×5 · 82,5 кг», reopens with the _logged_ values for correction,
 and can be undone. The workout header counts «2 з 5 виконано». Past days of the week are logged
 the same way through the week strip; a day that has not happened yet shows why it cannot be.
+
+## Trainer monitoring
+
+The loop closes here: `GET /clients/:id/workout-history?from&to` returns every session the schedule
+called for, with what the client recorded laid over it. Ownership is the usual gate
+(`ClientsService.requireOwned` → bare 404), and the assignment query is scoped
+`{ trainerId, clientId }`, which puts every log reached through it inside the tenant by
+construction. The range **is** the pagination: 28 days by default, 92 at most.
+
+**Four states, and one of them cannot be read from a table.** `DONE`, `DEVIATED` and `SKIPPED` all
+come from a log row; `MISSING` is a scheduled occurrence with **no** row, so it has to be generated
+by expanding the schedule — the same predicate Step 13/14 use to filter one day, walked over a
+range ([occurrences.ts](apps/api/src/monitoring/occurrences.ts)). Sessions take the same four
+shapes one level up (`DONE` / `PARTIAL` / `SKIPPED` / `MISSED`), and the last two stay apart on
+purpose: a client who wrote «біль у коліні» against every exercise did something very different
+from one who never appeared.
+
+**Comparison is conservative**, so the trainer is never shown a deviation that is really an
+apples-to-oranges artefact ([log-state.ts](apps/api/src/monitoring/log-state.ts)): load counts only
+when the prescription was in kilograms (`%1ПМ` and `RPE` prescribe how to _choose_ a weight, not
+the weight), reps/duration/distance only where the prescription named them, and a blank actual
+field is silence rather than disagreement.
+
+Two more decisions worth knowing:
+
+- **A completed cycle stays in history; an archived one does not.** `COMPLETED` means a plan
+  finished properly, so its past sessions still count; `ARCHIVED` means retired or assigned by
+  mistake, and its phantom «missed» sessions would only drag adherence down.
+- **Today is never missed before the day is over.** A scheduled session with no record appears only
+  once its date has passed — otherwise every morning would open red.
+
+Adherence is five integers over the range — `scheduled`, `done`, `partial`, `skipped`, `missed`,
+summing to `scheduled`. That is the Step 15/16 line: **this step answers "did the plan happen?"**
+in session counts, while Step 16's `ProgressVariable`/`ProgressEntry` answer "is the body
+changing?" with measurements and the graphs over them.
+
+The clients list carries just enough pulse to triage by, computed for the whole page in two
+queries — this is what `WorkoutLog`'s denormalised `trainerId`/`clientId` were for. `attention` is
+`SKIPPED` (a stated reason in the last 14 days — deliberately not keyword-matched for «біль»; a
+reason is the signal, and reading it is the trainer's job) or `MISSED` (two or more silent
+sessions — one missed day is life), otherwise the row just shows «Тренувався 3 дні тому».
+
+On the client page, «Активність» sits above «Програми клієнта»: a range selector, the adherence
+line, and one row per session that expands into Вправа | План | Факт | Стан with the two numbers
+side by side («5×5 · 82,5 кг» vs «5×4 · 80 кг»). Skip reasons are pulled up to the session row in
+`danger` tone — they are the first thing to read, not a footnote in row four.
 
 ## Program builder UI
 

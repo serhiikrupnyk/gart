@@ -4,7 +4,8 @@ import type { ClientWorkoutLog } from '@gart/shared';
 import { PrismaService } from '../database/prisma.service';
 import { toClientWorkoutLog } from './client-workout.mapper';
 import type { LogWorkoutExerciseDto } from './dto/log-workout.dto';
-import { assertWithinLogWindow, parseIsoDate, scheduledAssignmentWhere } from './schedule';
+import { parseIsoDate } from '../common/calendar';
+import { assertWithinLogWindow, scheduledAssignmentWhere } from './schedule';
 
 const NOT_SCHEDULED_MESSAGE = 'Тренування не заплановане на цей день';
 

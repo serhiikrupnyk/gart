@@ -30,6 +30,28 @@ export type {
   ClientWorkoutSetLog,
   LogWorkoutExerciseRequest,
 } from './client-workout';
+export {
+  ATTENTION_LABELS,
+  ATTENTION_MISSED_THRESHOLD,
+  ATTENTION_SIGNALS,
+  ATTENTION_WINDOW_DAYS,
+  HISTORY_DEFAULT_DAYS,
+  HISTORY_MAX_DAYS,
+  LOG_STATE_LABELS,
+  LOG_STATES,
+  SESSION_STATE_LABELS,
+  SESSION_STATES,
+} from './monitoring';
+export type {
+  AttentionSignal,
+  ClientListItem,
+  ClientWorkoutHistory,
+  LogState,
+  SessionState,
+  TrainerSessionExercise,
+  TrainerWorkoutSession,
+  WorkoutAdherence,
+} from './monitoring';
 export type {
   ClientStatus,
   ClientWithInvite,

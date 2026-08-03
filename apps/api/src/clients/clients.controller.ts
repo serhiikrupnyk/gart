@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import type { ClientWithInvite, PublicClient } from '@gart/shared';
+import type { ClientListItem, ClientWithInvite, PublicClient } from '@gart/shared';
 
 import { type AuthContext, CurrentAuth } from '../auth/auth-context';
 import { TrainerGuard } from '../auth/trainer.guard';
@@ -30,7 +30,7 @@ export class ClientsController {
   async list(
     @CurrentAuth() auth: AuthContext,
     @Query() query: ListClientsQuery,
-  ): Promise<PublicClient[]> {
+  ): Promise<ClientListItem[]> {
     return this.clients.list(auth.trainer.id, query);
   }
 

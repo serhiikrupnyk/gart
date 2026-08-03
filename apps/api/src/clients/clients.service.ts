@@ -4,11 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { ClientWithInvite, PublicClient } from '@gart/shared';
+import type { ClientListItem, ClientWithInvite, PublicClient } from '@gart/shared';
 
 import { PrismaService } from '../database/prisma.service';
 import type { ClientModel } from '../generated/prisma/models.js';
 import { InvitesService } from '../invites/invites.service';
+import { ClientActivityService } from '../monitoring/client-activity.service';
 import { toPublicClient } from './client.mapper';
 import type { CreateClientDto } from './dto/create-client.dto';
 import type { ListClientsQuery } from './dto/list-clients.query';
@@ -39,6 +40,7 @@ export class ClientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly invites: InvitesService,
+    private readonly activity: ClientActivityService,
   ) {}
 
   async create(trainerId: string, dto: CreateClientDto): Promise<ClientWithInvite> {
@@ -68,13 +70,29 @@ export class ClientsService {
     return { client: toPublicClient(client), inviteUrl };
   }
 
-  async list(trainerId: string, query: ListClientsQuery): Promise<PublicClient[]> {
+  /**
+   * The list carries just enough pulse to triage by — who logged last, and who
+   * is worth opening. Computed for the whole page in a couple of queries, never
+   * per row.
+   */
+  async list(trainerId: string, query: ListClientsQuery): Promise<ClientListItem[]> {
     const clients = await this.prisma.client.findMany({
       where: { trainerId, ...(query.status === undefined ? {} : { status: query.status }) },
       orderBy: { createdAt: 'desc' },
     });
 
-    return clients.map(toPublicClient);
+    // Only clients being coached right now can need attention: the invited have
+    // no plans yet, and the archived are no longer anyone's concern.
+    const activity = await this.activity.forClients(
+      trainerId,
+      clients.filter((client) => client.status === 'ACTIVE').map((client) => client.id),
+    );
+
+    return clients.map((client) => ({
+      ...toPublicClient(client),
+      lastLoggedAt: activity.get(client.id)?.lastLoggedAt ?? null,
+      attention: activity.get(client.id)?.attention ?? null,
+    }));
   }
 
   async findOne(trainerId: string, clientId: string): Promise<PublicClient> {
