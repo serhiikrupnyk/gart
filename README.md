@@ -7,8 +7,8 @@ Phase 1 is complete — the core loop runs end to end: a trainer builds a progra
 client sees today's workout and records what they actually did, and the trainer sees planned
 against actual, adherence, and who needs attention.
 
-This repository is currently at **Step 16: progress measurement**, the first step of Phase 2 —
-custom tracked variables, measurements, private progress photos, and the first charts.
+This repository is currently at **Step 17: habits** — Phase 2 continues with daily habits and
+streaks, on top of Step 16's progress measurement (custom variables, photos and charts).
 
 ## Requirements
 
@@ -431,6 +431,48 @@ serving a phone-first PWA. Accessibility is the reason to hand-roll rather than 
 figure carries an `aria-label` that states the trend in words («Вага: 12 замірів з 3 січня по 28
 лютого, від 84,2 до 81,0 кг»), every point is a marker so nothing depends on colour, and one
 button reveals a real data table — which trainers want for the exact numbers anyway.
+
+## Habits
+
+The trainer defines daily habits for a client; the client records them; streaks do the motivating.
+
+- **A checkbox habit is not a special case in storage — it is a target of 1.** Both kinds carry a
+  numeric target and a numeric value, so **one comparison** (`value >= targetValue`) decides
+  whether a day counts, and streaks, day strips and adherence never branch on kind. `kind`
+  (`CHECK` | `AMOUNT`) governs only how the client is _asked_ — a checkbox or a number — and
+  [habit-rules.ts](apps/api/src/habits/habit-rules.ts) makes «checkbox habit with a target of 8»
+  unrepresentable, the same way section config rules work for programs.
+- **`HabitLog` upserts on `(habit, date)`** — the third time in this codebase, for the third time
+  because a day is a fact rather than an event stream. There is no explicit zero: untapping
+  **deletes** the row, so «нічого не записано» and «записав нуль» never become two states nobody
+  can tell apart. A partial amount (5 of 8) is real data — recorded, shown, and simply not counted.
+- **Streaks are derived, never stored** ([streaks.ts](apps/api/src/habits/streaks.ts)): a counter
+  in a row is a copy that drifts the first time a log is corrected. `currentStreak` counts
+  consecutive met days, and **today is grace** — an unticked today does not break the count until
+  the day is over, so a streak reads alive all day instead of zero every morning.
+  `longestStreak` is kept so a broken streak leaves an achievement rather than only a loss. A day
+  below target breaks the streak: one that survived 2 of 8 glasses would mean nothing, and a
+  meaningless streak motivates nobody. The reference date is the **device's**, per Step 13 — a
+  streak must not break at 02:00 because the server runs on UTC.
+- **The logging window is 7 days**, half the workout window and deliberately so: «скільки води я
+  випив 12 днів тому» is invention, and here invention would rewrite a streak.
+- **There is no trainer write path for a day.** A habit is the client's own act, which removes a
+  whole category of ownership mistakes. Client routes are scoped `{ trainerId, clientId }` per the
+  Step 16 refinement, so a sibling client of the same trainer gets the same bare 404 as a stranger.
+
+```
+GET/POST   /clients/:id/habits          the view (with streaks), and definitions
+PATCH/DEL  /habits/:id                  one habit
+GET        /me/habits?date=             the client's own view
+PUT/DEL    /me/habits/:id/logs/:date    record a day, or untap it
+```
+
+On the client's home, «Звички» sits between the day's workout and «Мій план» — on a rest day that
+puts it directly under the calm empty state, which is the daily reason to open the app. A checkbox
+habit is one tap; a measured one prefills today's value and reads «5 з 8 склянок». Nothing is
+coloured as failure: a missed day in the seven-day strip is simply empty, a zero streak reads
+«Найдовша серія: 4» or «Почніть сьогодні», and finishing the last one earns «Усі звички на
+сьогодні виконано». The trainer sees the same shape — target, both streaks, and the strip.
 
 ## Program builder UI
 

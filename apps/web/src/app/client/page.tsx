@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { LOG_WINDOW_DAYS, type ClientAssignment, type ClientWorkoutDay } from '@gart/shared';
 
 import { PlanList } from '@/components/client/plan-list';
+import { MyHabits } from '@/components/habits/my-habits';
 import { WeekStrip } from '@/components/client/week-strip';
 import { WorkoutCard, type WorkoutLogMap } from '@/components/client/workout-card';
 import { EmptyState, Spinner, useToast } from '@/components/ui';
@@ -86,7 +87,8 @@ export default function ClientHomePage() {
   }
 
   // A client with no programs at all gets the honest empty frame, not a
-  // week strip full of nothing.
+  // week strip full of nothing — but their habits still belong here, since
+  // they may well have habits before they have a programme.
   if (plans.length === 0 && day.workouts.length === 0) {
     return (
       <>
@@ -95,6 +97,7 @@ export default function ClientHomePage() {
           title="Тренувань ще немає"
           description="Ваш тренер незабаром складе вашу першу програму — вона з'явиться тут."
         />
+        <MyHabits date={selected} />
       </>
     );
   }
@@ -159,6 +162,8 @@ export default function ClientHomePage() {
           </>
         )}
       </div>
+
+      <MyHabits date={selected} />
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold text-text">Мій план</h2>

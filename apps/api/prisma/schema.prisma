@@ -114,6 +114,7 @@ model Trainer {
 
   progressVariables ProgressVariable[]
   progressPhotos    ProgressPhoto[]
+  habits            Habit[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -262,6 +263,7 @@ model Client {
 
   progressVariables ProgressVariable[]
   progressPhotos    ProgressPhoto[]
+  habits            Habit[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.
@@ -646,4 +648,70 @@ model ProgressPhoto {
 
   @@index([clientId, date])
   @@index([trainerId])
+}
+
+/// How the client is ASKED, not how the habit is stored: a checkbox or a
+/// number. Storage is uniform either way — see Habit.targetValue.
+enum HabitKind {
+  CHECK
+  AMOUNT
+}
+
+/// A daily habit the trainer set for one client — вода, кроки, сон.
+///
+/// A boolean habit is not a special case in storage: it is simply a target of
+/// 1. That keeps ONE comparison — `value >= targetValue` — deciding whether a
+/// day counts, so streaks, day strips and adherence never branch on kind, and
+/// «checkbox habit with a target of 8» cannot be represented at all.
+///
+/// Per client rather than a trainer-level template, for the same reason
+/// progress variables are: which habits someone works on is a coaching
+/// decision, not a catalogue to assign.
+model Habit {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  name String
+  kind HabitKind
+
+  targetValue Decimal @db.Decimal(8, 2)
+
+  /// AMOUNT only — «склянок», «кроків», «год». A checkbox habit has no unit,
+  /// and that is what the null means.
+  unit String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs HabitLog[]
+
+  @@unique([clientId, name])
+  @@index([trainerId])
+}
+
+/// One day of one habit.
+///
+/// Upserted on (habit, date) for the third time in this codebase and for the
+/// same reason: a day is a fact, not an event stream. There is no explicit
+/// zero — untapping DELETES the row, so «нічого не записано» and «записав
+/// нуль» never become two states nobody can tell apart. A partial amount (5 of
+/// 8) is real data: recorded, shown, and simply not counted toward a streak.
+model HabitLog {
+  id String @id @default(cuid())
+
+  habitId String
+  habit   Habit  @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  date  DateTime @db.Date
+  value Decimal  @db.Decimal(8, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([habitId, date])
 }

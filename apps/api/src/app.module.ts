@@ -8,6 +8,7 @@ import { globalThrottle } from './auth/throttle.config';
 import { ClientsModule } from './clients/clients.module';
 import { DatabaseModule } from './database/database.module';
 import { ExercisesModule } from './exercises/exercises.module';
+import { HabitsModule } from './habits/habits.module';
 import { HealthController } from './health/health.controller';
 import { InvitesModule } from './invites/invites.module';
 import { MeModule } from './me/me.module';
@@ -28,6 +29,7 @@ import { ProgressModule } from './progress/progress.module';
     MeModule,
     MonitoringModule,
     ProgressModule,
+    HabitsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

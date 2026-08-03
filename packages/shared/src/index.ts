@@ -78,6 +78,25 @@ export type {
   SaveProgressEntryRequest,
   UpdateProgressVariableRequest,
 } from './progress';
+export {
+  HABIT_KIND_LABELS,
+  HABIT_KINDS,
+  HABIT_LOG_WINDOW_DAYS,
+  HABIT_STRIP_DAYS,
+  HABIT_SUGGESTIONS,
+  HABIT_TARGET_MAX,
+  HABIT_TARGET_MIN,
+} from './habit';
+export type {
+  CreateHabitRequest,
+  HabitDay,
+  HabitKind,
+  HabitStatus,
+  HabitsView,
+  LogHabitRequest,
+  PublicHabit,
+  UpdateHabitRequest,
+} from './habit';
 export type {
   ClientStatus,
   ClientWithInvite,
