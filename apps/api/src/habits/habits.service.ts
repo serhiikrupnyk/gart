@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   HABIT_LOG_WINDOW_DAYS,
+  HABIT_STREAK_MILESTONES,
   HABIT_STRIP_DAYS,
   type HabitDay,
   type HabitStatus,
@@ -23,6 +24,7 @@ import {
   utcToday,
 } from '../common/calendar';
 import { PrismaService } from '../database/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 import type { HabitLogModel, HabitModel } from '../generated/prisma/models.js';
 import type { CreateHabitDto, HabitsQuery, LogHabitDto, UpdateHabitDto } from './dto/habit.dto';
 import { resolveHabitShape } from './habit-rules';
@@ -58,6 +60,7 @@ export class HabitsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clients: ClientsService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async create(trainerId: string, clientId: string, dto: CreateHabitDto): Promise<PublicHabit> {
@@ -154,6 +157,8 @@ export class HabitsService {
       update: { value: dto.value },
     });
 
+    await this.announceMilestone(habit, day);
+
     return toHabitDay(toDateString(day), log, Number(habit.targetValue));
   }
 
@@ -174,6 +179,33 @@ export class HabitsService {
     if (count === 0) {
       throw new NotFoundException();
     }
+  }
+
+  /**
+   * Habits fire every day, so only milestones reach the trainer — a streak
+   * worth congratulating rather than a ticker of every tick.
+   */
+  private async announceMilestone(habit: HabitModel, day: Date): Promise<void> {
+    const target = Number(habit.targetValue);
+    const logs = await this.prisma.habitLog.findMany({
+      where: { habitId: habit.id, date: { gte: addDays(day, -STREAK_WINDOW_DAYS), lte: day } },
+    });
+
+    const met = new Set(
+      logs.filter((log) => Number(log.value) >= target).map((log) => toDateString(log.date)),
+    );
+    const { current } = computeStreaks(met, day);
+
+    if (!HABIT_STREAK_MILESTONES.includes(current)) {
+      return;
+    }
+
+    await this.notifications.notifyTrainer({
+      trainerId: habit.trainerId,
+      clientId: habit.clientId,
+      type: 'HABIT_STREAK',
+      detail: `${habit.name} — ${String(current)} днів поспіль`,
+    });
   }
 
   /** The trainer's gate: `{ id, trainerId }`, a miss is a bare 404. */

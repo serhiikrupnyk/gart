@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { AuthSession } from '@gart/shared';
 
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { Avatar, Button, DropdownItem, DropdownMenu, Spinner } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
@@ -80,6 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Wordmark href="/dashboard" />
 
           <div className="ml-auto flex items-center gap-1">
+            <NotificationBell />
             <ThemeToggle />
 
             <DropdownMenu

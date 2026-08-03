@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { ClientWorkoutLog } from '@gart/shared';
 
 import { PrismaService } from '../database/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 import { toClientWorkoutLog } from './client-workout.mapper';
 import type { LogWorkoutExerciseDto } from './dto/log-workout.dto';
 import { parseIsoDate } from '../common/calendar';
@@ -23,7 +24,10 @@ const NOT_SCHEDULED_MESSAGE = 'Тренування не заплановане 
  */
 @Injectable()
 export class WorkoutLogsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationService,
+  ) {}
 
   async save(
     trainerId: string,
@@ -45,6 +49,13 @@ export class WorkoutLogsService {
     }));
     const notes = dto.notes == null || dto.notes === '' ? null : dto.notes;
 
+    // Read before writing so the notification can tell a new record from an
+    // edit — five taps on one session must not become five notifications.
+    const previous = await this.prisma.workoutLog.findUnique({
+      where: { assignmentExerciseId_date: { assignmentExerciseId, date: day } },
+      select: { completed: true },
+    });
+
     // One transaction: the log and exactly the sets it was saved with.
     const log = await this.prisma.workoutLog.upsert({
       where: { assignmentExerciseId_date: { assignmentExerciseId, date: day } },
@@ -65,7 +76,62 @@ export class WorkoutLogsService {
       include: { sets: { orderBy: { order: 'asc' } } },
     });
 
+    await this.announce(trainerId, clientId, assignmentExerciseId, day, previous, dto, notes);
+
     return toClientWorkoutLog(log);
+  }
+
+  /**
+   * What the trainer hears about. Best effort throughout — NotificationService
+   * swallows its own failures, so nothing here can cost a client their record.
+   */
+  private async announce(
+    trainerId: string,
+    clientId: string,
+    assignmentExerciseId: string,
+    day: Date,
+    previous: { completed: boolean } | null,
+    dto: LogWorkoutExerciseDto,
+    notes: string | null,
+  ): Promise<void> {
+    // A stated reason is the signal a trainer must act on, so it announces
+    // itself the moment an exercise becomes skipped — but not again on edits.
+    if (!dto.completed && notes !== null && previous?.completed !== false) {
+      await this.notifications.notifyTrainer({
+        trainerId,
+        clientId,
+        type: 'EXERCISE_SKIPPED',
+        detail: notes,
+      });
+
+      return;
+    }
+
+    if (previous !== null) {
+      return;
+    }
+
+    // The session announces itself once: only when this is the first record
+    // for its (assignment, date).
+    const line = await this.prisma.assignmentExercise.findUnique({
+      where: { id: assignmentExerciseId },
+      select: { section: { select: { assignmentId: true } } },
+    });
+
+    if (line === null) {
+      return;
+    }
+
+    const recordsForSession = await this.prisma.workoutLog.count({
+      where: {
+        date: day,
+        assignmentExercise: { section: { assignmentId: line.section.assignmentId } },
+      },
+    });
+
+    if (recordsForSession === 1) {
+      await this.notifications.notifyTrainer({ trainerId, clientId, type: 'WORKOUT_LOGGED' });
+    }
   }
 
   async remove(

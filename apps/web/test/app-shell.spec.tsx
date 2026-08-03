@@ -4,6 +4,7 @@ import type { AuthSession } from '@gart/shared';
 
 import { AppShell } from '@/components/layout/app-shell';
 import { ThemeProvider } from '@/components/theme/theme-provider';
+import { ToastProvider } from '@/components/ui';
 
 const replace = jest.fn();
 
@@ -41,9 +42,11 @@ const SESSION: AuthSession = {
 function renderShell() {
   return render(
     <ThemeProvider initial="system">
-      <AppShell>
-        <p>вміст сторінки</p>
-      </AppShell>
+      <ToastProvider>
+        <AppShell>
+          <p>вміст сторінки</p>
+        </AppShell>
+      </ToastProvider>
     </ThemeProvider>,
   );
 }

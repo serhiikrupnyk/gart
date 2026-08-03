@@ -21,6 +21,7 @@ import {
   utcToday,
 } from '../common/calendar';
 import { PrismaService } from '../database/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 import type { ProgressVariableModel } from '../generated/prisma/models.js';
 import type {
   CreateProgressVariableDto,
@@ -63,6 +64,7 @@ export class ProgressService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clients: ClientsService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async listVariables(trainerId: string, clientId: string): Promise<PublicProgressVariable[]> {
@@ -216,14 +218,25 @@ export class ProgressService {
     // learn that a closed variable exists.
     const variable = await this.prisma.progressVariable.findFirst({
       where: { id: variableId, trainerId, clientId, selfLog: true },
-      select: { id: true },
+      select: { id: true, name: true, unit: true },
     });
 
     if (variable === null) {
       throw new NotFoundException();
     }
 
-    return this.upsertEntry(variable.id, date, dto);
+    const point = await this.upsertEntry(variable.id, date, dto);
+
+    // The trainer hears about measurements the client took themselves; the
+    // ones the trainer entered are already theirs.
+    await this.notifications.notifyTrainer({
+      trainerId,
+      clientId,
+      type: 'PROGRESS_LOGGED',
+      detail: `${variable.name} ${String(point.value)} ${variable.unit}`,
+    });
+
+    return point;
   }
 
   private async upsertEntry(

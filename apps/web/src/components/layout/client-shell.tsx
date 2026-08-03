@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { ClientSession } from '@gart/shared';
 
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { Avatar, DropdownItem, DropdownMenu, Spinner } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
@@ -84,6 +85,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
           />
 
           <div className="ml-auto flex items-center gap-1">
+            <NotificationBell />
             <ThemeToggle />
 
             <DropdownMenu

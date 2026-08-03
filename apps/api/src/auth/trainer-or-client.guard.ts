@@ -47,6 +47,8 @@ export class TrainerOrClientGuard implements CanActivate {
  * ignore it.
  */
 export interface ViewerTenant {
+  /** The signed-in person — push subscriptions belong to a user, not a role. */
+  userId: string;
   trainerId: string;
   clientId: string | undefined;
 }
@@ -58,11 +60,12 @@ export const CurrentViewerTenant = createParamDecorator(
       .getRequest<Request & AuthenticatedRequest & ClientAuthenticatedRequest>();
 
     const trainerId = request.auth?.trainer.id ?? request.clientAuth?.trainer.id;
+    const userId = request.auth?.user.id ?? request.clientAuth?.user.id;
 
-    if (trainerId === undefined) {
+    if (trainerId === undefined || userId === undefined) {
       throw new Error('CurrentViewerTenant used on a route without TrainerOrClientGuard');
     }
 
-    return { trainerId, clientId: request.clientAuth?.client.id };
+    return { userId, trainerId, clientId: request.clientAuth?.client.id };
   },
 );

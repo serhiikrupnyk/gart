@@ -4,6 +4,7 @@ import type { ClientSession } from '@gart/shared';
 
 import { ClientShell } from '@/components/layout/client-shell';
 import { ThemeProvider } from '@/components/theme/theme-provider';
+import { ToastProvider } from '@/components/ui';
 
 const replace = jest.fn();
 
@@ -43,9 +44,11 @@ function session(overrides: Partial<ClientSession['trainer']> = {}): ClientSessi
 function renderShell() {
   return render(
     <ThemeProvider initial="system">
-      <ClientShell>
-        <p>вміст клієнта</p>
-      </ClientShell>
+      <ToastProvider>
+        <ClientShell>
+          <p>вміст клієнта</p>
+        </ClientShell>
+      </ToastProvider>
     </ThemeProvider>,
   );
 }

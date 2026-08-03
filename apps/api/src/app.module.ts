@@ -13,6 +13,7 @@ import { HealthController } from './health/health.controller';
 import { InvitesModule } from './invites/invites.module';
 import { MeModule } from './me/me.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { ProgramsModule } from './programs/programs.module';
 import { ProgressModule } from './progress/progress.module';
 
@@ -30,6 +31,7 @@ import { ProgressModule } from './progress/progress.module';
     MonitoringModule,
     ProgressModule,
     HabitsModule,
+    NotificationsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

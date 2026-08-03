@@ -36,6 +36,9 @@ model User {
   sessions        Session[]
   teamMemberships TeamMember[]
   clientProfiles  Client[]
+
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
 }
 
 enum TeamRole {
@@ -115,6 +118,7 @@ model Trainer {
   progressVariables ProgressVariable[]
   progressPhotos    ProgressPhoto[]
   habits            Habit[]
+  notifications     Notification[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -264,6 +268,7 @@ model Client {
   progressVariables ProgressVariable[]
   progressPhotos    ProgressPhoto[]
   habits            Habit[]
+  notifications     Notification[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.
@@ -714,4 +719,84 @@ model HabitLog {
   updatedAt DateTime @updatedAt
 
   @@unique([habitId, date])
+}
+
+/// Which app shows a notification. Stored rather than derived because one
+/// person can be both a trainer and someone's client — the same fact that made
+/// Session.context a column: a client-side notification must never surface in
+/// the trainer app.
+enum NotificationAudience {
+  TRAINER
+  CLIENT
+}
+
+enum NotificationType {
+  WORKOUT_LOGGED
+  EXERCISE_SKIPPED
+  PROGRESS_LOGGED
+  HABIT_STREAK
+  ASSIGNMENT_CREATED
+}
+
+/// One thing that happened and somebody may care about.
+///
+/// The trainer's activity feed IS this list: «client X did Y» is exactly what
+/// a notification is for them, so a second table would only duplicate
+/// emission, read state, scoping and paging.
+///
+/// `userId` exists for DELIVERY (push subscriptions are per user) and is never
+/// the read scope. Reads are scoped by the hat the session wears: a trainer by
+/// `{ trainerId, audience: TRAINER }`, a client by `{ clientId, audience:
+/// CLIENT }` — the per-(trainer, client) rule Step 16 settled.
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  /// The client the notification concerns (trainer feed) or belongs to.
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  audience NotificationAudience
+  type     NotificationType
+
+  /// Composed in Ukrainian at emission — explicit columns rather than a JSON
+  /// blob, matching how every other wire shape in this codebase is built.
+  title String
+  body  String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([trainerId, audience, createdAt])
+  @@index([clientId, createdAt])
+  @@index([userId])
+}
+
+/// One browser (or installed PWA) that agreed to receive push.
+///
+/// Belongs to a USER rather than a tenant: the same person may hold both hats
+/// on one device, and the subscription is the device's, not the role's.
+/// Pruned when the push service reports it gone (404/410) — and only then; a
+/// 500 is transient and must not destroy a working subscription.
+model PushSubscription {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  endpoint String @unique
+  p256dh   String
+  auth     String
+
+  userAgent String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }

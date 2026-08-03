@@ -7,13 +7,13 @@ Phase 1 is complete — the core loop runs end to end: a trainer builds a progra
 client sees today's workout and records what they actually did, and the trainer sees planned
 against actual, adherence, and who needs attention.
 
-This repository is currently at **Step 17: habits** — Phase 2 continues with daily habits and
-streaks, on top of Step 16's progress measurement (custom variables, photos and charts).
+This repository is currently at **Step 18: notification infrastructure** — in-app notifications,
+web push, and the trainer's client-activity feed, on top of Phase 2's progress measurement (Step 16) and habits (Step 17).
 
 ## Requirements
 
 - Node.js **20.9+** (`.nvmrc` pins 20)
-- Docker with Compose v2, for Postgres
+- Docker with Compose v2, for Postgres, MinIO and Redis
 - pnpm **10** — enable it with Corepack, which ships with Node:
 
   ```bash
@@ -34,9 +34,11 @@ pnpm install
 cp .env.example .env                    # Postgres container settings
 cp apps/api/.env.example apps/api/.env  # API connection strings
 
-docker compose up -d                    # start Postgres
+docker compose up -d                    # start Postgres, MinIO and Redis
 pnpm --filter @gart/api db:migrate      # create the schema
 pnpm --filter @gart/api db:seed         # one demo trainer
+
+npx web-push generate-vapid-keys        # paste the pair into apps/api/.env
 ```
 
 Set a real password in `.env` before starting the container, and use the **same** password in
@@ -60,11 +62,12 @@ Starts both apps in parallel via Turborepo:
 | Web (Next.js) | `@gart/web` | http://localhost:3000 |
 | API (NestJS)  | `@gart/api` | http://localhost:4001 |
 | Postgres      | docker      | localhost:5433        |
+| Redis         | docker      | localhost:6380        |
 
 Verify:
 
 ```bash
-curl http://localhost:4001/health   # => {"status":"ok","db":"ok"}
+curl http://localhost:4001/health   # => {"status":"ok","db":"ok","queue":"ok"}
 open http://localhost:3000/register # => create a trainer account
 open http://localhost:3000/login    # => sign in, lands on /dashboard
 ```
@@ -473,6 +476,66 @@ habit is one tap; a measured one prefills today's value and reads «5 з 8 ск�
 coloured as failure: a missed day in the seven-day strip is simply empty, a zero streak reads
 «Найдовша серія: 4» or «Почніть сьогодні», and finishing the last one earns «Усі звички на
 сьогодні виконано». The trainer sees the same shape — target, both streaks, and the strip.
+
+## Notifications
+
+Two channels, one of which always works. Every notification is a row in Postgres — that is the
+durable channel, and the bell reads it. Web push is the best-effort second channel, delivered
+asynchronously through Redis.
+
+**The trainer's activity feed IS their notification list.** «Client X did Y» is exactly what a
+notification is for a trainer, so a second table would only duplicate emission, read state,
+scoping and paging. `audience` (TRAINER | CLIENT) is stored rather than derived for the same
+reason `Session.context` is: one person can be both a trainer and someone's client, and a
+client-side notification must never surface in the trainer app. Reads are scoped by the hat the
+session wears — a trainer to their tenant, a client to their own row.
+
+**One method, four call sites.** Services call `NotificationService.notifyTrainer(...)` and know
+nothing about queues, VAPID or subscriptions. Emission is deliberately low-noise:
+
+| Trigger                                       | Reaches    | Notification                                             |
+| --------------------------------------------- | ---------- | -------------------------------------------------------- |
+| First record of a session (Step 14)           | trainer    | «Запис тренування» — once, however many exercises follow |
+| A skip with a reason (Step 14)                | trainer    | «Пропуск вправи: біль у коліні»                          |
+| A client's own measurement (Step 16)          | trainer    | «Новий замір: Вага 83 кг»                                |
+| A habit streak milestone — 7/30/100 (Step 17) | trainer    | «Серія звички: Вода — 7 днів поспіль»                    |
+| A program assigned (Step 12)                  | **client** | «Нова програма»                                          |
+
+Habits fire every day, so only milestones travel: five habits across twenty clients would
+otherwise be a hundred notifications a day, and the signals worth acting on would drown.
+**Emission is best effort and swallows its own failures** — a missing notification is a nuisance,
+a lost workout log is data loss.
+
+### Redis, behind a seam
+
+`bullmq` over `ioredis`, chosen for retries with backoff and for the delayed jobs Step 19's
+inactivity checks will need. Two abstract classes are the only contact the app has with any of it
+— `NotificationQueue` and `WebPushSender`, bound to real implementations in production and to
+in-memory fakes in tests, exactly as `StorageService` is. **No test run needs Redis or a push
+service**, and the queue's contents are directly assertable.
+
+Degradation is designed, not hoped for: `ioredis` runs with `lazyConnect` and its offline queue
+**disabled**, so enqueueing fails fast instead of buffering into memory a restart would lose. The
+notification row is written first and the enqueue is wrapped — **Redis being down costs push and
+nothing else**, which a test asserts by making the queue throw. `/health` reports
+`queue: 'ok' | 'error'` without turning the overall status red, because the service really is
+still serving.
+
+### Web push
+
+VAPID keys live in `apps/api/.env` (`npx web-push generate-vapid-keys`); the private one never
+leaves it and the public one is served by `GET /notifications/push/key` rather than baked into the
+web bundle, so rotating it needs no rebuild. Subscriptions belong to a **user**, not a tenant —
+the same person may hold both hats on one device.
+
+A subscription is pruned when the push service answers **404 or 410**, and only then: a 500 is a
+bad minute at the push service, and deleting a working subscription over it would silently
+unsubscribe someone for ever.
+
+The permission prompt is never fired on load — an unprompted dialog is how notifications get
+blocked permanently. A quiet card in the bell panel explains why, and only its button registers
+[the service worker](apps/web/public/sw.js), asks permission and subscribes. Denial shows one calm
+line and is never asked again; a browser that cannot do push renders no control at all.
 
 ## Program builder UI
 

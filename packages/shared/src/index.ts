@@ -97,6 +97,19 @@ export type {
   PublicHabit,
   UpdateHabitRequest,
 } from './habit';
+export {
+  HABIT_STREAK_MILESTONES,
+  NOTIFICATION_TYPES,
+  NOTIFICATIONS_PER_PAGE,
+} from './notification';
+export type {
+  NotificationList,
+  NotificationType,
+  PublicNotification,
+  PushPublicKeyResponse,
+  PushSubscriptionRequest,
+  UnsubscribePushRequest,
+} from './notification';
 export type {
   ClientStatus,
   ClientWithInvite,

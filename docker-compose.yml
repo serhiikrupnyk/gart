@@ -66,6 +66,25 @@ services:
         '${MINIO_ROOT_USER:-gart_minio}' '${MINIO_ROOT_PASSWORD}'
         && mc mb --ignore-existing local/gart-media
 
+  # Queue backend for notification delivery. The API degrades gracefully when
+  # this is down: in-app notifications are written to Postgres regardless, and
+  # only asynchronous push delivery waits for Redis to come back.
+  redis:
+    image: redis:7-alpine
+    container_name: gart_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - '${REDIS_PORT:-6380}:6379'
+    volumes:
+      - gart_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
 volumes:
   gart_postgres_data:
   gart_minio_data:
+  gart_redis_data:

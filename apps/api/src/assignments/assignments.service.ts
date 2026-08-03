@@ -3,6 +3,7 @@ import type { PublicAssignment, PublicAssignmentDetail } from '@gart/shared';
 
 import { ClientsService } from '../clients/clients.service';
 import { PrismaService } from '../database/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 import type { AssignmentModel } from '../generated/prisma/models.js';
 import type { ProgramTree } from '../programs/program.mapper';
 import { ProgramsService } from '../programs/programs.service';
@@ -51,6 +52,7 @@ export class AssignmentsService {
     private readonly prisma: PrismaService,
     private readonly clients: ClientsService,
     private readonly programs: ProgramsService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async create(
@@ -88,6 +90,16 @@ export class AssignmentsService {
         sections: { create: buildSnapshot(tree) },
       },
       select: { id: true },
+    });
+
+    // The one notification that travels the other way in this step: the client
+    // learns their trainer has given them something to do.
+    await this.notifications.notifyClient({
+      trainerId,
+      clientId: client.id,
+      type: 'ASSIGNMENT_CREATED',
+      title: 'Нова програма',
+      body: tree.name,
     });
 
     return this.findOne(trainerId, created.id);
