@@ -8,9 +8,10 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from 'react';
 
-import { THEME_COOKIE, type ThemePreference } from '@/lib/theme';
+import { parseThemePreference, THEME_COOKIE, type ThemePreference } from '@/lib/theme';
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
@@ -35,19 +36,39 @@ function apply(preference: ThemePreference): void {
   );
 }
 
+/** The preference never changes behind React's back, so there is nothing to watch. */
+function subscribeNever(): () => void {
+  return () => undefined;
+}
+
+/** ThemeScript stamped the preference onto <html> before hydration began. */
+function readDomPreference(): ThemePreference {
+  return parseThemePreference(document.documentElement.dataset.theme);
+}
+
+function serverPreference(): ThemePreference {
+  return 'system';
+}
+
 /**
- * The initial preference comes from the server, which read it from the cookie —
- * so there is nothing to synchronise after hydration and no first render with
- * the wrong value.
+ * Pages render statically, so the server cannot know the preference — but
+ * ThemeScript stamps it onto <html> before first paint, and reading it back
+ * through useSyncExternalStore lets React hydrate against the server's
+ * neutral markup and then correct itself without a mismatch warning.
+ *
+ * `initial` remains for tests, which have no ThemeScript to stamp the DOM.
  */
 export function ThemeProvider({
   initial,
   children,
 }: {
-  initial: ThemePreference;
+  initial?: ThemePreference;
   children: ReactNode;
 }) {
-  const [preference, setPreference] = useState<ThemePreference>(initial);
+  const domPreference = useSyncExternalStore(subscribeNever, readDomPreference, serverPreference);
+  const [override, setOverride] = useState<ThemePreference | undefined>();
+
+  const preference = override ?? initial ?? domPreference;
 
   // Only while following the system: keep the class in step if the operating
   // system flips mid-session. Touches the DOM, not React state.
@@ -69,10 +90,10 @@ export function ThemeProvider({
   }, [preference]);
 
   const choose = useCallback((next: ThemePreference) => {
-    // A cookie rather than localStorage, so the server can read it next time.
+    // A cookie rather than localStorage, so ThemeScript can read it next visit.
     document.cookie = `${THEME_COOKIE}=${next}; path=/; max-age=${String(ONE_YEAR_SECONDS)}; samesite=lax`;
     apply(next);
-    setPreference(next);
+    setOverride(next);
   }, []);
 
   const value = useMemo(() => ({ preference, choose }), [preference, choose]);

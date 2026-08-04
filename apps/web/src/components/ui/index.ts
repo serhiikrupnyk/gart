@@ -1,6 +1,12 @@
 export { Avatar } from './avatar';
 export { Badge, type BadgeTone } from './badge';
-export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
+export {
+  Button,
+  buttonClasses,
+  type ButtonProps,
+  type ButtonSize,
+  type ButtonVariant,
+} from './button';
 export { Card } from './card';
 export { DropdownItem, DropdownMenu } from './dropdown-menu';
 export { EmptyState } from './empty-state';

@@ -4,7 +4,7 @@ import { cx } from '@/lib/cx';
 import { Spinner } from './spinner';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-export type ButtonSize = 'sm' | 'md';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const BASE =
   'inline-flex items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap ' +
@@ -25,7 +25,20 @@ const VARIANTS: Record<ButtonVariant, string> = {
 const SIZES: Record<ButtonSize, string> = {
   sm: 'h-8 px-3 text-sm',
   md: 'h-10 px-4 text-sm',
+  lg: 'h-12 px-6 text-base',
 };
+
+/**
+ * The visual recipe on its own, so a Link can wear it. Marketing CTAs are
+ * links styled as buttons — nesting a <button> inside an <a> is invalid HTML.
+ */
+export function buttonClasses(
+  variant: ButtonVariant = 'secondary',
+  size: ButtonSize = 'md',
+  fullWidth = false,
+): string {
+  return cx(BASE, VARIANTS[variant], SIZES[size], fullWidth && 'w-full');
+}
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
   variant?: ButtonVariant;
@@ -52,7 +65,7 @@ export function Button({
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cx(BASE, VARIANTS[variant], SIZES[size], fullWidth && 'w-full')}
+      className={buttonClasses(variant, size, fullWidth)}
     >
       {loading && <Spinner size="sm" />}
       {children}

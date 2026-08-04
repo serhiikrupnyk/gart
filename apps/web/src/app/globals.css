@@ -74,9 +74,44 @@
   --text-2xl--line-height: 2.125rem;
   --text-3xl: 2.25rem;
   --text-3xl--line-height: 2.625rem;
+  --text-4xl: 2.75rem;
+  --text-4xl--line-height: 3.25rem;
+  --text-5xl: 3.5rem;
+  --text-5xl--line-height: 3.875rem;
 
   --radius-control: 0.5rem;
   --radius-card: 0.75rem;
+
+  /* Landing-only motion; always behind motion-safe. transform/opacity only. */
+  --animate-ember: ember 8s ease-in-out infinite;
+  --animate-drift: drift 10s ease-in-out infinite;
+}
+
+@keyframes ember {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Smooth anchor scrolling for the landing nav — only when motion is welcome. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 .dark {

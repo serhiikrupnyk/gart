@@ -1,12 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
-import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
 
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { ThemeScript } from '@/components/theme/theme-script';
 import { ToastProvider } from '@/components/ui';
-import { parseThemePreference, resolvedOnServer, THEME_COOKIE } from '@/lib/theme';
 
 import './globals.css';
 
@@ -31,27 +29,22 @@ export const viewport: Viewport = {
   ],
 };
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  // Reading the cookie here is what removes the flash: an explicit light/dark
-  // choice is already in the markup before any script runs. It costs dynamic
-  // rendering for the whole app, which is the right trade for a signed-in
-  // product. `system` cannot be resolved server-side — no request header
-  // carries the OS preference — so ThemeScript settles that before first paint.
-  const preference = parseThemePreference((await cookies()).get(THEME_COOKIE)?.value);
-  const resolved = resolvedOnServer(preference);
-
+/**
+ * Deliberately static: no cookie read here. ThemeScript — a blocking inline
+ * script in <head> — reads the theme cookie and sets the class before first
+ * paint, which covers every case including `system` (the one the server never
+ * could resolve). Reading the cookie server-side would only duplicate that
+ * work, at the price of forcing every route — including the public landing —
+ * into dynamic rendering.
+ */
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="uk"
-      data-theme={preference}
-      className={`${inter.variable}${resolved === 'dark' ? ' dark' : ''}`}
-      suppressHydrationWarning
-    >
+    <html lang="uk" className={inter.variable} suppressHydrationWarning>
       <head>
         <ThemeScript />
       </head>
       <body>
-        <ThemeProvider initial={preference}>
+        <ThemeProvider>
           <ToastProvider>{children}</ToastProvider>
         </ThemeProvider>
       </body>

@@ -648,6 +648,36 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## The landing page
+
+The public root sells Gart to trainers in Ukrainian. Two things about it are worth
+knowing.
+
+**It made the whole app static again.** Step 5 read the theme cookie in the root layout to
+kill the flash of the wrong theme, and that one `cookies()` call opted _every_ route out of
+static generation. The cookie read is now gone: `ThemeScript` — a tiny blocking inline
+script that was already there — sets the class before first paint, and it handles the one
+case the server never could (`system`, which no request header carries). `ThemeProvider`
+reads the preference back through `useSyncExternalStore`, so React hydrates against neutral
+markup without a mismatch. `/` and every auth route now prerender as static.
+
+**The hero is the product, not a screenshot.** A workout card, a habit streak and a
+progress chart, composed from the same tokens the real app uses — so it cannot drift from
+the product, weighs nothing, and needs no asset pipeline. One ember glow sits behind it.
+Everything animated is behind `motion-safe:` and moves only `transform`/`opacity`.
+
+Copy comes from `gart-presentation.md` and stays honest: payments carry a «Скоро» badge in
+both places they appear, nutrition lives only in the roadmap strip, and the social-proof
+section is an explicit placeholder rather than an invented testimonial. There is no pricing
+section, because there are no final prices and no billing.
+
+An adversarial review pass (three lenses — accessibility, token fidelity, Ukrainian copy —
+each finding then attacked by a separate verifier) caught nine real defects, including two
+worth recording: the final CTA read «Залиште тренування», which idiomatically means _quit
+training_; and `scroll-mt-24` sat on section wrappers while the ids lived on the `h2`s, so
+anchor targets slid under the sticky header. `scroll-margin` only applies to the element the
+fragment actually targets.
+
 ## Chat media
 
 A media message is a chat message carrying an attachment, on the upload path Step 8 established
