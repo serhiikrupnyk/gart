@@ -1,4 +1,5 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Queue, Worker } from 'bullmq';
 import IORedis, { type Redis } from 'ioredis';
 
@@ -6,7 +7,9 @@ import { InactivityService } from './inactivity.service';
 import { NotificationQueue, type PushJob } from './notification-queue';
 import { PushDeliveryService } from './push-delivery.service';
 
-const QUEUE_NAME = 'notifications:push';
+// BullMQ rejects a colon in a queue name — it builds its own Redis keys
+// around that separator, and the constructor throws before the app can boot.
+const QUEUE_NAME = 'notifications-push';
 const PUSH_JOB = 'push';
 const SWEEP_JOB = 'inactivity-sweep';
 const DEFAULT_SWEEP_CRON = '0 9 * * *';
@@ -37,7 +40,7 @@ export class BullMqNotificationQueue
 
   constructor(
     private readonly delivery: PushDeliveryService,
-    private readonly inactivity: InactivityService,
+    private readonly moduleRef: ModuleRef,
   ) {
     super();
 
@@ -64,7 +67,11 @@ export class BullMqNotificationQueue
       QUEUE_NAME,
       async (job) => {
         if (job.name === SWEEP_JOB) {
-          await this.inactivity.sweep();
+          // Resolved when a job runs, never in the constructor: InactivityService
+          // reaches back through NotificationService to this very queue, and
+          // injecting it directly is a dependency cycle — which Nest hangs on
+          // silently rather than reporting. The sweep is job-time work anyway.
+          await this.moduleRef.get(InactivityService, { strict: false }).sweep();
 
           return;
         }
