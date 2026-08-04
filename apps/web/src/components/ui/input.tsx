@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react';
 import type { InputHTMLAttributes } from 'react';
 
 import { cx } from '@/lib/cx';
@@ -14,14 +15,37 @@ export function controlBorder(invalid: boolean): string {
 
 export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> {
   invalid?: boolean;
+  /**
+   * Decorative mark inside the field. Purely presentational — the label still
+   * names the control — so it is hidden from assistive technology. Leaving it
+   * out renders exactly the markup this component produced before it existed.
+   */
+  leadingIcon?: LucideIcon;
 }
 
-export function Input({ invalid = false, ...rest }: InputProps) {
-  return (
+export function Input({ invalid = false, leadingIcon: Icon, ...rest }: InputProps) {
+  const field = (
     <input
       {...rest}
       aria-invalid={invalid || undefined}
-      className={cx(CONTROL_BASE, controlBorder(invalid))}
+      className={cx(CONTROL_BASE, controlBorder(invalid), Icon !== undefined && 'pl-9')}
     />
+  );
+
+  if (Icon === undefined) {
+    return field;
+  }
+
+  return (
+    <span className="relative block">
+      <Icon
+        aria-hidden="true"
+        className={cx(
+          'pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2',
+          rest.disabled === true ? 'text-text-muted' : 'text-text-secondary',
+        )}
+      />
+      {field}
+    </span>
   );
 }

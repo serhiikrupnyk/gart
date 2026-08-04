@@ -12,7 +12,7 @@ const TONES: Record<BadgeTone, string> = {
   neutral: 'bg-bg-subtle text-text-secondary ring-border-strong',
   success: 'bg-success/10 text-success ring-success/30',
   warning: 'bg-warning/10 text-warning ring-warning/30',
-  danger: 'bg-danger/10 text-danger ring-danger/30',
+  danger: 'bg-danger/10 text-danger-text ring-danger/30',
   accent: 'bg-accent-subtle text-accent ring-accent/30',
 };
 

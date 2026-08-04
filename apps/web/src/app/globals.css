@@ -49,6 +49,14 @@
   --color-success: #16a34a;
   --color-warning: #e8890c;
   --color-danger: #e5484d;
+  /*
+   * --color-danger is a fill: it is AA against ink, but as *text* it is
+   * 3.91 on surface and 3.44 on its own 10% tint — both below AA. Message
+   * text therefore uses a darker step of the same hue (358°), measured at
+   * 5.16 on surface and 4.54 on the tint. Same reasoning as
+   * --color-accent-solid-hover: the fill and the text want different values.
+   */
+  --color-danger-text: #d61e24;
   --color-info: #2563eb;
 
   --color-on-success: #14171f;
@@ -163,6 +171,7 @@
   --color-success: #22c55e;
   --color-warning: #f59e0b;
   --color-danger: #f0575b;
+  --color-danger-text: #f0575b;
   --color-info: #3b82f6;
 
   --color-on-success: #14171f;

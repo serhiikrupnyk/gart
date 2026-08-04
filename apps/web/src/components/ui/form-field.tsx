@@ -45,7 +45,7 @@ export function FormField({ label, children, error, hint }: FormFieldProps) {
       )}
 
       {error !== undefined && (
-        <p id={errorId} className="mt-1.5 text-xs text-danger">
+        <p id={errorId} role="alert" className="mt-1.5 text-xs text-danger-text">
           {error}
         </p>
       )}

@@ -271,7 +271,10 @@ export function ProgramBuilder({ initial }: { initial?: PublicProgramDetail }) {
         </FormField>
 
         {formError !== undefined && (
-          <p role="alert" className="rounded-control bg-danger/10 px-3 py-2 text-sm text-danger">
+          <p
+            role="alert"
+            className="rounded-control bg-danger/10 px-3 py-2 text-sm text-danger-text"
+          >
             {formError}
           </p>
         )}

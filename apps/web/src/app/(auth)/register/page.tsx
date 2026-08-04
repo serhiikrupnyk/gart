@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
+import { Lock, Mail, User } from 'lucide-react';
 import type { AuthSession } from '@gart/shared';
 
-import { AuthLayout } from '@/components/layout/auth-layout';
-import { Button, FormField, Input } from '@/components/ui';
+import { AuthLayout, AuthPitch } from '@/components/layout/auth-layout';
+import { Button, FormError, FormField, Input } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { PASSWORD_MIN_LENGTH, validateEmail, validatePassword } from '@/lib/validation';
 
@@ -54,6 +55,12 @@ export default function RegisterPage() {
     <AuthLayout
       title="Створити акаунт"
       subtitle="Почніть вести клієнтів у Gart"
+      pitch={
+        <AuthPitch
+          headline="Тренуйте людей, а не таблиці."
+          body="Програми, прогрес, звички і чат — в одному місці, українською."
+        />
+      }
       footer={
         <>
           Вже маєте акаунт?{' '}
@@ -69,6 +76,7 @@ export default function RegisterPage() {
             <Input
               {...props}
               type="text"
+              leadingIcon={User}
               value={displayName}
               onChange={(event) => {
                 setDisplayName(event.target.value);
@@ -84,6 +92,7 @@ export default function RegisterPage() {
             <Input
               {...props}
               type="email"
+              leadingIcon={Mail}
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
@@ -103,6 +112,7 @@ export default function RegisterPage() {
             <Input
               {...props}
               type="password"
+              leadingIcon={Lock}
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value);
@@ -113,11 +123,7 @@ export default function RegisterPage() {
           )}
         </FormField>
 
-        {formError !== undefined && (
-          <p role="alert" className="rounded-control bg-danger/10 px-3 py-2 text-sm text-danger">
-            {formError}
-          </p>
-        )}
+        {formError !== undefined && <FormError>{formError}</FormError>}
 
         <Button type="submit" variant="primary" fullWidth loading={pending}>
           {pending ? 'Створюємо акаунт…' : 'Зареєструватися'}

@@ -217,7 +217,10 @@ export function SectionCard({
       )}
 
       {error !== undefined && (
-        <p role="alert" className="mt-3 rounded-control bg-danger/10 px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="mt-3 rounded-control bg-danger/10 px-3 py-2 text-sm text-danger-text"
+        >
           {error}
         </p>
       )}

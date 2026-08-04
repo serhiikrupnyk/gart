@@ -419,7 +419,10 @@ export function ExerciseFormModal({
         </div>
 
         {fieldErrors.form !== undefined && fieldErrors.form !== '' && (
-          <p role="alert" className="rounded-control bg-danger/10 px-3 py-2 text-sm text-danger">
+          <p
+            role="alert"
+            className="rounded-control bg-danger/10 px-3 py-2 text-sm text-danger-text"
+          >
             {fieldErrors.form}
           </p>
         )}

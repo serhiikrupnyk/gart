@@ -10,6 +10,7 @@ export {
 export { Card } from './card';
 export { DropdownItem, DropdownMenu } from './dropdown-menu';
 export { EmptyState } from './empty-state';
+export { FormError } from './form-error';
 export { FormField } from './form-field';
 export { Input } from './input';
 export { Label } from './label';

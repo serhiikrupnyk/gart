@@ -2,10 +2,11 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
+import { CircleAlert, Lock } from 'lucide-react';
 import type { InvitePreview } from '@gart/shared';
 
-import { AuthLayout } from '@/components/layout/auth-layout';
-import { Button, FormField, Input, Skeleton, SkeletonRegion } from '@/components/ui';
+import { AuthLayout, AuthPitch } from '@/components/layout/auth-layout';
+import { Button, FormError, FormField, Input, Skeleton, SkeletonRegion } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { PASSWORD_MIN_LENGTH, validatePassword } from '@/lib/validation';
 
@@ -73,14 +74,22 @@ export default function InvitePage() {
 
   if (state.kind === 'loading') {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-bg-subtle px-4">
-        <SkeletonRegion label="Перевіряємо запрошення" className="w-full max-w-sm space-y-4">
-          <Skeleton className="h-7 w-40" />
+      <AuthLayout
+        title="Перевіряємо запрошення"
+        subtitle="Хвилинку — переконуємось, що посилання ще дійсне."
+        pitch={
+          <AuthPitch
+            headline="Ласкаво просимо."
+            body="Тренування, прогрес і зв'язок із тренером — у вашому застосунку. Безкоштовно."
+          />
+        }
+      >
+        <SkeletonRegion label="Перевіряємо запрошення" className="mt-6 space-y-4">
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-2/3" />
           <Skeleton className="h-10 rounded-control" />
         </SkeletonRegion>
-      </main>
+      </AuthLayout>
     );
   }
 
@@ -88,9 +97,17 @@ export default function InvitePage() {
     return (
       <AuthLayout
         title="Запрошення недоступне"
-        subtitle={state.message}
+        subtitle="Це посилання більше не працює."
         footer="Зверніться до свого тренера по нове посилання."
-      />
+      >
+        <p
+          role="alert"
+          className="mt-6 flex items-start gap-2 rounded-control border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger-text"
+        >
+          <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          {state.message}
+        </p>
+      </AuthLayout>
     );
   }
 
@@ -98,6 +115,12 @@ export default function InvitePage() {
     <AuthLayout
       title={`Вас запросив ${state.preview.trainerName}`}
       subtitle={`${state.preview.clientFullName}, створіть пароль, щоб почати`}
+      pitch={
+        <AuthPitch
+          headline="Ласкаво просимо."
+          body="Тренування, прогрес і зв'язок із тренером — у вашому застосунку. Безкоштовно."
+        />
+      }
       footer="Після цього ви зможете входити за своїм email."
     >
       <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
@@ -110,6 +133,7 @@ export default function InvitePage() {
             <Input
               {...props}
               type="password"
+              leadingIcon={Lock}
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value);
@@ -120,11 +144,7 @@ export default function InvitePage() {
           )}
         </FormField>
 
-        {formError !== undefined && (
-          <p role="alert" className="rounded-control bg-danger/10 px-3 py-2 text-sm text-danger">
-            {formError}
-          </p>
-        )}
+        {formError !== undefined && <FormError>{formError}</FormError>}
 
         <Button type="submit" variant="primary" fullWidth loading={pending}>
           {pending ? 'Створюємо акаунт…' : 'Прийняти запрошення'}

@@ -648,6 +648,42 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## The auth screens
+
+A reskin, not a rewrite: registration, login, accept-invite and the client sign-in behave exactly
+as before. The handler, validation, endpoint and session lines in all four pages are byte-identical
+— only JSX and classes moved.
+
+All four share one `AuthLayout`, now a brand panel beside the form above `lg` and the card alone
+below it. The panel carries the landing's ember at a lower opacity, because this is a task screen
+rather than a pitch, and a line that is true for the visitor in front of it — a returning trainer is
+not sold to the way an invited client is welcomed.
+
+The panel sits **first** in source order, on the side it is painted. CSS `order` moves paint order
+only, never tab order, so pulling it left with `order-first` would have made a wordmark that renders
+top-left the last tab stop.
+
+`Input` gained an optional `leadingIcon`. Leaving it out renders exactly the markup the component
+produced before it existed, so the ~30 existing call sites are untouched. There is deliberately no
+show/hide password toggle: none existed, and adding one is behaviour, not polish.
+
+### The danger token was never AA as text
+
+`--color-danger` was validated as a _fill_ — ink sits on it at 4.58 — but nothing had measured it as
+a foreground. As text it is **3.91:1** on surface and **3.44:1** on its own 10% tint: both below AA,
+in the default light theme, on the only feedback a rejected login gives you.
+
+`--color-danger-text` is a darker step of the same hue (358°), measured at 5.16 on surface and 4.54
+on the tint; dark theme keeps its existing value, which already passed. The fix landed on all
+**eleven** surfaces that had the bug — the four auth screens plus the program builder, section card,
+add-client, assign-program and exercise-form modals, the shared `FormField` error, and the `danger`
+badge — because a half-fixed contrast bug is worse than either extreme.
+
+Two more from the same review: field errors now carry `role="alert"`, so client-side validation is
+announced rather than appearing silently; and a form-level failure takes focus, because submitting
+disables the button the user was standing on, and a disabled element is blurred — a keyboard user
+who failed to sign in was being returned to the top of the document with no idea why.
+
 ## Icons and loading states
 
 **One icon system.** Every hand-drawn mark, emoji and dingbat (`☰ 🔔 📎 🎤 🔥 ✓ ✕ ⋮ ← ↑ ▶ ♪ ☀`) is

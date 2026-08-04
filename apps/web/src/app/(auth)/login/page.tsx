@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
+import { Lock, Mail } from 'lucide-react';
 import type { AuthSession } from '@gart/shared';
 
-import { AuthLayout } from '@/components/layout/auth-layout';
-import { Button, FormField, Input } from '@/components/ui';
+import { AuthLayout, AuthPitch } from '@/components/layout/auth-layout';
+import { Button, FormError, FormField, Input } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { validateEmail } from '@/lib/validation';
 
@@ -53,6 +54,12 @@ export default function LoginPage() {
     <AuthLayout
       title="Вхід"
       subtitle="Увійдіть у свій кабінет тренера"
+      pitch={
+        <AuthPitch
+          headline="З поверненням."
+          body="Ваші клієнти, програми й прогрес — там, де ви їх залишили."
+        />
+      }
       footer={
         <>
           <p>
@@ -79,6 +86,7 @@ export default function LoginPage() {
             <Input
               {...props}
               type="email"
+              leadingIcon={Mail}
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
@@ -94,6 +102,7 @@ export default function LoginPage() {
             <Input
               {...props}
               type="password"
+              leadingIcon={Lock}
               value={password}
               onChange={(event) => {
                 setPassword(event.target.value);
@@ -104,11 +113,7 @@ export default function LoginPage() {
           )}
         </FormField>
 
-        {formError !== undefined && (
-          <p role="alert" className="rounded-control bg-danger/10 px-3 py-2 text-sm text-danger">
-            {formError}
-          </p>
-        )}
+        {formError !== undefined && <FormError>{formError}</FormError>}
 
         <Button type="submit" variant="primary" fullWidth loading={pending}>
           {pending ? 'Входимо…' : 'Увійти'}
