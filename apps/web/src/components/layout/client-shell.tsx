@@ -15,6 +15,7 @@ import { Wordmark } from './wordmark';
 const NAV_ITEMS = [
   { label: 'Тренування', href: '/client' },
   { label: 'Прогрес', href: '/client/progress' },
+  { label: 'Чат', href: '/client/chat' },
 ];
 
 /** The client-app sections later phases will fill; visible so the frame is honest. */

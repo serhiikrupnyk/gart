@@ -5,6 +5,7 @@ const DEFAULT_AUTH_LIMIT = 10;
 const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MESSAGE_LIMIT = 20;
 const DEFAULT_MESSAGE_WINDOW_MS = 60 * 60_000;
+const DEFAULT_CHAT_LIMIT = 60;
 
 function numberFromEnv(name: string, fallback: number): number {
   const parsed = Number(process.env[name]);
@@ -49,5 +50,17 @@ export function messageThrottle(): { limit: () => number; ttl: () => number } {
   return {
     ttl: () => numberFromEnv('MESSAGE_THROTTLE_TTL_MS', DEFAULT_MESSAGE_WINDOW_MS),
     limit: () => numberFromEnv('MESSAGE_THROTTLE_LIMIT', DEFAULT_MESSAGE_LIMIT),
+  };
+}
+
+/**
+ * Chat is a conversation rather than an announcement, so the budget is looser
+ * — enough for a lively exchange, tight enough that no participant can flood
+ * the other. Counted per participant by ChatThrottlerGuard.
+ */
+export function chatThrottle(): { limit: () => number; ttl: () => number } {
+  return {
+    ttl: () => numberFromEnv('CHAT_THROTTLE_TTL_MS', DEFAULT_MESSAGE_WINDOW_MS),
+    limit: () => numberFromEnv('CHAT_THROTTLE_LIMIT', DEFAULT_CHAT_LIMIT),
   };
 }

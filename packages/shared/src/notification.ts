@@ -6,6 +6,7 @@ export const NOTIFICATION_TYPES = [
   'ASSIGNMENT_CREATED',
   'CLIENT_INACTIVE',
   'TRAINER_MESSAGE',
+  'CHAT_MESSAGE',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

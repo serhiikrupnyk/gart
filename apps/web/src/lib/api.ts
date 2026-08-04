@@ -1,4 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4001';
+/** Exported because the chat stream opens an EventSource against it directly. */
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4001';
 
 /** Message shown when the API is unreachable or returns something unreadable. */
 const FALLBACK_ERROR = 'Не вдалося з’єднатися із сервером. Спробуйте ще раз.';

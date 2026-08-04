@@ -12,3 +12,7 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: jest.fn(),
   }),
 });
+
+// jsdom implements no layout, so scrolling is a no-op rather than a method.
+// The chat keeps the newest message in view with it.
+Element.prototype.scrollIntoView = jest.fn();

@@ -6,11 +6,11 @@ import { useEffect, useState } from 'react';
 import { INACTIVITY_DAYS, type ClientListItem } from '@gart/shared';
 
 import { ClientActivity } from '@/components/clients/client-activity';
+import { ClientChat } from '@/components/chat/client-chat';
 import { ClientHabits } from '@/components/habits/client-habits';
 import { ClientProgressPanel } from '@/components/progress/client-progress';
 import { ClientAssignments } from '@/components/clients/client-assignments';
 import { ClientStatusBadge } from '@/components/clients/client-status-badge';
-import { MessageClient } from '@/components/clients/message-client';
 import { InviteLink } from '@/components/clients/invite-link';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button, Card, EmptyState, Spinner, useToast } from '@/components/ui';
@@ -180,6 +180,8 @@ export default function ClientDetailPage() {
       <ClientProgressPanel clientId={client.id} />
 
       <ClientHabits clientId={client.id} />
+
+      <ClientChat clientId={client.id} />
     </>
   );
 }
@@ -210,7 +212,12 @@ function InactivityBanner({ client, now }: { client: ClientListItem; now: number
           ? 'Записів тренувань ще немає.'
           : `Немає записів тренувань уже ${String(days)} днів.`}
       </p>
-      <MessageClient clientId={client.id} clientName={client.fullName} />
+      <a
+        href="#chat"
+        className="shrink-0 text-sm font-medium text-accent underline-offset-4 hover:underline"
+      >
+        Написати клієнту
+      </a>
     </div>
   );
 }

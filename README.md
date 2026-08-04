@@ -591,6 +591,63 @@ On the client page, an inactivity banner states exactly what it measures — day
 recorded workout — and carries «Написати клієнту» beside it, so the alert produces an action rather
 than just a worry.
 
+## Chat
+
+One text conversation per (trainer, client), live.
+
+**The transport is SSE, and the deciding argument was security.** A `@Sse()` endpoint is an
+ordinary HTTP GET, so the live stream sits behind the _same_ `TrainerOrClientGuard`, resolves the
+_same_ server-side session from the _same_ httpOnly cookie, and returns the _same_ uniform bare
+401 as every other route — there is no second authentication path to write, review or get wrong. A
+WebSocket handshake would have needed its own cookie parsing and session resolution, and every one
+of those is a chance to build something weaker than Step 3 already proved. It also costs zero new
+dependencies on either side: `@Sse()` ships with Nest, `rxjs` was already there, and `EventSource`
+is native. The honest trade is no typing indicator in this step, which is the one thing a duplex
+channel would genuinely have been better at.
+
+**Nothing depends on the stream.** Messages are persisted first and read over plain HTTP, so a
+browser that cannot hold an `EventSource`, or a server not delivering, costs immediacy and nothing
+else — `EventSource` reconnects by itself, and the sender sees their own message from the POST
+response either way. Redis is not involved in chat at all; multi-instance fan-out would put a
+pub/sub adapter behind the same `ChatStream` shape, which is the seam this codebase already uses
+for storage, queues and push.
+
+```
+POST /chat/threads              { clientId }   get-or-create (trainer)
+GET  /chat/thread                              the client's one conversation
+GET  /chat/threads                             the trainer's threads + unread
+GET  /chat/threads/:id/messages?before=        history, keyset-paged
+POST /chat/threads/:id/messages { body }       persist, publish, notify
+POST /chat/threads/:id/read                    mark read
+GET  /chat/threads/:id/stream                  SSE — enhancement only
+```
+
+- **The thread IS the pair**: `@@unique([trainerId, clientId])` rather than a participants table,
+  because 1:1 is the whole feature. Every read and write is scoped by both ids, so a sibling client
+  of the same trainer is exactly as far from a conversation as a stranger — the same bare 404.
+- **`ChatParticipant` is a union**, not a role plus an optional id: a trainer participates in every
+  thread of their tenant, a client in exactly one, and «a trainer with an empty client id» is not
+  something the type system will let anyone write.
+- **Read state is one timestamp per side.** Unread means «after my `lastReadAt` and not mine»,
+  which is all a badge needs; sending counts as reading. Per-message delivery ticks would need a
+  row per message per participant and nobody has asked for them.
+- **History is keyset-paged on `(createdAt, id)`**, not on the id alone: two messages can share a
+  timestamp, and a cursor that does not order exactly the way the query does will eventually skip
+  or repeat one.
+- **Notify only who is not watching.** Because a stream is opened _per thread_, an open
+  subscription is not a guess about presence — it is the fact that someone has that conversation on
+  screen. So the rule is one line: notify the recipient through Step 18 unless they are watching
+  this thread. No timers, no heartbeats, no last-seen heuristics.
+
+Sending is rate limited per **participant** — the counting helper extracted from Step 19 now serves
+both guards, one keyed on the trainer and one on whichever side is speaking.
+
+The trainer's chat is a «Чат» section on the client page, where they already are when they think
+about that client; the inactivity banner's «Написати клієнту» now scrolls there, since a client
+should be able to reply. The client's own conversation is `/client/chat` in their shell. Both share
+one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
+focus, Enter to send and Shift+Enter for a newline.
+
 ## Program builder UI
 
 «Тренування» now lands on `/dashboard/programs` (the library moved behind a sub-tab row —

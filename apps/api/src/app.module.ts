@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { AuthModule } from './auth/auth.module';
 import { globalThrottle } from './auth/throttle.config';
+import { ChatModule } from './chat/chat.module';
 import { ClientsModule } from './clients/clients.module';
 import { DatabaseModule } from './database/database.module';
 import { ExercisesModule } from './exercises/exercises.module';
@@ -32,6 +33,7 @@ import { ProgressModule } from './progress/progress.module';
     ProgressModule,
     HabitsModule,
     NotificationsModule,
+    ChatModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

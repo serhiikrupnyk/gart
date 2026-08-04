@@ -119,6 +119,7 @@ model Trainer {
   progressPhotos    ProgressPhoto[]
   habits            Habit[]
   notifications     Notification[]
+  chatThreads       ChatThread[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -269,6 +270,7 @@ model Client {
   progressPhotos    ProgressPhoto[]
   habits            Habit[]
   notifications     Notification[]
+  chatThreads       ChatThread[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.
@@ -738,6 +740,7 @@ enum NotificationType {
   ASSIGNMENT_CREATED
   CLIENT_INACTIVE
   TRAINER_MESSAGE
+  CHAT_MESSAGE
 }
 
 /// One thing that happened and somebody may care about.
@@ -801,4 +804,58 @@ model PushSubscription {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+/// Which side of a conversation spoke. A message belongs to a side rather than
+/// to a user id: both participants are already pinned by the thread, and the
+/// hat someone wears is the concept this codebase has used since Step 6.
+enum ChatRole {
+  TRAINER
+  CLIENT
+}
+
+/// Exactly one conversation per (trainer, client) — the unique constraint IS
+/// the participant list, because 1:1 is the whole feature. Group chats, when
+/// they come, are a different shape rather than a longer list here.
+///
+/// Read state is one timestamp per side: unread means «after my lastReadAt and
+/// not sent by me», which is all a badge needs. Per-message delivery and read
+/// ticks would need a row per message per participant, and nobody has asked.
+model ChatThread {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  trainerLastReadAt DateTime?
+  clientLastReadAt  DateTime?
+
+  /// Denormalised for ordering threads and for «is there anything new» without
+  /// counting rows.
+  lastMessageAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  @@unique([trainerId, clientId])
+  @@index([trainerId, lastMessageAt])
+}
+
+model ChatMessage {
+  id String @id @default(cuid())
+
+  threadId String
+  thread   ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  senderRole ChatRole
+  body       String
+
+  createdAt DateTime @default(now())
+
+  @@index([threadId, createdAt])
 }

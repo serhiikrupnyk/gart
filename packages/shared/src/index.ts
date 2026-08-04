@@ -113,6 +113,21 @@ export type {
   SendMessageRequest,
   UnsubscribePushRequest,
 } from './notification';
+export {
+  CHAT_ROLES,
+  MESSAGE_BODY_MAX_LENGTH,
+  MESSAGE_PREVIEW_LENGTH,
+  MESSAGES_PER_PAGE,
+} from './chat';
+export type {
+  ChatHistory,
+  ChatMessage,
+  ChatRole,
+  ChatStreamEvent,
+  ChatThreadSummary,
+  OpenThreadRequest,
+  SendChatMessageRequest,
+} from './chat';
 export type {
   ClientStatus,
   ClientWithInvite,

@@ -17,6 +17,7 @@ export const TRAINER_EVENT_TEXT: Record<NotificationType, string> = {
   ASSIGNMENT_CREATED: 'Нова програма',
   CLIENT_INACTIVE: 'Немає активності',
   TRAINER_MESSAGE: 'Повідомлення',
+  CHAT_MESSAGE: 'Повідомлення',
 };
 
 export function trainerBody(type: NotificationType, detail: string | null): string {
