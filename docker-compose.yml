@@ -17,7 +17,7 @@ services:
       GART_DB_USER: ${GART_DB_USER:-gart_app}
       GART_DB_PASSWORD: ${GART_DB_PASSWORD:?set GART_DB_PASSWORD in .env}
     ports:
-      - '${POSTGRES_PORT:-5433}:5432'
+      - '${POSTGRES_PORT:-15432}:5432'
     volumes:
       - gart_postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
@@ -40,8 +40,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-gart_minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
     ports:
-      - '${MINIO_PORT:-9000}:9000'
-      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+      - '${MINIO_PORT:-19000}:9000'
+      - '${MINIO_CONSOLE_PORT:-19001}:9001'
     volumes:
       - gart_minio_data:/data
     healthcheck:
@@ -75,7 +75,7 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
     ports:
-      - '${REDIS_PORT:-6380}:6379'
+      - '${REDIS_PORT:-16379}:6379'
     volumes:
       - gart_redis_data:/data
     healthcheck:
