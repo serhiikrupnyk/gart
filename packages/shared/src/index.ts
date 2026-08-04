@@ -114,18 +114,26 @@ export type {
   UnsubscribePushRequest,
 } from './notification';
 export {
+  CHAT_ATTACHMENT_KINDS,
+  CHAT_ATTACHMENT_LABELS,
+  CHAT_ATTACHMENT_RULES,
   CHAT_ROLES,
   MESSAGE_BODY_MAX_LENGTH,
   MESSAGE_PREVIEW_LENGTH,
   MESSAGES_PER_PAGE,
+  VOICE_MAX_SECONDS,
 } from './chat';
 export type {
+  ChatAttachmentInfo,
+  ChatAttachmentKind,
+  ChatAttachmentUpload,
   ChatHistory,
   ChatMessage,
   ChatRole,
   ChatStreamEvent,
   ChatThreadSummary,
   OpenThreadRequest,
+  PresignChatAttachmentRequest,
   SendChatMessageRequest,
 } from './chat';
 export type {

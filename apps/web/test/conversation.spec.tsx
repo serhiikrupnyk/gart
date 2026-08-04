@@ -17,6 +17,7 @@ function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
     id: 'm-1',
     senderRole: 'TRAINER',
     body: 'Привіт',
+    attachment: null,
     createdAt: '2026-08-04T09:00:00.000Z',
     ...overrides,
   };

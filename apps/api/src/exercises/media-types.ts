@@ -1,4 +1,10 @@
-import { MEDIA_RULES, PROGRESS_PHOTO_RULES, type MediaKind } from '@gart/shared';
+import {
+  CHAT_ATTACHMENT_RULES,
+  MEDIA_RULES,
+  PROGRESS_PHOTO_RULES,
+  type ChatAttachmentKind,
+  type MediaKind,
+} from '@gart/shared';
 
 /**
  * The entire media-type policy in one table: what each kind accepts, the file
@@ -65,6 +71,36 @@ export const IMAGE_TYPE_RULES: Record<string, MediaTypeRule> = {
 };
 
 export const IMAGE_SIZE_LIMIT = PROGRESS_PHOTO_RULES.maxSizeBytes;
+
+/** Ogg container — Firefox's MediaRecorder output. */
+function isOgg(bytes: Buffer): boolean {
+  return bytes.length >= 4 && bytes.toString('latin1', 0, 4) === 'OggS';
+}
+
+/**
+ * Chat attachments compose matchers that already exist rather than adding a
+ * second policy: audio/webm is the same EBML container as video/webm, and
+ * audio/mp4 the same ISO-BMFF as video/mp4.
+ */
+export const CHAT_TYPE_RULES: Record<ChatAttachmentKind, Record<string, MediaTypeRule>> = {
+  VOICE: {
+    'audio/webm': { extension: 'weba', matchesMagic: isEbml },
+    'audio/mp4': { extension: 'm4a', matchesMagic: isIsoBmff },
+    'audio/ogg': { extension: 'ogg', matchesMagic: isOgg },
+    'audio/mpeg': { extension: 'mp3', matchesMagic: isMp3 },
+  },
+  IMAGE: IMAGE_TYPE_RULES,
+  VIDEO: {
+    'video/mp4': { extension: 'mp4', matchesMagic: isIsoBmff },
+    'video/webm': { extension: 'webm', matchesMagic: isEbml },
+  },
+};
+
+export const CHAT_SIZE_LIMITS: Record<ChatAttachmentKind, number> = {
+  VOICE: CHAT_ATTACHMENT_RULES.VOICE.maxSizeBytes,
+  IMAGE: CHAT_ATTACHMENT_RULES.IMAGE.maxSizeBytes,
+  VIDEO: CHAT_ATTACHMENT_RULES.VIDEO.maxSizeBytes,
+};
 
 export const MEDIA_TYPE_RULES: Record<MediaKind, Record<string, MediaTypeRule>> = {
   VIDEO: {

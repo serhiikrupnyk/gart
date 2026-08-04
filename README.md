@@ -648,6 +648,62 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## Chat media
+
+A media message is a chat message carrying an attachment, on the upload path Step 8 established
+and Steps 16 and 21 have now reused twice more.
+
+**A message is text, an attachment, or both — never neither.** The attachment lives in its own
+table where every column is non-null, so its _existence_ is the discriminator and the message
+keeps no nullable media columns. `body` is `''` for pure media, and one rule in the service — the
+only place that can see the whole message — refuses the empty case.
+
+```
+POST /chat/threads/:id/attachments/presign  { kind, contentType, sizeBytes }
+POST /chat/threads/:id/messages             { body?, attachment?: { key, kind, durationSeconds? } }
+GET  /chat/attachments/:id/url              presigned GET, participants only
+```
+
+- **Only a participant can obtain a signature** against a conversation, and the key is server-
+  generated and random under `chat/{threadId}/`. Verification — object exists, size within cap,
+  stored content-type allowlisted, magic bytes match — happens **before any row exists**, folded
+  into send so there is one write path and no half-created attachment; a failure deletes the
+  object and answers with Step 8's single opaque message.
+- **Serving is a presigned GET minted per view**, gated on the same participation check: a foreign
+  trainer and a sibling client of the same trainer both get the identical bare 404.
+- **Egress-aware**: history returns metadata only, and a URL is fetched when a photo is opened or a
+  player started — never for a scroll through the conversation.
+
+| Kind  | Types                                                | Cap   |
+| ----- | ---------------------------------------------------- | ----- |
+| VOICE | `audio/webm`, `audio/mp4`, `audio/ogg`, `audio/mpeg` | 5 MB  |
+| IMAGE | `image/jpeg`, `image/png`, `image/webp`              | 10 MB |
+| VIDEO | `video/mp4`, `video/webm`                            | 50 MB |
+
+Every one of those magic-byte matchers already existed: `audio/webm` is the same EBML container as
+`video/webm`, `audio/mp4` the same ISO-BMFF as `video/mp4`. One policy table still decides what may
+be stored and how its bytes must look.
+
+Voice is recorded with `MediaRecorder` — tap to start, tap to send, an explicit cancel, and an
+automatic stop at five minutes. One detail worth knowing: `MediaRecorder` reports types like
+`audio/webm;codecs=opus`, and that parameter would fail the allowlist _and_ break the presigned
+signature, so the web strips it once and re-wraps the blob to send exactly what was signed.
+
+### Link previews: deliberately none
+
+URLs in message text become anchors with `rel="noopener noreferrer nofollow"`, and **only `http`
+and `https` are linkified** — a `javascript:` or `data:` URL renders as plain text. There is no
+server-side unfurling, and that is a decision rather than an omission.
+
+Fetching arbitrary URLs to build a preview card is an SSRF surface. Doing it safely means
+resolving DNS ourselves and rejecting every private range, **pinning the connection to the
+validated address** or DNS rebinding defeats the check, re-validating each redirect hop, capping
+size, time and content-type, caching so we are not an amplifier, and rate limiting. This API sits
+beside Postgres, MinIO and Redis, and in production beside a cloud metadata endpoint — a naive
+fetcher would hand an attacker a scanner for exactly those. That component deserves its own step
+or a vetted third-party service; the link still works without it, and only the thumbnail is
+missing.
+
 ## Program builder UI
 
 «Тренування» now lands on `/dashboard/programs` (the library moved behind a sub-tab row —

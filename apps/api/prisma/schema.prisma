@@ -853,9 +853,48 @@ model ChatMessage {
   thread   ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
   senderRole ChatRole
-  body       String
+
+  /// Empty when the message is pure media. A message must carry text or an
+  /// attachment — the rule lives in one place server-side, the way section and
+  /// habit rules do, rather than as a nullable column nobody can interpret.
+  body String @default("")
 
   createdAt DateTime @default(now())
 
+  attachment ChatAttachment?
+
   @@index([threadId, createdAt])
+}
+
+enum ChatAttachmentKind {
+  VOICE
+  IMAGE
+  VIDEO
+}
+
+/// Media carried by a message — private, exactly like exercise media and
+/// progress photos, and on the same path: presigned direct upload, magic-byte
+/// verification before the row exists, and a presigned GET minted per view for
+/// the two people in the conversation and nobody else.
+///
+/// Its own table rather than nullable columns on the message: the attachment's
+/// existence is the discriminator, and every column here is non-null because
+/// an attachment that exists always has all of them.
+model ChatAttachment {
+  id String @id @default(cuid())
+
+  messageId String      @unique
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  kind ChatAttachmentKind
+
+  storageKey  String @unique
+  contentType String
+  sizeBytes   Int
+
+  /// Client-reported, so a player can show a length before loading anything.
+  /// Bounded on the way in and never trusted for anything that matters.
+  durationSeconds Int?
+
+  createdAt DateTime @default(now())
 }

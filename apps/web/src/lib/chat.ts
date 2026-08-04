@@ -1,4 +1,13 @@
-import type { ChatHistory, ChatMessage, ChatStreamEvent, ChatThreadSummary } from '@gart/shared';
+import type {
+  ChatAttachmentKind,
+  ChatAttachmentUpload,
+  ChatHistory,
+  ChatMessage,
+  ChatStreamEvent,
+  ChatThreadSummary,
+  MediaUrlResponse,
+  PresignMediaResponse,
+} from '@gart/shared';
 
 import { API_URL, apiFetch } from './api';
 
@@ -19,11 +28,32 @@ export function getHistory(threadId: string, before?: string): Promise<ChatHisto
   return apiFetch<ChatHistory>(`/chat/threads/${threadId}/messages${query}`);
 }
 
-export function sendMessage(threadId: string, body: string): Promise<ChatMessage> {
+export function sendMessage(
+  threadId: string,
+  body: string,
+  attachment?: ChatAttachmentUpload,
+): Promise<ChatMessage> {
   return apiFetch<ChatMessage>(`/chat/threads/${threadId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ body }),
+    body: JSON.stringify(attachment === undefined ? { body } : { body, attachment }),
   });
+}
+
+export function presignAttachment(
+  threadId: string,
+  kind: ChatAttachmentKind,
+  contentType: string,
+  sizeBytes: number,
+): Promise<PresignMediaResponse> {
+  return apiFetch<PresignMediaResponse>(`/chat/threads/${threadId}/attachments/presign`, {
+    method: 'POST',
+    body: JSON.stringify({ kind, contentType, sizeBytes }),
+  });
+}
+
+/** Minted per view — nothing is fetched until an attachment is opened. */
+export function getAttachmentUrl(attachmentId: string): Promise<MediaUrlResponse> {
+  return apiFetch<MediaUrlResponse>(`/chat/attachments/${attachmentId}/url`);
 }
 
 export function markThreadRead(threadId: string): Promise<null> {

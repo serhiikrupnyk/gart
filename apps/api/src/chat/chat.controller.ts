@@ -10,7 +10,14 @@ import {
   Sse,
   UseGuards,
 } from '@nestjs/common';
-import type { ChatHistory, ChatMessage, ChatStreamEvent, ChatThreadSummary } from '@gart/shared';
+import type {
+  ChatHistory,
+  ChatMessage,
+  ChatStreamEvent,
+  ChatThreadSummary,
+  MediaUrlResponse,
+  PresignMediaResponse,
+} from '@gart/shared';
 import { type Observable, map } from 'rxjs';
 
 import { type AuthContext, CurrentAuth } from '../auth/auth-context';
@@ -23,9 +30,15 @@ import {
   TrainerOrClientGuard,
   type ViewerTenant,
 } from '../auth/trainer-or-client.guard';
+import { ChatAttachmentsService } from './chat-attachments.service';
 import { ChatService, type ChatParticipant } from './chat.service';
 import { ChatStream } from './chat-stream.service';
-import { HistoryQuery, OpenThreadDto, SendChatMessageDto } from './dto/chat.dto';
+import {
+  HistoryQuery,
+  OpenThreadDto,
+  PresignChatAttachmentDto,
+  SendChatMessageDto,
+} from './dto/chat.dto';
 
 /** Opening a conversation differs per hat; everything after it does not. */
 @Controller('chat')
@@ -70,6 +83,7 @@ export class ChatThreadController {
   constructor(
     private readonly chat: ChatService,
     private readonly chatStream: ChatStream,
+    private readonly attachments: ChatAttachmentsService,
   ) {}
 
   @Get('messages')
@@ -81,6 +95,22 @@ export class ChatThreadController {
     return this.chat.history(participantOf(viewer), id, query);
   }
 
+  /**
+   * An upload URL for this conversation, and only for a participant of it —
+   * the gate runs before a signature exists.
+   */
+  @Post('attachments/presign')
+  @UseGuards(ChatThrottlerGuard)
+  async presignAttachment(
+    @CurrentViewerTenant() viewer: ViewerTenant,
+    @Param('id') id: string,
+    @Body() dto: PresignChatAttachmentDto,
+  ): Promise<PresignMediaResponse> {
+    const thread = await this.chat.requireParticipant(participantOf(viewer), id);
+
+    return this.attachments.presign(thread.id, dto);
+  }
+
   @Post('messages')
   @UseGuards(ChatThrottlerGuard)
   async send(
@@ -88,7 +118,20 @@ export class ChatThreadController {
     @Param('id') id: string,
     @Body() dto: SendChatMessageDto,
   ): Promise<ChatMessage> {
-    return this.chat.send(participantOf(viewer), id, dto);
+    const participant = participantOf(viewer);
+
+    // Verify what landed BEFORE any row exists: a message never references an
+    // object that was not checked, and a failed check leaves nothing behind.
+    const verified =
+      dto.attachment === undefined
+        ? undefined
+        : await this.attachments.verify(
+            (await this.chat.requireParticipant(participant, id)).id,
+            dto.attachment.key,
+            dto.attachment.kind,
+          );
+
+    return this.chat.send(participant, id, dto, verified);
   }
 
   @Post('read')
@@ -115,6 +158,21 @@ export class ChatThreadController {
     await this.chat.requireParticipant(participant, id);
 
     return this.chatStream.subscribe(id, participant.role).pipe(map((event) => ({ data: event })));
+  }
+}
+
+/** Media is fetched per view, by the two people in the conversation. */
+@Controller('chat/attachments')
+@UseGuards(TrainerOrClientGuard)
+export class ChatAttachmentController {
+  constructor(private readonly attachments: ChatAttachmentsService) {}
+
+  @Get(':id/url')
+  async getUrl(
+    @CurrentViewerTenant() viewer: ViewerTenant,
+    @Param('id') id: string,
+  ): Promise<MediaUrlResponse> {
+    return this.attachments.getUrl(participantOf(viewer), id);
   }
 }
 

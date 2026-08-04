@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
+  CHAT_ATTACHMENT_LABELS,
   MESSAGE_PREVIEW_LENGTH,
   MESSAGES_PER_PAGE,
   type ChatHistory,
@@ -10,10 +11,20 @@ import {
 
 import { ClientsService } from '../clients/clients.service';
 import { PrismaService } from '../database/prisma.service';
-import type { ChatMessageModel, ChatThreadModel } from '../generated/prisma/models.js';
+import type {
+  ChatAttachmentModel,
+  ChatMessageModel,
+  ChatThreadModel,
+} from '../generated/prisma/models.js';
 import { NotificationService } from '../notifications/notification.service';
+import type { VerifiedAttachment } from './chat-attachments.service';
 import { ChatStream } from './chat-stream.service';
 import type { HistoryQuery, SendChatMessageDto } from './dto/chat.dto';
+
+const EMPTY_MESSAGE = 'Повідомлення не може бути порожнім';
+
+/** The message as it is read back: prescription-free, metadata only. */
+type MessageWithAttachment = ChatMessageModel & { attachment: ChatAttachmentModel | null };
 
 /**
  * Which side the caller is, and what pins their access. A trainer participates
@@ -120,6 +131,7 @@ export class ChatService {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: MESSAGES_PER_PAGE + 1,
+      include: { attachment: true },
     });
 
     const hasMore = page.length > MESSAGES_PER_PAGE;
@@ -138,13 +150,40 @@ export class ChatService {
     participant: ChatParticipant,
     threadId: string,
     dto: SendChatMessageDto,
+    attachment?: VerifiedAttachment,
   ): Promise<ChatMessage> {
     const thread = await this.requireParticipant(participant, threadId);
+    const body = dto.body ?? '';
+
+    // A message is text, media, or both — never neither. One rule, in the one
+    // place that can see the whole message.
+    if (body === '' && attachment === undefined) {
+      throw new BadRequestException(EMPTY_MESSAGE);
+    }
+
     const now = new Date();
 
     const [message] = await this.prisma.$transaction([
       this.prisma.chatMessage.create({
-        data: { threadId: thread.id, senderRole: participant.role, body: dto.body },
+        data: {
+          threadId: thread.id,
+          senderRole: participant.role,
+          body,
+          ...(attachment === undefined
+            ? {}
+            : {
+                attachment: {
+                  create: {
+                    kind: attachment.kind,
+                    storageKey: attachment.storageKey,
+                    contentType: attachment.contentType,
+                    sizeBytes: attachment.sizeBytes,
+                    durationSeconds: dto.attachment?.durationSeconds ?? null,
+                  },
+                },
+              }),
+        },
+        include: { attachment: true },
       }),
       this.prisma.chatThread.update({
         where: { id: thread.id },
@@ -162,7 +201,7 @@ export class ChatService {
     const published = toPublicMessage(message);
 
     this.stream.publish({ threadId: thread.id, message: published });
-    await this.announce(thread, participant.role, published.body);
+    await this.announce(thread, participant.role, previewOf(published));
 
     return published;
   }
@@ -212,16 +251,13 @@ export class ChatService {
   private async announce(
     thread: ChatThreadModel,
     senderRole: ChatRole,
-    body: string,
+    preview: string,
   ): Promise<void> {
     const recipientRole: ChatRole = senderRole === 'TRAINER' ? 'CLIENT' : 'TRAINER';
 
     if (this.stream.isWatching(thread.id, recipientRole)) {
       return;
     }
-
-    const preview =
-      body.length > MESSAGE_PREVIEW_LENGTH ? `${body.slice(0, MESSAGE_PREVIEW_LENGTH)}…` : body;
 
     if (recipientRole === 'TRAINER') {
       await this.notifications.notifyTrainer({
@@ -271,11 +307,34 @@ export class ChatService {
   }
 }
 
-function toPublicMessage(message: ChatMessageModel): ChatMessage {
+function toPublicMessage(message: MessageWithAttachment): ChatMessage {
   return {
     id: message.id,
     senderRole: message.senderRole,
     body: message.body,
+    // Metadata only: play URLs are minted per view, and the storage key never
+    // crosses the wire.
+    attachment:
+      message.attachment === null
+        ? null
+        : {
+            id: message.attachment.id,
+            kind: message.attachment.kind,
+            contentType: message.attachment.contentType,
+            sizeBytes: message.attachment.sizeBytes,
+            durationSeconds: message.attachment.durationSeconds,
+          },
     createdAt: message.createdAt.toISOString(),
   };
+}
+
+/** What a notification says when the message is media rather than words. */
+function previewOf(message: ChatMessage): string {
+  if (message.body === '') {
+    return message.attachment === null ? '' : CHAT_ATTACHMENT_LABELS[message.attachment.kind];
+  }
+
+  return message.body.length > MESSAGE_PREVIEW_LENGTH
+    ? `${message.body.slice(0, MESSAGE_PREVIEW_LENGTH)}…`
+    : message.body;
 }
