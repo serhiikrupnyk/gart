@@ -5,7 +5,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import type { InvitePreview } from '@gart/shared';
 
 import { AuthLayout } from '@/components/layout/auth-layout';
-import { Button, FormField, Input, Spinner } from '@/components/ui';
+import { Button, FormField, Input, Skeleton, SkeletonRegion } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { PASSWORD_MIN_LENGTH, validatePassword } from '@/lib/validation';
 
@@ -73,8 +73,13 @@ export default function InvitePage() {
 
   if (state.kind === 'loading') {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-bg-subtle">
-        <Spinner size="lg" label="Перевіряємо запрошення" />
+      <main className="flex min-h-dvh items-center justify-center bg-bg-subtle px-4">
+        <SkeletonRegion label="Перевіряємо запрошення" className="w-full max-w-sm space-y-4">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-10 rounded-control" />
+        </SkeletonRegion>
       </main>
     );
   }

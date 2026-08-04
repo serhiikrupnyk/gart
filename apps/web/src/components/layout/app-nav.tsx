@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { cx } from '@/lib/cx';
+import { ProgressLink } from './navigation-progress';
 
 interface NavItem {
   label: string;
@@ -57,7 +57,7 @@ export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
 
           return (
             <li key={item.label}>
-              <Link
+              <ProgressLink
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 onClick={onNavigate}
@@ -69,7 +69,7 @@ export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
                 )}
               >
                 {item.label}
-              </Link>
+              </ProgressLink>
             </li>
           );
         })}

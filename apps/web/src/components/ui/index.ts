@@ -15,6 +15,15 @@ export { Input } from './input';
 export { Label } from './label';
 export { Modal } from './modal';
 export { Select, type SelectOption } from './select';
+export { Skeleton, SkeletonRegion } from './skeleton';
+export {
+  CardListSkeleton,
+  ChartSkeleton,
+  ChatSkeleton,
+  DetailSkeleton,
+  RowsSkeleton,
+  TableSkeleton,
+} from './skeletons';
 export { Spinner } from './spinner';
 export { Table, Tbody, Td, Th, Thead, Tr } from './table';
 export { Tabs, type TabItem } from './tabs';

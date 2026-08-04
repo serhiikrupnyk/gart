@@ -5,7 +5,7 @@ import type { ClientProgress } from '@gart/shared';
 
 import { ProgressPhotos } from '@/components/progress/progress-photos';
 import { ProgressVariables } from '@/components/progress/progress-variables';
-import { EmptyState, Spinner, useToast } from '@/components/ui';
+import { ChartSkeleton, EmptyState, useToast } from '@/components/ui';
 import { getMyProgress } from '@/lib/progress';
 
 /** The client's own «Прогрес»: their charts, their measurements, their photos. */
@@ -32,11 +32,7 @@ export default function ClientProgressPage() {
   }, [reloadKey, notify]);
 
   if (progress === undefined) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner size="lg" label="Завантаження прогресу" />
-      </div>
-    );
+    return <ChartSkeleton label="Завантаження прогресу" />;
   }
 
   const empty = progress.variables.length === 0 && progress.photos.length === 0;

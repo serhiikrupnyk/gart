@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { ChatThreadSummary } from '@gart/shared';
 
 import { Conversation } from '@/components/chat/conversation';
-import { Spinner, useToast } from '@/components/ui';
+import { ChatSkeleton, useToast } from '@/components/ui';
 import { getMyThread } from '@/lib/chat';
 
 /** The client's one conversation, with their trainer. */
@@ -29,11 +29,7 @@ export default function ClientChatPage() {
   }, [notify]);
 
   if (thread === undefined) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner size="lg" label="Завантаження чату" />
-      </div>
-    );
+    return <ChatSkeleton label="Завантаження чату" />;
   }
 
   return (

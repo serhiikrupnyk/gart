@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   MUSCLE_GROUP_LABELS,
   type ExercisePage,
@@ -13,7 +14,7 @@ import {
   ExerciseFilters,
   type ExerciseFilterState,
 } from '@/components/exercises/exercise-filters';
-import { Badge, Button, Modal, Spinner } from '@/components/ui';
+import { Badge, Button, Modal, RowsSkeleton } from '@/components/ui';
 import { listCategories, listExercises } from '@/lib/exercises';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 
@@ -108,9 +109,7 @@ export function ExercisePickerModal({ open, onClose, onAdd }: ExercisePickerModa
         />
 
         {data === undefined ? (
-          <div className="flex justify-center py-10">
-            <Spinner size="md" label="Завантаження вправ" />
-          </div>
+          <RowsSkeleton count={5} label="Завантаження вправ" />
         ) : data.items.length === 0 ? (
           <p className="py-10 text-center text-sm text-text-secondary">Нічого не знайдено</p>
         ) : (
@@ -128,7 +127,8 @@ export function ExercisePickerModal({ open, onClose, onAdd }: ExercisePickerModa
                 </span>
 
                 <Button variant="secondary" size="sm" onClick={() => handleAdd(exercise)}>
-                  {addedIds.has(exercise.id) ? '✓ Додано' : 'Додати'}
+                  {addedIds.has(exercise.id) && <Check className="size-4" aria-hidden="true" />}
+                  {addedIds.has(exercise.id) ? 'Додано' : 'Додати'}
                 </Button>
               </li>
             ))}
@@ -145,7 +145,8 @@ export function ExercisePickerModal({ open, onClose, onAdd }: ExercisePickerModa
                 setPage((current) => current - 1);
               }}
             >
-              ← Назад
+              <ChevronLeft className="size-4" aria-hidden="true" />
+              Назад
             </Button>
             <span className="tabular text-sm text-text-secondary">
               {page} / {totalPages}
@@ -158,7 +159,8 @@ export function ExercisePickerModal({ open, onClose, onAdd }: ExercisePickerModa
                 setPage((current) => current + 1);
               }}
             >
-              Далі →
+              Далі
+              <ChevronRight className="size-4" aria-hidden="true" />
             </Button>
           </div>
         )}

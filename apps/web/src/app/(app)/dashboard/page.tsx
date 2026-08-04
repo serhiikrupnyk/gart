@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { ClientListItem, ClientWithInvite } from '@gart/shared';
 
@@ -12,8 +11,8 @@ import { PageHeader } from '@/components/layout/page-header';
 import {
   Button,
   EmptyState,
-  Spinner,
   Table,
+  TableSkeleton,
   Tbody,
   Td,
   Th,
@@ -23,6 +22,7 @@ import {
 } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { listClients } from '@/lib/clients';
+import { ProgressLink } from '@/components/layout/navigation-progress';
 
 export default function DashboardPage() {
   const { notify } = useToast();
@@ -87,9 +87,7 @@ export default function DashboardPage() {
       )}
 
       {clients === undefined ? (
-        <div className="flex justify-center py-16">
-          <Spinner size="lg" label="Завантаження клієнтів" />
-        </div>
+        <TableSkeleton rows={6} columns={4} label="Завантаження клієнтів" />
       ) : clients.length === 0 ? (
         <EmptyState
           title="Ще немає клієнтів"
@@ -122,12 +120,12 @@ export default function DashboardPage() {
                   {/* The link is the interactive element, so the row works for
                       keyboard and screen-reader users without a click handler
                       on the <tr> that they could never reach. */}
-                  <Link
+                  <ProgressLink
                     href={`/dashboard/clients/${client.id}`}
                     className="font-medium text-text hover:underline"
                   >
                     {client.fullName}
-                  </Link>
+                  </ProgressLink>
                 </Td>
                 <Td>
                   <span className="text-text-secondary">{client.email}</span>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { ClientProgress } from '@gart/shared';
 
-import { Spinner, useToast } from '@/components/ui';
+import { ChartSkeleton, useToast } from '@/components/ui';
 import { getClientProgress } from '@/lib/progress';
 import { ExerciseHistory } from './exercise-history';
 import { ProgressPhotos } from './progress-photos';
@@ -41,9 +41,7 @@ export function ClientProgressPanel({ clientId }: { clientId: string }) {
       <h2 className="text-lg font-semibold text-text">Прогрес</h2>
 
       {progress === undefined ? (
-        <div className="flex justify-center py-8">
-          <Spinner size="md" label="Завантаження прогресу" />
-        </div>
+        <ChartSkeleton label="Завантаження прогресу" />
       ) : (
         <div className="mt-3 space-y-6">
           <ProgressVariables

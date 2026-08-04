@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react';
 import { LOAD_UNIT_LABELS, type WorkoutType } from '@gart/shared';
+import { ArrowDown, ArrowUp, GripVertical, X } from 'lucide-react';
 
 import { Button, Input, Textarea } from '@/components/ui';
 import type { DraftExercise } from '@/lib/program-draft';
@@ -113,7 +114,7 @@ export function ExerciseRow({
           title="Перетягніть, щоб змінити порядок"
           className="cursor-grab select-none text-text-muted"
         >
-          ⋮⋮
+          <GripVertical className="size-4" aria-hidden="true" />
         </span>
 
         <button
@@ -140,7 +141,7 @@ export function ExerciseRow({
               onMove(-1);
             }}
           >
-            ↑
+            <ArrowUp className="size-4" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
@@ -151,7 +152,7 @@ export function ExerciseRow({
               onMove(1);
             }}
           >
-            ↓
+            <ArrowDown className="size-4" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
@@ -159,7 +160,7 @@ export function ExerciseRow({
             aria-label={`Прибрати вправу «${line.exerciseName}»`}
             onClick={onRemove}
           >
-            ✕
+            <X className="size-4" aria-hidden="true" />
           </Button>
         </div>
       </div>

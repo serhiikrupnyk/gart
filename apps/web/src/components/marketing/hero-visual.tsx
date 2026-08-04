@@ -1,4 +1,4 @@
-import { FlameIcon } from './icons';
+import { Flame } from 'lucide-react';
 
 /**
  * The hero's product glimpse: three miniatures of real Gart surfaces — the
@@ -41,7 +41,7 @@ export function HeroVisual() {
       {/* Habit streak chip. */}
       <div className="absolute right-0 top-0 w-44 rotate-3 rounded-card border border-border bg-surface p-3 shadow-lg shadow-black/5 dark:shadow-black/30">
         <div className="flex items-center gap-2">
-          <FlameIcon className="size-4 text-accent" />
+          <Flame className="size-4 text-accent" />
           <span className="text-xs font-semibold text-text">7 днів поспіль</span>
         </div>
         <div className="mt-2 flex gap-1">

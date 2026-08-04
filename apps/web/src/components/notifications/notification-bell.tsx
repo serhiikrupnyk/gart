@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { NotificationList, PublicNotification } from '@gart/shared';
+import { Bell } from 'lucide-react';
 
 import { Button, useToast } from '@/components/ui';
 import { cx } from '@/lib/cx';
@@ -99,7 +100,7 @@ export function NotificationBell() {
         }}
         className="relative inline-flex size-10 items-center justify-center rounded-control text-text-secondary hover:bg-bg-subtle hover:text-text"
       >
-        <span aria-hidden="true">🔔</span>
+        <Bell className="size-5" aria-hidden="true" />
         {unread > 0 && (
           <span className="absolute right-1 top-1 min-w-4 rounded-full bg-accent px-1 text-2xs font-semibold text-accent-contrast">
             {unread > 9 ? '9+' : unread}

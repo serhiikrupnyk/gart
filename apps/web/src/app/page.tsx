@@ -1,19 +1,20 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import type { ReactNode, SVGProps } from 'react';
+import {
+  Check,
+  CreditCard,
+  Dumbbell,
+  Flame,
+  MessageCircle,
+  Smartphone,
+  TrendingUp,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import { CtaLink } from '@/components/marketing/cta-link';
 import { HeroVisual } from '@/components/marketing/hero-visual';
-import {
-  BarbellIcon,
-  CardIcon,
-  ChatIcon,
-  CheckIcon,
-  CrossIcon,
-  FlameIcon,
-  PhoneIcon,
-  TrendIcon,
-} from '@/components/marketing/icons';
 import { LandingHeader } from '@/components/marketing/landing-header';
 import { Wordmark } from '@/components/layout/wordmark';
 
@@ -41,7 +42,7 @@ const CHAOS = [
 ];
 
 interface Feature {
-  icon: (props: SVGProps<SVGSVGElement>) => ReactNode;
+  icon: LucideIcon;
   title: string;
   copy: string;
   soon?: boolean;
@@ -49,32 +50,32 @@ interface Feature {
 
 const FEATURES: Feature[] = [
   {
-    icon: BarbellIcon,
+    icon: Dumbbell,
     title: 'Конструктор тренувань',
     copy: 'Програма за хвилини, а не за вечір. Бібліотека вправ із відео, шаблони, сила / біг / AMRAP / EMOM / кругові.',
   },
   {
-    icon: PhoneIcon,
+    icon: Smartphone,
     title: 'Застосунок клієнта',
     copy: 'Клієнт відкриває ваш застосунок — з вашим лого і кольором. Бачить сьогоднішнє тренування, логує ваги й повтори.',
   },
   {
-    icon: TrendIcon,
+    icon: TrendingUp,
     title: 'Прогрес і заміри',
     copy: 'Заміри, фото, графіки — і показники під вашу методику. Прогрес, який видно, утримує клієнта.',
   },
   {
-    icon: FlameIcon,
+    icon: Flame,
     title: 'Звички і серії',
     copy: 'Вода, кроки, сон. Серії мотивують відкривати застосунок щодня — навіть у день відпочинку.',
   },
   {
-    icon: ChatIcon,
+    icon: MessageCircle,
     title: 'Чат і сповіщення',
     copy: 'Робоче спілкування окремо від особистого: текст, голосові, фото й відео — у контексті тренувань.',
   },
   {
-    icon: CardIcon,
+    icon: CreditCard,
     title: 'Українські оплати',
     copy: 'Разові оплати й підписки через українські платіжні системи, з ФОП-обліком. Без «скинь на картку».',
     soon: true,
@@ -169,7 +170,7 @@ export default function LandingPage() {
                   'Працює на будь-якому телефоні',
                 ].map((line) => (
                   <li key={line} className="flex items-center gap-2 text-sm text-text-secondary">
-                    <CheckIcon className="size-4 shrink-0 text-success" />
+                    <Check className="size-4 shrink-0 text-success" />
                     {line}
                   </li>
                 ))}
@@ -194,7 +195,7 @@ export default function LandingPage() {
                   key={item}
                   className="flex items-center gap-3 rounded-card border border-border bg-surface px-4 py-3 text-sm text-text"
                 >
-                  <CrossIcon className="size-4 shrink-0 text-danger" />
+                  <X className="size-4 shrink-0 text-danger" />
                   {item}
                 </li>
               ))}

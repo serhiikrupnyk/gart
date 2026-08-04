@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { HABIT_SUGGESTIONS, type HabitKind, type HabitStatus, type HabitsView } from '@gart/shared';
 
-import { Button, FormField, Input, Modal, Select, Spinner, useToast } from '@/components/ui';
+import { Button, FormField, Input, Modal, RowsSkeleton, Select, useToast } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { localDateString } from '@/lib/dates';
 import { createHabit, deleteHabit, getClientHabits } from '@/lib/habits';
@@ -56,9 +56,7 @@ export function ClientHabits({ clientId }: { clientId: string }) {
       </div>
 
       {view === undefined ? (
-        <div className="flex justify-center py-8">
-          <Spinner size="md" label="Завантаження звичок" />
-        </div>
+        <RowsSkeleton count={3} label="Завантаження звичок" />
       ) : view.habits.length === 0 ? (
         <p className="mt-3 rounded-card border border-dashed border-border-strong bg-surface px-4 py-6 text-center text-sm text-text-secondary">
           Ще немає звичок. Додайте те, що клієнт має робити щодня.

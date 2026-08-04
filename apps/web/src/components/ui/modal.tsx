@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useId, useRef } from 'react';
+import { X } from 'lucide-react';
 
 import { Button } from './button';
 import { useFocusTrap } from './use-focus-trap';
@@ -76,7 +77,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
           </h2>
 
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Закрити">
-            ✕
+            <X className="size-4" aria-hidden="true" />
           </Button>
         </div>
 

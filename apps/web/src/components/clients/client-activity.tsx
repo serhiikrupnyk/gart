@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
   LOG_STATE_LABELS,
   SESSION_STATE_LABELS,
@@ -11,7 +12,7 @@ import {
   type TrainerWorkoutSession,
 } from '@gart/shared';
 
-import { Badge, type BadgeTone, Spinner, Tabs, useToast } from '@/components/ui';
+import { Badge, RowsSkeleton, Tabs, type BadgeTone, useToast } from '@/components/ui';
 import { actualLine, formatShortDate, prescriptionLine } from '@/lib/workout-format';
 import { getWorkoutHistory } from '@/lib/monitoring';
 
@@ -77,9 +78,7 @@ export function ClientActivity({ clientId }: { clientId: string }) {
       </div>
 
       {history === undefined ? (
-        <div className="flex justify-center py-8">
-          <Spinner size="md" label="Завантаження активності" />
-        </div>
+        <RowsSkeleton label="Завантаження активності" />
       ) : (
         <>
           <AdherenceLine history={history} />
@@ -164,9 +163,11 @@ function SessionRow({ session }: { session: TrainerWorkoutSession }) {
           {session.name}
         </span>
         <Badge tone={SESSION_TONES[session.state]}>{SESSION_STATE_LABELS[session.state]}</Badge>
-        <span aria-hidden="true" className="text-text-secondary">
-          {open ? '▾' : '▸'}
-        </span>
+        {open ? (
+          <ChevronDown className="size-4 text-text-secondary" aria-hidden="true" />
+        ) : (
+          <ChevronRight className="size-4 text-text-secondary" aria-hidden="true" />
+        )}
       </button>
 
       {reasons.length > 0 && (

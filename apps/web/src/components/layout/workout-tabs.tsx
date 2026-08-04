@@ -1,6 +1,5 @@
-import Link from 'next/link';
-
 import { cx } from '@/lib/cx';
+import { ProgressLink } from './navigation-progress';
 
 const TABS = [
   { href: '/dashboard/programs', label: 'Програми' },
@@ -19,7 +18,7 @@ export function WorkoutTabs({ active }: { active: (typeof TABS)[number]['href'] 
         const isActive = tab.href === active;
 
         return (
-          <Link
+          <ProgressLink
             key={tab.href}
             href={tab.href}
             aria-current={isActive ? 'page' : undefined}
@@ -31,7 +30,7 @@ export function WorkoutTabs({ active }: { active: (typeof TABS)[number]['href'] 
             )}
           >
             {tab.label}
-          </Link>
+          </ProgressLink>
         );
       })}
     </nav>

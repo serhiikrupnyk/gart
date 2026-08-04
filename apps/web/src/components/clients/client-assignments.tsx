@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { MoreHorizontal } from 'lucide-react';
 import {
   ASSIGNMENT_STATUS_LABELS,
   DAY_OF_WEEK_LABELS,
@@ -11,12 +12,12 @@ import {
 
 import {
   Badge,
-  type BadgeTone,
   Button,
   DropdownItem,
   DropdownMenu,
   Modal,
-  Spinner,
+  RowsSkeleton,
+  type BadgeTone,
   useToast,
 } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -118,9 +119,7 @@ export function ClientAssignments({ clientId }: { clientId: string }) {
 
       <div className="mt-3">
         {assignments === undefined ? (
-          <div className="flex justify-center py-8">
-            <Spinner size="md" label="Завантаження призначень" />
-          </div>
+          <RowsSkeleton count={3} label="Завантаження призначень" />
         ) : assignments.length === 0 ? (
           <p className="rounded-card border border-dashed border-border-strong bg-surface px-4 py-6 text-center text-sm text-text-secondary">
             Ще нічого не призначено.
@@ -146,7 +145,7 @@ export function ClientAssignments({ clientId }: { clientId: string }) {
 
                 <DropdownMenu
                   triggerLabel={`Дії з призначенням «${assignment.name}»`}
-                  trigger={<span aria-hidden="true">⋯</span>}
+                  trigger={<MoreHorizontal className="size-4" aria-hidden="true" />}
                 >
                   {(close) => (
                     <>

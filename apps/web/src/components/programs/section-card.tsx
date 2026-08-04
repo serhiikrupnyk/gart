@@ -2,6 +2,7 @@
 
 import { useId } from 'react';
 import { WORKOUT_TYPE_LABELS, WORKOUT_TYPES, type WorkoutType } from '@gart/shared';
+import { ArrowDown, ArrowUp, GripVertical, X } from 'lucide-react';
 
 import { Button, Input, Select } from '@/components/ui';
 import {
@@ -106,7 +107,7 @@ export function SectionCard({
           title="Перетягніть, щоб змінити порядок"
           className="cursor-grab select-none pb-2 text-text-muted"
         >
-          ⋮⋮
+          <GripVertical className="size-4" aria-hidden="true" />
         </span>
 
         <div className="min-w-0 flex-1 basis-48">
@@ -155,7 +156,7 @@ export function SectionCard({
               onMove(-1);
             }}
           >
-            ↑
+            <ArrowUp className="size-4" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
@@ -166,7 +167,7 @@ export function SectionCard({
               onMove(1);
             }}
           >
-            ↓
+            <ArrowDown className="size-4" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
@@ -174,7 +175,7 @@ export function SectionCard({
             aria-label={`Видалити секцію «${title}»`}
             onClick={onRemove}
           >
-            ✕
+            <X className="size-4" aria-hidden="true" />
           </Button>
         </div>
       </div>

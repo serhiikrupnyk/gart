@@ -1,6 +1,7 @@
 'use client';
 
 import type { ThemePreference } from '@/lib/theme';
+import { Check, Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
 import { DropdownItem, DropdownMenu } from '@/components/ui';
 import { useTheme } from './theme-provider';
 
@@ -10,19 +11,20 @@ const OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'system', label: 'Як у системі' },
 ];
 
-const ICONS: Record<ThemePreference, string> = {
-  light: '☀',
-  dark: '☾',
-  system: '◐',
+const ICONS: Record<ThemePreference, LucideIcon> = {
+  light: Sun,
+  dark: Moon,
+  system: Monitor,
 };
 
 export function ThemeToggle() {
   const { preference, choose } = useTheme();
+  const Icon = ICONS[preference];
 
   return (
     <DropdownMenu
       triggerLabel="Тема оформлення"
-      trigger={<span className="px-1 text-base leading-none">{ICONS[preference]}</span>}
+      trigger={<Icon className="size-5" aria-hidden="true" />}
     >
       {(close) => (
         <>
@@ -36,7 +38,7 @@ export function ThemeToggle() {
             >
               <span className="flex items-center justify-between gap-4">
                 {option.label}
-                {preference === option.value && <span aria-hidden="true">✓</span>}
+                {preference === option.value && <Check className="size-4" aria-hidden="true" />}
                 {preference === option.value && <span className="sr-only">(обрано)</span>}
               </span>
             </DropdownItem>

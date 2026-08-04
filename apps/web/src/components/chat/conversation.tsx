@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Paperclip } from 'lucide-react';
 import {
   CHAT_ATTACHMENT_RULES,
   MESSAGE_BODY_MAX_LENGTH,
@@ -9,7 +10,7 @@ import {
   type ChatRole,
 } from '@gart/shared';
 
-import { Button, Spinner, Textarea, useToast } from '@/components/ui';
+import { Button, ChatSkeleton, Textarea, useToast } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { getHistory, markThreadRead, sendMessage, subscribeToThread } from '@/lib/chat';
 import { AttachmentRejected, attachmentKindFor, uploadAttachment } from '@/lib/chat-upload';
@@ -148,11 +149,7 @@ export function Conversation({ threadId, mine }: { threadId: string; mine: ChatR
   }
 
   if (messages === undefined) {
-    return (
-      <div className="flex justify-center py-8">
-        <Spinner size="md" label="Завантаження листування" />
-      </div>
-    );
+    return <ChatSkeleton />;
   }
 
   return (
@@ -220,7 +217,7 @@ export function Conversation({ threadId, mine }: { threadId: string; mine: ChatR
             pending && 'pointer-events-none opacity-60',
           )}
         >
-          <span aria-hidden="true">📎</span>
+          <Paperclip className="size-5" aria-hidden="true" />
           <span className="sr-only">Прикріпити фото або відео</span>
           <input
             type="file"

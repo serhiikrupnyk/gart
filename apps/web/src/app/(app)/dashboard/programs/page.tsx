@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { WORKOUT_TYPE_LABELS, type ProgramPage, type PublicProgram } from '@gart/shared';
+import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { WorkoutTabs } from '@/components/layout/workout-tabs';
@@ -13,8 +13,8 @@ import {
   DropdownMenu,
   EmptyState,
   Modal,
-  Spinner,
   Table,
+  TableSkeleton,
   Tbody,
   Td,
   Th,
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { deleteProgram, listPrograms, PROGRAMS_PAGE_SIZE } from '@/lib/programs';
+import { ProgressLink } from '@/components/layout/navigation-progress';
 
 export default function ProgramsPage() {
   const { notify } = useToast();
@@ -82,24 +83,22 @@ export default function ProgramsPage() {
         title="Програми"
         description="Шаблони тренувань, які ви призначатимете клієнтам"
         actions={
-          <Link href="/dashboard/programs/new">
+          <ProgressLink href="/dashboard/programs/new">
             <Button variant="primary">Нова програма</Button>
-          </Link>
+          </ProgressLink>
         }
       />
 
       {data === undefined ? (
-        <div className="flex justify-center py-16">
-          <Spinner size="lg" label="Завантаження програм" />
-        </div>
+        <TableSkeleton rows={6} columns={5} label="Завантаження програм" />
       ) : data.total === 0 ? (
         <EmptyState
           title="Ще немає програм"
           description="Складіть першу програму із секцій та вправ вашої бібліотеки."
           action={
-            <Link href="/dashboard/programs/new">
+            <ProgressLink href="/dashboard/programs/new">
               <Button variant="primary">Нова програма</Button>
-            </Link>
+            </ProgressLink>
           }
         />
       ) : (
@@ -120,12 +119,12 @@ export default function ProgramsPage() {
               {data.items.map((program) => (
                 <Tr key={program.id}>
                   <Td>
-                    <Link
+                    <ProgressLink
                       href={`/dashboard/programs/${program.id}`}
                       className="font-medium text-text hover:underline"
                     >
                       {program.name}
-                    </Link>
+                    </ProgressLink>
                     {program.description !== null && (
                       <p className="mt-0.5 max-w-md truncate text-xs text-text-secondary">
                         {program.description}
@@ -140,7 +139,7 @@ export default function ProgramsPage() {
                   <Td>
                     <DropdownMenu
                       triggerLabel={`Дії з програмою «${program.name}»`}
-                      trigger={<span aria-hidden="true">⋯</span>}
+                      trigger={<MoreHorizontal className="size-4" aria-hidden="true" />}
                     >
                       {(close) => (
                         <DropdownItem
@@ -169,7 +168,8 @@ export default function ProgramsPage() {
                   setPage((current) => current - 1);
                 }}
               >
-                ← Назад
+                <ChevronLeft className="size-4" aria-hidden="true" />
+                Назад
               </Button>
               <span className="tabular text-sm text-text-secondary">
                 {page} / {totalPages}
@@ -182,7 +182,8 @@ export default function ProgramsPage() {
                   setPage((current) => current + 1);
                 }}
               >
-                Далі →
+                Далі
+                <ChevronRight className="size-4" aria-hidden="true" />
               </Button>
             </div>
           )}

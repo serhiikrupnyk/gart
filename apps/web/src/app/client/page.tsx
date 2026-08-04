@@ -7,7 +7,7 @@ import { PlanList } from '@/components/client/plan-list';
 import { MyHabits } from '@/components/habits/my-habits';
 import { WeekStrip } from '@/components/client/week-strip';
 import { WorkoutCard, type WorkoutLogMap } from '@/components/client/workout-card';
-import { EmptyState, Spinner, useToast } from '@/components/ui';
+import { CardListSkeleton, EmptyState, useToast } from '@/components/ui';
 import { getMyWorkouts, listMyAssignments } from '@/lib/client-workouts';
 import {
   formatDay,
@@ -79,11 +79,7 @@ export default function ClientHomePage() {
   }, [notify]);
 
   if (day === undefined || plans === undefined) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner size="lg" label="Завантаження тренувань" />
-      </div>
-    );
+    return <CardListSkeleton count={2} label="Завантаження тренувань" />;
   }
 
   // A client with no programs at all gets the honest empty frame, not a

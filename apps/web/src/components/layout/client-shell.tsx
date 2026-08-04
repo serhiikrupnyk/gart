@@ -1,16 +1,17 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { ClientSession } from '@gart/shared';
 
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
-import { Avatar, DropdownItem, DropdownMenu, Spinner } from '@/components/ui';
+import { Avatar, DropdownItem, DropdownMenu } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { cx } from '@/lib/cx';
 import { Wordmark } from './wordmark';
+import { NavigationProgress, ProgressLink } from './navigation-progress';
+import { ShellSkeleton } from './shell-skeleton';
 
 const NAV_ITEMS = [
   { label: 'Тренування', href: '/client' },
@@ -31,6 +32,7 @@ const UPCOMING_SECTIONS = ['Харчування'];
  * reject them. Probing only ever asks about the caller's own cookie, so nothing
  * leaks.
  */
+
 export function ClientShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -59,17 +61,14 @@ export function ClientShell({ children }: { children: ReactNode }) {
   }, [router]);
 
   if (session === undefined) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-bg">
-        <Spinner size="lg" label="Завантаження" />
-      </div>
-    );
+    return <ShellSkeleton variant="client" />;
   }
 
   const { client, trainer } = session;
 
   return (
     <div className="min-h-dvh bg-bg">
+      <NavigationProgress />
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-70 focus:rounded-control focus:bg-surface-raised focus:px-4 focus:py-2 focus:text-sm"
@@ -121,7 +120,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
 
                 return (
                   <li key={href}>
-                    <Link
+                    <ProgressLink
                       href={href}
                       aria-current={active ? 'page' : undefined}
                       className={cx(
@@ -132,7 +131,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
                       )}
                     >
                       {label}
-                    </Link>
+                    </ProgressLink>
                   </li>
                 );
               })}

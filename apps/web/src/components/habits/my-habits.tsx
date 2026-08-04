@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { HabitStatus, HabitsView } from '@gart/shared';
+import { Check } from 'lucide-react';
 
 import { Button, Input, useToast } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -147,7 +148,8 @@ function HabitRow({
               )
             }
           >
-            {met ? '✓ Виконано' : 'Відмітити'}
+            {met && <Check className="size-4" aria-hidden="true" />}
+            {met ? 'Виконано' : 'Відмітити'}
           </Button>
         ) : (
           <div className="flex items-end gap-2">

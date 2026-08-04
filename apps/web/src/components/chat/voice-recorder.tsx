@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { VOICE_MAX_SECONDS } from '@gart/shared';
+import { Mic } from 'lucide-react';
 
 import { Button } from '@/components/ui';
 
@@ -120,15 +121,16 @@ export function VoiceRecorder({
         aria-label="Записати голосове повідомлення"
         onClick={() => void start()}
       >
-        <span aria-hidden="true">🎤</span>
+        <Mic className="size-5" aria-hidden="true" />
       </Button>
     );
   }
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm tabular-nums text-danger" role="status">
-        ● {elapsed(seconds)}
+      <span className="text-sm tabular-nums text-danger">
+        <span aria-hidden="true" className="inline-block size-2 rounded-full bg-danger" />{' '}
+        {elapsed(seconds)}
       </span>
       <Button
         variant="ghost"

@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { INACTIVITY_DAYS, type ClientListItem } from '@gart/shared';
+import { ArrowLeft } from 'lucide-react';
 
 import { ClientActivity } from '@/components/clients/client-activity';
 import { ClientChat } from '@/components/chat/client-chat';
@@ -13,9 +13,10 @@ import { ClientAssignments } from '@/components/clients/client-assignments';
 import { ClientStatusBadge } from '@/components/clients/client-status-badge';
 import { InviteLink } from '@/components/clients/invite-link';
 import { PageHeader } from '@/components/layout/page-header';
-import { Button, Card, EmptyState, Spinner, useToast } from '@/components/ui';
+import { Button, Card, DetailSkeleton, EmptyState, useToast } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { getClient, regenerateInvite, updateClient } from '@/lib/clients';
+import { ProgressLink } from '@/components/layout/navigation-progress';
 
 export default function ClientDetailPage() {
   const router = useRouter();
@@ -70,30 +71,26 @@ export default function ClientDetailPage() {
         title="Клієнта не знайдено"
         description="Можливо, його видалено або він належить іншому тренеру."
         action={
-          <Link href="/dashboard">
+          <ProgressLink href="/dashboard">
             <Button variant="secondary">До списку клієнтів</Button>
-          </Link>
+          </ProgressLink>
         }
       />
     );
   }
 
   if (client === undefined) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner size="lg" label="Завантаження клієнта" />
-      </div>
-    );
+    return <DetailSkeleton label="Завантаження клієнта" />;
   }
 
   return (
     <>
-      <Link
+      <ProgressLink
         href="/dashboard"
         className="text-sm text-text-secondary underline underline-offset-4 hover:text-text"
       >
-        ← До списку клієнтів
-      </Link>
+        <ArrowLeft className="inline size-4 align-[-3px]" aria-hidden="true" /> До списку клієнтів
+      </ProgressLink>
 
       <div className="mt-4">
         <PageHeader title={client.fullName} description={client.email} />

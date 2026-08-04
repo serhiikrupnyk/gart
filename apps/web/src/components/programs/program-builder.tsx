@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import {
   WORKOUT_TYPE_LABELS,
   WORKOUT_TYPES,
@@ -204,7 +205,7 @@ export function ProgramBuilder({ initial }: { initial?: PublicProgramDetail }) {
           onClick={leave}
           className="text-sm text-text-secondary underline underline-offset-4 hover:text-text"
         >
-          ← До програм
+          <ArrowLeft className="inline size-4 align-[-3px]" aria-hidden="true" /> До програм
         </button>
 
         <div className="flex items-center gap-3">

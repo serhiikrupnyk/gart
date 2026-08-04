@@ -380,7 +380,7 @@ describe('ProgramBuilder', () => {
       renderBuilder();
       await userEvent.type(screen.getByLabelText('Назва програми'), 'Чернетка');
 
-      await userEvent.click(screen.getByRole('button', { name: '← До програм' }));
+      await userEvent.click(screen.getByRole('button', { name: 'До програм' }));
 
       expect(await screen.findByText('Незбережені зміни')).toBeInTheDocument();
       expect(push).not.toHaveBeenCalled();
@@ -392,7 +392,7 @@ describe('ProgramBuilder', () => {
     it('leaves a clean draft without asking', async () => {
       renderBuilder();
 
-      await userEvent.click(screen.getByRole('button', { name: '← До програм' }));
+      await userEvent.click(screen.getByRole('button', { name: 'До програм' }));
 
       expect(screen.queryByText('Незбережені зміни')).not.toBeInTheDocument();
       expect(push).toHaveBeenCalledWith('/dashboard/programs');

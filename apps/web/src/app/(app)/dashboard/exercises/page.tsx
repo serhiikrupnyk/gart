@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight, Music, Play } from 'lucide-react';
 import {
   MUSCLE_GROUP_LABELS,
   type ExercisePage,
@@ -22,8 +23,8 @@ import {
   Button,
   EmptyState,
   Modal,
-  Spinner,
   Table,
+  TableSkeleton,
   Tbody,
   Td,
   Th,
@@ -150,9 +151,7 @@ export default function ExercisesPage() {
       </div>
 
       {data === undefined ? (
-        <div className="flex justify-center py-16">
-          <Spinner size="lg" label="Завантаження вправ" />
-        </div>
+        <TableSkeleton rows={8} columns={4} label="Завантаження вправ" />
       ) : data.total === 0 ? (
         hasActiveFilters ? (
           <EmptyState
@@ -237,13 +236,15 @@ export default function ExercisesPage() {
                   <Td>
                     <span className="text-text-secondary">
                       {exercise.media.some((media) => media.kind === 'VIDEO') && (
-                        <span title="Є відео">
-                          ▶<span className="sr-only">є відео</span>
+                        <span className="inline-flex items-center" title="Є відео">
+                          <Play className="size-4" aria-hidden="true" />
+                          <span className="sr-only">є відео</span>
                         </span>
                       )}
                       {exercise.media.some((media) => media.kind === 'AUDIO') && (
-                        <span className="ml-1" title="Є аудіо">
-                          ♪<span className="sr-only">є аудіо</span>
+                        <span className="ml-1 inline-flex items-center" title="Є аудіо">
+                          <Music className="size-4" aria-hidden="true" />
+                          <span className="sr-only">є аудіо</span>
                         </span>
                       )}
                     </span>
@@ -268,7 +269,8 @@ export default function ExercisesPage() {
                     setPage((current) => current - 1);
                   }}
                 >
-                  ← Назад
+                  <ChevronLeft className="size-4" aria-hidden="true" />
+                  Назад
                 </Button>
                 <span className="tabular text-sm text-text-secondary">
                   {page} / {totalPages}
@@ -281,7 +283,8 @@ export default function ExercisesPage() {
                     setPage((current) => current + 1);
                   }}
                 >
-                  Далі →
+                  Далі
+                  <ChevronRight className="size-4" aria-hidden="true" />
                 </Button>
               </div>
             )}

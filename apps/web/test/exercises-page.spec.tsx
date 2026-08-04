@@ -157,7 +157,7 @@ describe('ExercisesPage', () => {
     renderPage();
 
     await screen.findByText('Присідання зі штангою');
-    await userEvent.click(screen.getByRole('button', { name: 'Далі →' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Далі' }));
 
     expect(await screen.findByText('Друга сторінка')).toBeInTheDocument();
     expect(screen.getByText(/Показано 21–25 з 25/)).toBeInTheDocument();

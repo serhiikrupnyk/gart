@@ -1,14 +1,14 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { PublicProgramDetail } from '@gart/shared';
 
 import { ProgramBuilder } from '@/components/programs/program-builder';
-import { Button, EmptyState, Spinner } from '@/components/ui';
+import { Button, DetailSkeleton, EmptyState } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { getProgram } from '@/lib/programs';
+import { ProgressLink } from '@/components/layout/navigation-progress';
 
 export default function EditProgramPage() {
   const router = useRouter();
@@ -44,20 +44,16 @@ export default function EditProgramPage() {
         title="Програму не знайдено"
         description="Можливо, її видалено або вона належить іншому тренеру."
         action={
-          <Link href="/dashboard/programs">
+          <ProgressLink href="/dashboard/programs">
             <Button variant="secondary">До програм</Button>
-          </Link>
+          </ProgressLink>
         }
       />
     );
   }
 
   if (program === undefined) {
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner size="lg" label="Завантаження програми" />
-      </div>
-    );
+    return <DetailSkeleton label="Завантаження програми" />;
   }
 
   return <ProgramBuilder initial={program} />;

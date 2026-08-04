@@ -3,13 +3,16 @@
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { AuthSession } from '@gart/shared';
+import { Menu } from 'lucide-react';
 
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
-import { Avatar, Button, DropdownItem, DropdownMenu, Spinner } from '@/components/ui';
+import { Avatar, Button, DropdownItem, DropdownMenu } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { AppNav } from './app-nav';
 import { Wordmark } from './wordmark';
+import { NavigationProgress } from './navigation-progress';
+import { ShellSkeleton } from './shell-skeleton';
 
 /**
  * The trainer shell: header, side navigation, content. Guards the routes beneath
@@ -20,6 +23,7 @@ import { Wordmark } from './wordmark';
  * on a trainer login form that would reject them. The probe only ever asks
  * about the caller's own cookie, so nothing leaks.
  */
+
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [session, setSession] = useState<AuthSession | undefined>();
@@ -48,15 +52,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [router]);
 
   if (session === undefined) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-bg">
-        <Spinner size="lg" label="Завантаження" />
-      </div>
-    );
+    return <ShellSkeleton variant="trainer" />;
   }
 
   return (
     <div className="min-h-dvh bg-bg">
+      <NavigationProgress />
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-70 focus:rounded-control focus:bg-surface-raised focus:px-4 focus:py-2 focus:text-sm"
@@ -75,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               setNavOpen((open) => !open);
             }}
           >
-            <span aria-hidden="true">☰</span>
+            <Menu className="size-5" aria-hidden="true" />
           </Button>
 
           <Wordmark href="/dashboard" />

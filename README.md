@@ -648,6 +648,49 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## Icons and loading states
+
+**One icon system.** Every hand-drawn mark, emoji and dingbat (`☰ 🔔 📎 🎤 🔥 ✓ ✕ ⋮ ← ↑ ▶ ♪ ☀`) is
+now a lucide-react icon on a three-step scale — `size-4` inline, `size-5` in controls, `size-6` in
+nav — coloured through `currentColor` so the tokens still decide. It tree-shakes: 20 icons, a 14 KB
+chunk, and unused ones never enter the bundle. Decorative glyphs are `aria-hidden`; every icon-only
+control keeps its `aria-label`.
+
+Removing the glyphs changed three accessible names for the better — a button that announced
+«✓ Виконано» now announces «Виконано» — and the tests were updated to match rather than the markup
+bent to keep them passing.
+
+**Two kinds of loading, kept distinct.**
+
+_Route navigation_ gets a 2px top bar driven by `useLinkStatus`. Not a `loading.tsx` boundary:
+every page here is a client component that fetches in an effect, so the server segment renders
+instantly and a route boundary would flash for milliseconds and then hand over to a page that is
+still fetching — the real wait would go unindicated.
+
+_In-page data_ gets skeletons shaped like the content they stand in for — table rows with the right
+column count, chat bubbles that alternate sides, a chart block, detail panels — so nothing jumps
+when data lands. The two shells draw their own chrome, including the sidebar column, because a
+skeleton that omits it shifts the page sideways on resolve. `Spinner` survives only where a
+skeleton cannot fit: inside a button.
+
+Both animations sit behind `motion-safe:`; with reduced motion the skeleton is a static block and
+the progress bar a static third-width bar — deliberately not full-width, which would read as a
+finished 100%.
+
+### The accessibility bug this pass nearly shipped
+
+`SkeletonRegion` first rendered `role="status" aria-busy="true" aria-label={label}` with every
+skeleton inside `aria-hidden`. That is silent in a screen reader, twice over: a live region is
+announced from its _contents_, so a labelled region with nothing but hidden children says nothing;
+and `aria-busy="true"` tells assistive tech to withhold updates until it flips false — which never
+happened, because the region is unmounted wholesale when data arrives. It replaced a `Spinner` that
+had been announcing correctly, so it was a regression, and the first test asserted the attributes
+existed rather than that anything was announceable — passing green over a broken behaviour.
+
+The region now carries a real `sr-only` label child and no `aria-busy`, every shaped skeleton takes
+a `label`, and each call site passes the specific one its spinner used to carry, so five panels
+loading at once no longer say «Завантаження» five times.
+
 ## The landing page
 
 The public root sells Gart to trainers in Ukrainian. Two things about it are worth

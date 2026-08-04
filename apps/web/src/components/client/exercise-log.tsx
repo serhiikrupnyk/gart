@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { ClientWorkoutExercise, ClientWorkoutLog, ClientWorkoutSetLog } from '@gart/shared';
+import { X } from 'lucide-react';
 
 import { Badge, Button, Input, Textarea, useToast } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -180,7 +181,7 @@ export function ExerciseLog({
                   }}
                   className="min-h-11 shrink-0 px-2 text-text-secondary hover:text-danger"
                 >
-                  <span aria-hidden="true">✕</span>
+                  <X className="size-4" aria-hidden="true" />
                 </button>
               </li>
             ))}

@@ -1,4 +1,5 @@
 import type { HabitDay } from '@gart/shared';
+import { Flame } from 'lucide-react';
 
 import { cx } from '@/lib/cx';
 import { formatShortDate } from '@/lib/workout-format';
@@ -41,7 +42,7 @@ export function StreakLabel({ streak, longest }: { streak: number; longest: numb
   if (streak > 0) {
     return (
       <span className="text-sm font-medium text-accent">
-        <span aria-hidden="true">🔥</span> {streak}{' '}
+        <Flame className="inline size-4 align-[-2px]" aria-hidden="true" /> {streak}{' '}
         {streak === 1 ? 'день' : streak < 5 ? 'дні' : 'днів'} поспіль
       </span>
     );

@@ -128,7 +128,7 @@ describe('MyHabits (client)', () => {
     renderMine();
 
     await screen.findByText('Прогулянка');
-    await user.click(screen.getByRole('button', { name: '✓ Виконано' }));
+    await user.click(screen.getByRole('button', { name: 'Виконано' }));
 
     expect(lastWrite()).toMatchObject({
       method: 'DELETE',
