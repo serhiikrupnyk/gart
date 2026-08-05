@@ -26,7 +26,7 @@ export function Avatar({ name, size = 'md' }: AvatarProps) {
       // Decorative: the name is always rendered as text next to it.
       aria-hidden="true"
       className={cx(
-        'inline-flex shrink-0 items-center justify-center rounded-full bg-accent-subtle font-semibold text-accent',
+        'inline-flex shrink-0 items-center justify-center rounded-full bg-accent-subtle font-semibold text-accent-text',
         SIZES[size],
       )}
     >

@@ -1,5 +1,7 @@
 'use client';
 
+import { CircleCheck, Copy, TriangleAlert } from 'lucide-react';
+
 import { Button, useToast } from '@/components/ui';
 
 /**
@@ -21,10 +23,19 @@ export function InviteLink({ url }: { url: string }) {
   }
 
   return (
-    <div className="rounded-card border border-accent/40 bg-accent-subtle p-4">
-      <p className="text-sm font-medium text-text">Посилання-запрошення</p>
-      <p className="mt-1 text-xs text-text-secondary">
-        Надішліть його клієнту. Показуємо лише один раз — потім доведеться згенерувати нове.
+    <div role="status" className="rounded-card border border-accent/40 bg-accent-subtle p-4">
+      <div className="flex items-center gap-2">
+        <CircleCheck className="size-5 text-accent-text" aria-hidden="true" />
+        <p className="text-sm font-semibold text-text">Клієнта створено</p>
+      </div>
+
+      <p className="mt-1.5 text-sm text-text-secondary">
+        Надішліть це посилання клієнту, щоб він створив пароль.
+      </p>
+
+      <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-text">
+        <TriangleAlert className="mt-px size-3.5 shrink-0 text-warning-text" aria-hidden="true" />
+        Показуємо лише один раз — потім доведеться згенерувати нове.
       </p>
 
       <div className="mt-3 flex gap-2">
@@ -39,6 +50,7 @@ export function InviteLink({ url }: { url: string }) {
         />
 
         <Button variant="primary" size="md" onClick={() => void handleCopy()}>
+          <Copy className="size-4" aria-hidden="true" />
           Копіювати
         </Button>
       </div>

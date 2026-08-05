@@ -648,6 +648,47 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## The clients dashboard
+
+The page a trainer lives on. Presentation only: the fetch, the create flow and the one-time invite
+link behave exactly as before.
+
+Rows rather than cards, because this page is for triage — a trainer scans one column looking for who
+needs them, and cards break that rhythm at three times the height. Each row carries an avatar, the
+name over the email, the status badge, and the Step-15 attention signal. An ember edge and a chevron
+appear on hover _or keyboard focus_, so the affordance is not mouse-only.
+
+Above the table, the counts double as filters — «Потребують уваги», «Активні», «Запрошені» — beside
+an instant search over name and email.
+
+**There is no pagination, because the API has none.** `GET /clients` returns every client in one
+response with an optional status filter, so paging would only hide rows the browser already holds.
+When rosters justify it, the step is a paged `/clients` (limit/offset + total) with these controls
+moved into the query — not client-side windowing over a payload that is already too large. The code
+says so where the fetch happens.
+
+### Two more contrast bugs of the same family
+
+Last pass found `--color-danger` was never AA as text. The same was true of its siblings: as text on
+their own tints, `success` measures **2.96**, `warning` **2.39** and `accent` **3.10** in light
+theme — all below AA at badge size, and two of those three are client statuses this page is built
+around. `--color-success-text`, `--color-warning-text` and `--color-accent-text` are darker steps of
+the identical hues (142°, 34°, 12°), measured at 4.51, 4.52 and 4.50. Dark theme needed none of it —
+there the fills sit at 6.44, 6.80 and 5.92 — so each token repeats the fill.
+
+### What the review caught
+
+Three worth recording. The filter counts were computed over the whole roster while the table filtered
+by search _and_ status, so a pill could advertise two clients and deliver an empty list. Filtering
+was **silent** for screen-reader users — `aria-pressed` reports the chip's own state, never the
+result of pressing it, so a live region now says how many rows survived. And `truncate` on the email
+was inert: the table lays out on auto width, so the column simply grew to the longest address and the
+page scrolled sideways at 375px — truncation needs a max-width to bite on.
+
+Also: a sticky table header I added and then removed, because `Table`'s wrapper is `overflow-x-auto`,
+which makes it the sticky scrollport; with no height constraint it never scrolls vertically, so the
+header could never have stuck. Better no feature than one that silently does nothing.
+
 ## The auth screens
 
 A reskin, not a rewrite: registration, login, accept-invite and the client sign-in behave exactly

@@ -1,9 +1,10 @@
 'use client';
 
+import { Mail, User } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import type { ClientWithInvite } from '@gart/shared';
 
-import { Button, FormField, Input, Modal } from '@/components/ui';
+import { Button, FormError, FormField, Input, Modal } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { createClient } from '@/lib/clients';
 import { validateEmail } from '@/lib/validation';
@@ -82,6 +83,7 @@ export function AddClientModal({ open, onClose, onCreated }: AddClientModalProps
             <Input
               {...props}
               type="text"
+              leadingIcon={User}
               value={fullName}
               onChange={(event) => {
                 setFullName(event.target.value);
@@ -96,6 +98,7 @@ export function AddClientModal({ open, onClose, onCreated }: AddClientModalProps
             <Input
               {...props}
               type="email"
+              leadingIcon={Mail}
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
@@ -105,14 +108,7 @@ export function AddClientModal({ open, onClose, onCreated }: AddClientModalProps
           )}
         </FormField>
 
-        {formError !== undefined && (
-          <p
-            role="alert"
-            className="rounded-control bg-danger/10 px-3 py-2 text-sm text-danger-text"
-          >
-            {formError}
-          </p>
-        )}
+        {formError !== undefined && <FormError>{formError}</FormError>}
       </form>
     </Modal>
   );

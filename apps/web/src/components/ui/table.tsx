@@ -15,6 +15,11 @@ export function Table({ children, caption }: { children: ReactNode; caption: str
 }
 
 export function Thead({ children }: { children: ReactNode }) {
+  // No sticky option: Table's wrapper is `overflow-x-auto`, which makes it the
+  // sticky scrollport (overflow-x: auto forces overflow-y to compute to auto).
+  // It has no height constraint, so it never scrolls vertically and a sticky
+  // thead inside it would silently do nothing. Making one work means changing
+  // how Table scrolls, which is a wider change than a header deserves.
   return <thead className="border-b border-border">{children}</thead>;
 }
 
@@ -22,11 +27,23 @@ export function Tbody({ children }: { children: ReactNode }) {
   return <tbody className="divide-y divide-border">{children}</tbody>;
 }
 
-export function Tr({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
+export function Tr({
+  children,
+  onClick,
+  className,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  /** Extra row classes — e.g. `group` so cells can react to row hover. */
+  className?: string;
+}) {
   return (
     <tr
       onClick={onClick}
-      className={cx(onClick !== undefined && 'cursor-pointer transition-colors hover:bg-bg-subtle')}
+      className={cx(
+        onClick !== undefined && 'cursor-pointer transition-colors hover:bg-bg-subtle',
+        className,
+      )}
     >
       {children}
     </tr>

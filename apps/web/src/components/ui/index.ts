@@ -12,7 +12,7 @@ export { DropdownItem, DropdownMenu } from './dropdown-menu';
 export { EmptyState } from './empty-state';
 export { FormError } from './form-error';
 export { FormField } from './form-field';
-export { Input } from './input';
+export { Input, CONTROL_BASE, controlBorder } from './input';
 export { Label } from './label';
 export { Modal } from './modal';
 export { Select, type SelectOption } from './select';

@@ -57,6 +57,17 @@
    * --color-accent-solid-hover: the fill and the text want different values.
    */
   --color-danger-text: #d61e24;
+  /*
+   * Same story as --color-danger-text, measured the same way. As text on their
+   * own 10% tint the semantic fills are 2.96 (success), 2.39 (warning) and
+   * 3.10 (accent on --color-accent-subtle) — all below AA at badge size. These
+   * are darker steps of the identical hue (142°, 34°, 12°), measured at 4.51,
+   * 4.52 and 4.50. Dark theme needs none of this: there the fills sit at
+   * 6.44, 6.80 and 5.92, so each -text token simply repeats the fill.
+   */
+  --color-success-text: #11803a;
+  --color-warning-text: #a36008;
+  --color-accent-text: #cd330e;
   --color-info: #2563eb;
 
   --color-on-success: #14171f;
@@ -172,6 +183,9 @@
   --color-warning: #f59e0b;
   --color-danger: #f0575b;
   --color-danger-text: #f0575b;
+  --color-success-text: #22c55e;
+  --color-warning-text: #f59e0b;
+  --color-accent-text: #ff6a3d;
   --color-info: #3b82f6;
 
   --color-on-success: #14171f;
