@@ -58,7 +58,7 @@ export function DropdownMenu({ trigger, triggerLabel, children }: DropdownMenuPr
         onClick={() => {
           setOpen((current) => !current);
         }}
-        className="flex items-center gap-2 rounded-control px-1.5 py-1 transition-colors hover:bg-bg-subtle"
+        className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-control px-1.5 py-1 transition-colors hover:bg-bg-subtle"
       >
         {trigger}
       </button>

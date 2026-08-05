@@ -97,9 +97,26 @@
   --text-4xl--line-height: 3.25rem;
   --text-5xl: 3.5rem;
   --text-5xl--line-height: 3.875rem;
+  --text-6xl: 4.25rem;
+  --text-6xl--line-height: 4.5rem;
 
   --radius-control: 0.5rem;
   --radius-card: 0.75rem;
+  --radius-panel: 1.25rem;
+
+  /*
+   * One elevation scale instead of ad-hoc shadow utilities, so "raised" means
+   * the same thing everywhere. Tuned per theme below: on graphite a black
+   * shadow disappears, so dark mode leans on a lighter ring rather than depth
+   * alone.
+   */
+  --shadow-e1: 0 1px 2px rgb(15 18 26 / 0.06);
+  --shadow-e2: 0 2px 6px rgb(15 18 26 / 0.07), 0 1px 2px rgb(15 18 26 / 0.05);
+  --shadow-e3: 0 8px 24px rgb(15 18 26 / 0.09), 0 2px 6px rgb(15 18 26 / 0.05);
+  --shadow-e4: 0 24px 60px rgb(15 18 26 / 0.13), 0 8px 20px rgb(15 18 26 / 0.07);
+
+  /* expo-out: fast to settle, slow to stop. Every transition shares it. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Always behind motion-safe. transform/opacity only. */
   --animate-ember: ember 8s ease-in-out infinite;
@@ -183,6 +200,11 @@
   --color-warning: #f59e0b;
   --color-danger: #f0575b;
   --color-danger-text: #f0575b;
+
+  --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.28);
+  --shadow-e2: 0 2px 6px rgb(0 0 0 / 0.34), 0 1px 2px rgb(0 0 0 / 0.24);
+  --shadow-e3: 0 8px 24px rgb(0 0 0 / 0.42), 0 2px 6px rgb(0 0 0 / 0.26);
+  --shadow-e4: 0 24px 60px rgb(0 0 0 / 0.5), 0 8px 20px rgb(0 0 0 / 0.3);
   --color-success-text: #22c55e;
   --color-warning-text: #f59e0b;
   --color-accent-text: #ff6a3d;
@@ -280,4 +302,58 @@
 
 @utility tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Scroll reveal, CSS only — no observer, no library, no client component.
+ *
+ * Two guards, both fail-safe: `prefers-reduced-motion: no-preference` keeps it
+ * away from anyone who asked for less motion, and `@supports` keeps it away
+ * from engines without scroll-driven animations (Firefox, older Safari). In
+ * every excluded case no rule applies at all, so the element renders in its
+ * normal, visible state — a reveal can never strand content invisible.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal both linear;
+      animation-timeline: view();
+      animation-range: entry 8% cover 28%;
+    }
+
+    /* Children of a revealed group settle in sequence rather than together. */
+    .reveal-stagger > * {
+      animation: reveal both linear;
+      animation-timeline: view();
+    }
+    .reveal-stagger > *:nth-child(1) {
+      animation-range: entry 6% cover 26%;
+    }
+    .reveal-stagger > *:nth-child(2) {
+      animation-range: entry 10% cover 30%;
+    }
+    .reveal-stagger > *:nth-child(3) {
+      animation-range: entry 14% cover 34%;
+    }
+    .reveal-stagger > *:nth-child(4) {
+      animation-range: entry 18% cover 38%;
+    }
+    .reveal-stagger > *:nth-child(5) {
+      animation-range: entry 22% cover 42%;
+    }
+    .reveal-stagger > *:nth-child(n + 6) {
+      animation-range: entry 26% cover 46%;
+    }
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

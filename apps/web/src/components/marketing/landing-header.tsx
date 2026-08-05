@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Wordmark } from '@/components/layout/wordmark';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { buttonClasses } from '@/components/ui';
+import { cx } from '@/lib/cx';
 import { CtaLink } from './cta-link';
 
 const SECTIONS = [
@@ -39,10 +40,10 @@ export function LandingHeader() {
 
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
-          <Link href="/login" className={buttonClasses('ghost', 'md')}>
+          <Link href="/login" className={cx(buttonClasses('ghost', 'md'), 'min-h-11')}>
             Увійти
           </Link>
-          <CtaLink href="/register" size="md">
+          <CtaLink href="/register" size="md" className="min-h-11">
             Спробувати
           </CtaLink>
         </div>

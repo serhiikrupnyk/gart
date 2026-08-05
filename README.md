@@ -648,6 +648,38 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## The landing redesign
+
+Same brand, same copy, same product-shot idea — rebuilt around depth and typography instead of flat
+boxes.
+
+**Three tokens carry it.** A four-step `--shadow-e*` elevation scale, so "raised" means one thing
+everywhere and dark mode gets its own values (a black shadow is invisible on graphite). A
+`--text-6xl` display step for the hero. And `--ease-out-expo`, so every transition shares one curve.
+Layout details do the rest: `text-balance` on headings so none ever leaves an orphan word,
+`text-pretty` on body copy.
+
+**The hero is a product shot now** — copy centred, the three real Gart surfaces presented wide
+beneath it on `--shadow-e4`, over a hairline grid masked to fade before it reaches any text. Phones
+drop the third card rather than shrinking three across into something unreadable.
+
+**Motion is CSS only.** Scroll reveal via `animation-timeline: view()`, wrapped in `@supports` and
+nested inside `prefers-reduced-motion: no-preference`. Both guards fail safe: when either excludes a
+visitor, no rule applies at all and the element renders in its normal visible state, so a reveal can
+never strand content invisible. No observer, no library, no client component — the page is still
+fully static.
+
+### What the review measured
+
+The sparkline had no height. An `<svg>` with only `w-full` renders at width × viewBox ratio, so
+spanning two columns inflated it steadily across the tablet band — a verifier measured **308px tall
+with a 9.6px stroke at 1023px**, snapping back to 92px and 2.9px one pixel later. It now has a fixed
+height, a non-uniform fit, and `vector-effect="non-scaling-stroke"` so the line keeps its weight.
+
+The other lesson was a disagreement worth having: a 3-item grid at two columns orphans its last card
+at half width, but going 1 → 3 leaves a sparse tablet row. The codebase already had the answer — the
+hero composition makes its third item span the row at `sm`. Both 3-item sections now do the same.
+
 ## The clients dashboard
 
 The page a trainer lives on. Presentation only: the fetch, the create flow and the one-time invite

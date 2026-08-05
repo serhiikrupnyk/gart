@@ -101,6 +101,30 @@ describe('landing page', () => {
     );
   });
 
+  it('keeps the product shot decorative rather than reading numbers aloud', () => {
+    const { container } = renderLanding();
+
+    // Every figure in the composition is also stated in the copy beside it.
+    const shot = container.querySelector('[aria-hidden="true"] .shadow-e4');
+
+    expect(shot?.closest('[aria-hidden="true"]')).toBeInTheDocument();
+    expect(screen.queryByText('5×5 · 82,5 кг')).not.toBeNull();
+  });
+
+  it('never hides content behind the scroll reveal', () => {
+    const { container } = renderLanding();
+
+    // The reveal is CSS-only and opt-in via @supports, so revealed regions must
+    // carry no inline hiding — an unsupported browser has to see them.
+    for (const revealed of container.querySelectorAll('.reveal, .reveal-stagger')) {
+      expect(revealed).not.toHaveAttribute('hidden');
+      expect((revealed as HTMLElement).style.opacity).toBe('');
+    }
+
+    // And the content inside them is queryable, not stripped.
+    expect(screen.getByText('Програми — в Excel і PDF')).toBeInTheDocument();
+  });
+
   it('makes no API call whatsoever', () => {
     renderLanding();
 
