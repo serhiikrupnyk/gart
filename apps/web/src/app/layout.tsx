@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Manrope } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import { ThemeProvider } from '@/components/theme/theme-provider';
@@ -8,11 +8,19 @@ import { ToastProvider } from '@/components/ui';
 
 import './globals.css';
 
-// Cyrillic is not optional here — the entire interface is Ukrainian.
-const inter = Inter({
-  subsets: ['latin', 'cyrillic'],
+/*
+ * Cyrillic is not optional here — the entire interface is Ukrainian. Google's
+ * `cyrillic` subset is U+400-45F plus U+490-491, which covers а–я, і, ї, є and
+ * ґ; a face offering only `cyrillic-ext` would drop essentially the whole UI to
+ * a fallback, which rules out several otherwise-appealing geometric families.
+ * `cyrillic-ext` earns its place separately: it carries U+20B4, the hryvnia
+ * sign ₴, which a product priced in гривні will need.
+ */
+const manrope = Manrope({
+  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
+  weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
-  variable: '--font-inter',
+  variable: '--font-manrope',
 });
 
 export const metadata: Metadata = {
@@ -39,7 +47,7 @@ export const viewport: Viewport = {
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="uk" className={inter.variable} suppressHydrationWarning>
+    <html lang="uk" className={manrope.variable} suppressHydrationWarning>
       <head>
         <ThemeScript />
       </head>

@@ -648,6 +648,56 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## Manrope, and why not the font that was asked for
+
+The app font moved from Inter to **Manrope**, applied at the token layer so the whole product
+follows.
+
+The request was Plus Jakarta Sans. It cannot be used here: `next/font/google`'s own font data lists
+its subsets as `cyrillic-ext, latin, latin-ext, vietnamese` — there is no `cyrillic`. Google's
+`cyrillic` subset is `U+400-45F` plus `U+490-491`, which is where а–я, і, ї, є **and ґ** live, so a
+face offering only `cyrillic-ext` would drop essentially the entire Ukrainian UI to a fallback.
+Manrope is the nearest equivalent in character and has the real thing. (`cyrillic-ext` still earns
+its place: it carries `U+20B4`, the hryvnia sign ₴.)
+
+Worth recording because the first version of this note got it wrong in the other direction — it
+claimed ґ was the one letter in `cyrillic-ext`. Reading the actual `unicode-range` declarations Next
+generated settled it.
+
+## The block landing
+
+Eight full-bleed blocks, alternating grounds hard: page → **ink slab** → ember band → page →
+subtle → **ink slab** → page → **full-bleed ember**. The two ink slabs are theme-invariant graphite
+with their own `--color-on-ink*` text tokens, so they read as solid slabs rather than themed
+surfaces. Type runs on `clamp()` throughout, block padding steps 64 → 96 → 128px.
+
+Scroll-snap is `proximity`, never `mandatory` — and it sits on `html:has(.block-snap)`, because
+`scroll-snap-type` only does anything on the element that actually scrolls, and `<main>` is not a
+scroll container. The first attempt put it on `<main>`, where it was silently inert.
+
+### The clipping bugs
+
+Three were reported. Two had a single cause: an element positioned outside its box inside an
+ancestor with `overflow-hidden`. The «Для кого» numerals sat at `-right-3 -top-6` and were sliced;
+the hero cards' shadows were cut by a container that clipped so a top-edge highlight could follow
+its corners. Numerals now live inside the padding box, and the highlight is a plain inset element
+with no clipping ancestor. The third — the final CTA heading — could not be reproduced from the
+code, so the fix was structural: that block has no `overflow-hidden` and no absolutely-positioned
+decoration anywhere near its text.
+
+### What the review measured
+
+A verifier loaded the page in headless Chrome at 320px and found `scrollWidth` 341 against a 320
+viewport: the header row has nothing that can shrink (`whitespace-nowrap` on every button), so the
+primary CTA was sliced and the whole document scrolled sideways. That is the width WCAG 1.4.10
+requires. Sign-in now steps aside below `sm`, leaving the row at 263px.
+
+Also caught: the focus ring is `2px solid var(--color-accent)`, and the new full-bleed CTA block is
+`bg-accent` — an accent ring on an accent ground is a 1:1 contrast, so keyboard focus was invisible
+on the page's last conversion point. And the hero's ambient glow used `-z-10`, which escapes to the
+nearest _stacking context_; `position: relative` does not create one, so with the reveal animation
+absent the glow slipped behind the page background. `isolate` contains it.
+
 ## The landing redesign
 
 Same brand, same copy, same product-shot idea — rebuilt around depth and typography instead of flat

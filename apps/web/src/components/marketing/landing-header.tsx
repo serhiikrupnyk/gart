@@ -20,7 +20,7 @@ const SECTIONS = [
 export function LandingHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-bg/85 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-8 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-5 sm:gap-8 sm:px-8">
         <Wordmark href="/" />
 
         <nav aria-label="Розділи сторінки" className="hidden md:block">
@@ -39,8 +39,18 @@ export function LandingHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <ThemeToggle />
-          <Link href="/login" className={cx(buttonClasses('ghost', 'md'), 'min-h-11')}>
+          <ThemeToggle align="start" />
+          {/*
+            Nothing in this row can shrink — buttonClasses sets whitespace-nowrap
+            — so at 320px (the width WCAG 1.4.10 Reflow requires) the row
+            overflowed and the whole document scrolled sideways. Sign-in steps
+            aside on the narrowest screens; it is still one tap away in the hero
+            and in the footer.
+          */}
+          <Link
+            href="/login"
+            className={cx(buttonClasses('ghost', 'md'), 'hidden min-h-11 sm:inline-flex')}
+          >
             Увійти
           </Link>
           <CtaLink href="/register" size="md" className="min-h-11">

@@ -17,12 +17,13 @@ const ICONS: Record<ThemePreference, LucideIcon> = {
   system: Monitor,
 };
 
-export function ThemeToggle() {
+export function ThemeToggle({ align = 'end' }: { align?: 'start' | 'end' } = {}) {
   const { preference, choose } = useTheme();
   const Icon = ICONS[preference];
 
   return (
     <DropdownMenu
+      align={align}
       triggerLabel="Тема оформлення"
       trigger={<Icon className="size-5" aria-hidden="true" />}
     >

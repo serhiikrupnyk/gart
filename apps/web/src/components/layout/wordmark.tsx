@@ -11,7 +11,7 @@ export function Wordmark({ href = '/', size = 'md' }: { href?: string; size?: 'm
     <Link
       href={href}
       className={cx(
-        'inline-flex items-baseline font-semibold tracking-tight text-text',
+        'inline-flex min-h-11 items-baseline py-2.5 font-semibold tracking-tight text-text',
         size === 'lg' ? 'text-2xl' : 'text-lg',
       )}
     >
