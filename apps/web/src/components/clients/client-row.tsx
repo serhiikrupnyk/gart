@@ -56,10 +56,18 @@ export function ClientRow({ client, now }: { client: ClientListItem; now: Date }
 
       <Td>
         <span className="flex justify-end">
-          <ChevronRight
-            aria-hidden="true"
-            className="size-4 text-text-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-          />
+          {/*
+            A real target rather than a decorative glyph: the column is headed
+            «Відкрити», and it is always visible, because a hover-gated
+            affordance does not exist at all on a touch device.
+          */}
+          <ProgressLink
+            href={`/dashboard/clients/${client.id}`}
+            aria-label={`Відкрити картку: ${client.fullName}`}
+            className="inline-flex size-8 items-center justify-center rounded-control text-text-secondary transition-colors hover:bg-bg-subtle hover:text-text"
+          >
+            <ChevronRight aria-hidden="true" className="size-4" />
+          </ProgressLink>
         </span>
       </Td>
     </Tr>

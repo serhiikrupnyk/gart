@@ -153,7 +153,7 @@ export function ProgressPhotos({
               </button>
               {photo.label !== null && <p className="text-xs text-text-secondary">{photo.label}</p>}
 
-              <label className="mt-1 flex items-center gap-1 text-xs text-text-secondary">
+              <label className="mt-1 flex cursor-pointer items-center gap-1 text-xs text-text-secondary">
                 <input
                   type="checkbox"
                   checked={selected.includes(photo.id)}

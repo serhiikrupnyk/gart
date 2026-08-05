@@ -208,7 +208,7 @@ export function AssignProgramModal({
               const checked = days.includes(day);
 
               return (
-                <label key={day} className="cursor-pointer">
+                <label key={day} className={pending ? 'cursor-not-allowed' : 'cursor-pointer'}>
                   <input
                     type="checkbox"
                     className="peer sr-only"

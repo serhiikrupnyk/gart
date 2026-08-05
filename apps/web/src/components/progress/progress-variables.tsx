@@ -311,7 +311,7 @@ function AddVariableModal({
           )}
         </FormField>
 
-        <label className="flex items-center gap-2 text-sm text-text">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-text">
           <input
             type="checkbox"
             checked={selfLog}

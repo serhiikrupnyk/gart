@@ -56,7 +56,7 @@ export function ClientsFilters({
               className={cx(
                 'inline-flex min-h-10 items-center gap-2 rounded-full border px-3.5 text-sm transition-colors',
                 selected
-                  ? 'border-accent bg-accent-subtle font-medium text-accent-text'
+                  ? 'border-accent bg-accent-subtle font-medium text-accent-text hover:border-accent-hover'
                   : 'border-border-strong text-text-secondary hover:bg-bg-subtle hover:text-text',
               )}
             >

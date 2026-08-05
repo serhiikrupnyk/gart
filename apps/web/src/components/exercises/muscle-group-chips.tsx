@@ -39,7 +39,10 @@ export function MuscleGroupChips({
           const checked = selected.includes(group) && !isExcluded;
 
           return (
-            <label key={group} className={isExcluded ? 'cursor-not-allowed' : 'cursor-pointer'}>
+            <label
+              key={group}
+              className={isExcluded || disabled ? 'cursor-not-allowed' : 'cursor-pointer'}
+            >
               <input
                 type="checkbox"
                 className="peer sr-only"

@@ -91,6 +91,17 @@ describe('clients dashboard', () => {
     expect(screen.getAllByRole('row')).toHaveLength(5); // header + four clients
   });
 
+  it('puts a real target in the column headed «Відкрити», not a decorative glyph', async () => {
+    listClients.mockResolvedValue(ROSTER);
+    renderPage();
+
+    // Always present, not revealed on hover: a hover-gated affordance does not
+    // exist at all on a touch device.
+    const open = await screen.findByRole('link', { name: 'Відкрити картку: Олена Коваль' });
+
+    expect(open).toHaveAttribute('href', '/dashboard/clients/c-1');
+  });
+
   it('counts who needs attention and surfaces it in the header', async () => {
     listClients.mockResolvedValue(ROSTER);
     renderPage();

@@ -220,6 +220,47 @@
   }
 
   /* Every focusable thing gets the same visible ring — 3.55 light, 6.74 dark. */
+  /*
+   * Tailwind v4 dropped the preflight rule that gave buttons a pointer, and
+   * browsers default them to an arrow — so every button in the app read as
+   * inert. This is Tailwind's own documented migration.
+   *
+   * It sits in the base layer, which means any component that wants a
+   * different cursor still wins: `cursor-not-allowed` on disabled controls,
+   * `cursor-grab` on drag handles. `:not(:disabled)` keeps a disabled button
+   * from claiming to be clickable even before those utilities apply.
+   */
+  button:not(:disabled),
+  [role='button']:not(:disabled),
+  select:not(:disabled),
+  /* Click-to-open or click-to-toggle controls, not text fields. */
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='file']:not(:disabled),
+  input[type='date']:not(:disabled),
+  input[type='time']:not(:disabled),
+  input[type='datetime-local']:not(:disabled),
+  input[type='color']:not(:disabled),
+  input[type='range']:not(:disabled),
+  /*
+   * A label is a real activation surface: clicking it focuses, or toggles, the
+   * control it names. Both wiring styles count — `htmlFor`, and wrapping the
+   * control directly. Several screens hand-roll their labels instead of using
+   * the Label component, so this has to be a selector rather than a prop.
+   */
+  label[for],
+  label:has(input, select, textarea) {
+    cursor: pointer;
+  }
+
+  /*
+   * A label cannot match `:disabled` — only form controls can — so a disabled
+   * fieldset would otherwise keep offering a pointer over inert chips.
+   */
+  fieldset:disabled label {
+    cursor: not-allowed;
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
