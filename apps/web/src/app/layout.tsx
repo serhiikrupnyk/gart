@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Manrope } from 'next/font/google';
+import { Manrope, Oswald } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import { ThemeProvider } from '@/components/theme/theme-provider';
@@ -21,6 +21,22 @@ const manrope = Manrope({
   weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
   variable: '--font-manrope',
+});
+
+/*
+ * The landing's display face. Condensed and athletic, and — the part that rules
+ * most display faces out for this product — it ships a real `cyrillic` subset,
+ * not just `cyrillic-ext`. Loaded only for its two weights; the app itself
+ * never references it.
+ */
+const oswald = Oswald({
+  subsets: ['latin', 'cyrillic'],
+  weight: ['500', '700'],
+  display: 'swap',
+  variable: '--font-oswald',
+  // Only the landing sets `font-display`; preloading it on every authenticated
+  // route would ship a face those pages never render.
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -47,7 +63,7 @@ export const viewport: Viewport = {
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="uk" className={manrope.variable} suppressHydrationWarning>
+    <html lang="uk" className={`${manrope.variable} ${oswald.variable}`} suppressHydrationWarning>
       <head>
         <ThemeScript />
       </head>

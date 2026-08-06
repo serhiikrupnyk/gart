@@ -76,6 +76,23 @@
   --color-on-info: #ffffff;
 
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-oswald), ui-sans-serif, system-ui, sans-serif;
+
+  /*
+   * The landing's own palette. Deliberately NOT the app's: paper and ink with a
+   * single volt accent, an editorial register rather than a product surface.
+   *
+   * These are additive tokens — nothing the authenticated app already uses is
+   * redefined — so the dashboard, the auth screens and both themes are
+   * untouched. Every pairing here was measured: the weakest is 7.81, the rest
+   * clear 14:1.
+   */
+  --color-paper: #f2f0ea;
+  --color-paper-2: #e8e4da;
+  --color-paper-line: #d5d0c4;
+  --color-ink-900: #101010;
+  --color-ink-600: #4a4a46;
+  --color-volt: #c9f227;
 
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
@@ -114,17 +131,6 @@
   --shadow-e2: 0 2px 6px rgb(15 18 26 / 0.07), 0 1px 2px rgb(15 18 26 / 0.05);
   --shadow-e3: 0 8px 24px rgb(15 18 26 / 0.09), 0 2px 6px rgb(15 18 26 / 0.05);
   --shadow-e4: 0 24px 60px rgb(15 18 26 / 0.13), 0 8px 20px rgb(15 18 26 / 0.07);
-
-  /*
-   * The inverted block: graphite in BOTH themes, so alternating sections snap
-   * against each other instead of drifting apart. Its own text tokens come with
-   * it, because on this ground the light-theme text colours would vanish.
-   */
-  --color-ink: #12151c;
-  --color-ink-raised: #1b202a;
-  --color-ink-border: #2b3240;
-  --color-on-ink: #f2f4f8;
-  --color-on-ink-secondary: #a7b0be;
 
   /* expo-out: fast to settle, slow to stop. Every transition shares it. */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -211,11 +217,6 @@
   --color-warning: #f59e0b;
   --color-danger: #f0575b;
   --color-danger-text: #f0575b;
-  /* The inverted block is deliberately theme-invariant: same graphite either
-     way, so it reads as a solid slab rather than a themed surface. */
-  --color-ink: #0b0d12;
-  --color-ink-raised: #161a22;
-  --color-ink-border: #262c38;
 
   --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.28);
   --shadow-e2: 0 2px 6px rgb(0 0 0 / 0.34), 0 1px 2px rgb(0 0 0 / 0.24);
@@ -375,23 +376,30 @@
 }
 
 /*
- * Blocks settle when the reader lands near a boundary, and never fight a scroll
- * in progress: `proximity`, not `mandatory`. Mandatory snapping on a page this
- * long hijacks the scroll, breaks find-in-page and traps mid-block reading —
- * the same class of harm as scroll-jacking. Off entirely under reduced motion.
+ * The landing runs its own palette, so it needs its own focus ring: the global
+ * accent ring measures 2.80 on paper-2 and would be the only control affordance
+ * on a page whose grounds are paper, volt and ink. Ink on paper, volt on ink —
+ * both well past the 3:1 non-text minimum.
  */
-@media (prefers-reduced-motion: no-preference) {
-  /*
-   * The snap container has to be the element that actually scrolls, and that is
-   * the document — not <main>. `:has()` scopes it to pages that opt in, so the
-   * authenticated app keeps plain scrolling.
-   */
-  html:has(.block-snap) {
-    scroll-snap-type: y proximity;
-  }
+.landing-root :focus-visible {
+  /* Unlayered on purpose: this beats every @layer, so no per-element utility
+     can quietly reintroduce a ring the surrounding ground cannot show. */
+  outline-color: var(--color-ink-900);
+}
 
-  .block-snap > * {
-    scroll-snap-align: start;
-    scroll-margin-top: 4rem;
-  }
+.dark .landing-root :focus-visible {
+  outline-color: var(--color-volt);
+}
+
+/*
+ * The page paints its ground on a wrapper, but the browser propagates <body>'s
+ * background to the canvas — so overscroll showed the app's white behind the
+ * paper. Scoped with :has() so only this page changes.
+ */
+body:has(.landing-root) {
+  background-color: var(--color-paper);
+}
+
+.dark body:has(.landing-root) {
+  background-color: var(--color-ink-900);
 }

@@ -648,6 +648,36 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## The editorial landing
+
+Given a free hand, the landing left the product's palette behind. It is set on **paper and ink with
+a single volt accent** — an editorial sports-magazine register rather than another dark SaaS
+gradient — with **Oswald** (condensed, and one of the few display faces carrying a real `cyrillic`
+subset) for display and Manrope for body. Sections are numbered like a contents page; the chaos is a
+ruled list, the moat a three-column ledger.
+
+The product mock deliberately keeps the app's ember identity. It is a picture of the real thing, and
+recolouring it would be a picture of something that does not exist — so the page and the product
+read as two different materials.
+
+**Nothing the app uses was redefined.** The palette arrives as new tokens (`--color-paper`,
+`--color-ink-900`, `--color-volt`…), so the dashboard, the auth screens and both themes render
+exactly as before; the build's route table is unchanged and `/` is still static. Oswald is loaded
+with `preload: false`, because only this page sets `font-display`.
+
+### The mistake worth recording
+
+Volt is a _light_ colour. It is superb as a ground — ink on volt is 14.69 — and useless as text on
+paper, where it measures about 1.1:1. Three places used `text-volt` on a light ground: the moat
+ordinals, a pull-quote fragment, and a `focus-visible:outline-volt` on two dark CTAs whose ring is
+painted _outside_ the button, on the paper. All three were invisible in light theme.
+
+The trap was in how it was checked: ink-on-volt and volt-on-ink were both measured before a line was
+written, and both passed at 14.69 — but volt-on-paper was never measured, because volt was only ever
+meant to be a background. A pairing that is not supposed to exist still has to be checked once it
+does. The ordinals now flip per theme, the fragment became a marker highlight (ink on volt), and the
+landing scopes its own focus ring: ink on paper, volt on ink.
+
 ## Manrope, and why not the font that was asked for
 
 The app font moved from Inter to **Manrope**, applied at the token layer so the whole product
