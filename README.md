@@ -7,8 +7,9 @@ Phase 1 is complete — the core loop runs end to end: a trainer builds a progra
 client sees today's workout and records what they actually did, and the trainer sees planned
 against actual, adherence, and who needs attention.
 
-This repository is currently at **Step 18: notification infrastructure** — in-app notifications,
-web push, and the trainer's client-activity feed, on top of Phase 2's progress measurement (Step 16) and habits (Step 17).
+**Phase 2 is complete** — progress measurement (16), habits (17), notification infrastructure (18),
+inactivity alerts (19), 1:1 chat (20) and chat media (21). Since then: a marketing landing page, one
+icon system, real loading states, and polish passes over the auth screens and the clients dashboard.
 
 ## Requirements
 
@@ -647,86 +648,6 @@ about that client; the inactivity banner's «Написати клієнту» n
 should be able to reply. The client's own conversation is `/client/chat` in their shell. Both share
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
-
-## The editorial landing
-
-Given a free hand, the landing left the product's palette behind. It is set on **paper and ink with
-a single volt accent** — an editorial sports-magazine register rather than another dark SaaS
-gradient — with **Oswald** (condensed, and one of the few display faces carrying a real `cyrillic`
-subset) for display and Manrope for body. Sections are numbered like a contents page; the chaos is a
-ruled list, the moat a three-column ledger.
-
-The product mock deliberately keeps the app's ember identity. It is a picture of the real thing, and
-recolouring it would be a picture of something that does not exist — so the page and the product
-read as two different materials.
-
-**Nothing the app uses was redefined.** The palette arrives as new tokens (`--color-paper`,
-`--color-ink-900`, `--color-volt`…), so the dashboard, the auth screens and both themes render
-exactly as before; the build's route table is unchanged and `/` is still static. Oswald is loaded
-with `preload: false`, because only this page sets `font-display`.
-
-### The mistake worth recording
-
-Volt is a _light_ colour. It is superb as a ground — ink on volt is 14.69 — and useless as text on
-paper, where it measures about 1.1:1. Three places used `text-volt` on a light ground: the moat
-ordinals, a pull-quote fragment, and a `focus-visible:outline-volt` on two dark CTAs whose ring is
-painted _outside_ the button, on the paper. All three were invisible in light theme.
-
-The trap was in how it was checked: ink-on-volt and volt-on-ink were both measured before a line was
-written, and both passed at 14.69 — but volt-on-paper was never measured, because volt was only ever
-meant to be a background. A pairing that is not supposed to exist still has to be checked once it
-does. The ordinals now flip per theme, the fragment became a marker highlight (ink on volt), and the
-landing scopes its own focus ring: ink on paper, volt on ink.
-
-## Manrope, and why not the font that was asked for
-
-The app font moved from Inter to **Manrope**, applied at the token layer so the whole product
-follows.
-
-The request was Plus Jakarta Sans. It cannot be used here: `next/font/google`'s own font data lists
-its subsets as `cyrillic-ext, latin, latin-ext, vietnamese` — there is no `cyrillic`. Google's
-`cyrillic` subset is `U+400-45F` plus `U+490-491`, which is where а–я, і, ї, є **and ґ** live, so a
-face offering only `cyrillic-ext` would drop essentially the entire Ukrainian UI to a fallback.
-Manrope is the nearest equivalent in character and has the real thing. (`cyrillic-ext` still earns
-its place: it carries `U+20B4`, the hryvnia sign ₴.)
-
-Worth recording because the first version of this note got it wrong in the other direction — it
-claimed ґ was the one letter in `cyrillic-ext`. Reading the actual `unicode-range` declarations Next
-generated settled it.
-
-## The block landing
-
-Eight full-bleed blocks, alternating grounds hard: page → **ink slab** → ember band → page →
-subtle → **ink slab** → page → **full-bleed ember**. The two ink slabs are theme-invariant graphite
-with their own `--color-on-ink*` text tokens, so they read as solid slabs rather than themed
-surfaces. Type runs on `clamp()` throughout, block padding steps 64 → 96 → 128px.
-
-Scroll-snap is `proximity`, never `mandatory` — and it sits on `html:has(.block-snap)`, because
-`scroll-snap-type` only does anything on the element that actually scrolls, and `<main>` is not a
-scroll container. The first attempt put it on `<main>`, where it was silently inert.
-
-### The clipping bugs
-
-Three were reported. Two had a single cause: an element positioned outside its box inside an
-ancestor with `overflow-hidden`. The «Для кого» numerals sat at `-right-3 -top-6` and were sliced;
-the hero cards' shadows were cut by a container that clipped so a top-edge highlight could follow
-its corners. Numerals now live inside the padding box, and the highlight is a plain inset element
-with no clipping ancestor. The third — the final CTA heading — could not be reproduced from the
-code, so the fix was structural: that block has no `overflow-hidden` and no absolutely-positioned
-decoration anywhere near its text.
-
-### What the review measured
-
-A verifier loaded the page in headless Chrome at 320px and found `scrollWidth` 341 against a 320
-viewport: the header row has nothing that can shrink (`whitespace-nowrap` on every button), so the
-primary CTA was sliced and the whole document scrolled sideways. That is the width WCAG 1.4.10
-requires. Sign-in now steps aside below `sm`, leaving the row at 263px.
-
-Also caught: the focus ring is `2px solid var(--color-accent)`, and the new full-bleed CTA block is
-`bg-accent` — an accent ring on an accent ground is a 1:1 contrast, so keyboard focus was invisible
-on the page's last conversion point. And the hero's ambient glow used `-z-10`, which escapes to the
-nearest _stacking context_; `position: relative` does not create one, so with the reveal animation
-absent the glow slipped behind the page background. `isolate` contains it.
 
 ## The landing redesign
 

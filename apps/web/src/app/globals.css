@@ -75,24 +75,7 @@
   --color-on-danger: #14171f;
   --color-on-info: #ffffff;
 
-  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-oswald), ui-sans-serif, system-ui, sans-serif;
-
-  /*
-   * The landing's own palette. Deliberately NOT the app's: paper and ink with a
-   * single volt accent, an editorial register rather than a product surface.
-   *
-   * These are additive tokens — nothing the authenticated app already uses is
-   * redefined — so the dashboard, the auth screens and both themes are
-   * untouched. Every pairing here was measured: the weakest is 7.81, the rest
-   * clear 14:1.
-   */
-  --color-paper: #f2f0ea;
-  --color-paper-2: #e8e4da;
-  --color-paper-line: #d5d0c4;
-  --color-ink-900: #101010;
-  --color-ink-600: #4a4a46;
-  --color-volt: #c9f227;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
@@ -373,33 +356,4 @@
     opacity: 1;
     transform: none;
   }
-}
-
-/*
- * The landing runs its own palette, so it needs its own focus ring: the global
- * accent ring measures 2.80 on paper-2 and would be the only control affordance
- * on a page whose grounds are paper, volt and ink. Ink on paper, volt on ink —
- * both well past the 3:1 non-text minimum.
- */
-.landing-root :focus-visible {
-  /* Unlayered on purpose: this beats every @layer, so no per-element utility
-     can quietly reintroduce a ring the surrounding ground cannot show. */
-  outline-color: var(--color-ink-900);
-}
-
-.dark .landing-root :focus-visible {
-  outline-color: var(--color-volt);
-}
-
-/*
- * The page paints its ground on a wrapper, but the browser propagates <body>'s
- * background to the canvas — so overscroll showed the app's white behind the
- * paper. Scoped with :has() so only this page changes.
- */
-body:has(.landing-root) {
-  background-color: var(--color-paper);
-}
-
-.dark body:has(.landing-root) {
-  background-color: var(--color-ink-900);
 }
