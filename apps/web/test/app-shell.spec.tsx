@@ -52,6 +52,25 @@ function renderShell() {
 }
 
 describe('AppShell', () => {
+  /**
+   * jsdom reports every media query as false, so the shell would always believe
+   * it is at desktop width — where the sidebar is a static column and the drawer
+   * behaviour under test does not exist. This puts the suite at a phone width.
+   */
+  function atPhoneWidth(): void {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: (query: string) => ({
+        matches: query.includes('max-width'),
+        media: query,
+        onchange: null,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+        dispatchEvent: jest.fn(),
+      }),
+    });
+  }
+
   beforeEach(() => {
     apiFetch.mockReset();
     replace.mockReset();
@@ -69,6 +88,57 @@ describe('AppShell', () => {
     expect(screen.getByRole('banner')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Тема оформлення' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Меню користувача' })).toBeInTheDocument();
+  });
+
+  it('opens the navigation drawer without hiding the page content', async () => {
+    atPhoneWidth();
+    apiFetch.mockResolvedValue(SESSION);
+    renderShell();
+
+    await screen.findByText('вміст сторінки');
+
+    const menu = screen.getByRole('button', { name: 'Меню' });
+
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+
+    await userEvent.click(menu);
+
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+    // The old shell replaced <main> with the nav; the drawer overlays it.
+    expect(screen.getByText('вміст сторінки')).toBeInTheDocument();
+  });
+
+  it('closes the drawer on Escape and hands focus back to the trigger', async () => {
+    atPhoneWidth();
+    apiFetch.mockResolvedValue(SESSION);
+    renderShell();
+
+    await screen.findByText('вміст сторінки');
+
+    const menu = screen.getByRole('button', { name: 'Меню' });
+
+    await userEvent.click(menu);
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+    expect(menu).toHaveFocus();
+  });
+
+  it('closes the drawer when a destination is chosen', async () => {
+    atPhoneWidth();
+    apiFetch.mockResolvedValue(SESSION);
+    renderShell();
+
+    await screen.findByText('вміст сторінки');
+
+    const menu = screen.getByRole('button', { name: 'Меню' });
+
+    await userEvent.click(menu);
+    await userEvent.click(screen.getByRole('link', { name: 'Тренування' }));
+
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('marks the current section and offers the unbuilt ones as coming soon', async () => {
