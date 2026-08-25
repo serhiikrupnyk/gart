@@ -94,7 +94,18 @@ export const SUBSCRIPTION_PERIOD_MONTHS: Record<SubscriptionPeriod, number> = {
  * The canonical payment lifecycle. Every provider's own vocabulary maps onto
  * exactly these four before it reaches anything outside the provider adapter.
  */
-export type PaymentStatus = 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED';
+export const PAYMENT_STATUSES = ['PENDING', 'SUCCEEDED', 'FAILED', 'REFUNDED'] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  PENDING: 'В обробці',
+  SUCCEEDED: 'Оплачено',
+  FAILED: 'Не вдалося',
+  REFUNDED: 'Повернуто',
+};
+
+export const PAYMENT_STATUS_FILTERS = ['all', ...PAYMENT_STATUSES] as const;
+export type PaymentStatusFilter = (typeof PAYMENT_STATUS_FILTERS)[number];
 
 export interface PublicProduct {
   id: string;
@@ -125,16 +136,50 @@ export type UpdateProductRequest = Partial<CreateProductRequest> & { isActive?: 
 export const PRODUCT_STATUS_FILTERS = ['all', 'active', 'inactive'] as const;
 export type ProductStatusFilter = (typeof PRODUCT_STATUS_FILTERS)[number];
 
+/**
+ * A payment as the TRAINER sees it: the whole commercial picture, including
+ * what the platform took and what is left for them.
+ */
 export interface PublicPayment {
   id: string;
   clientId: string;
+  clientName: string;
   productId: string;
   productName: string;
   amount: Money;
+  /** The platform's cut, as charged on this payment — never recomputed. */
+  platformFee: Money;
+  /** amount − platformFee. The two always sum back to amount, exactly. */
+  payout: Money;
   status: PaymentStatus;
-  description: string;
   createdAt: string;
   paidAt: string | null;
+  /** Where the payer completes it, while it is still open. */
+  checkoutUrl: string | null;
+}
+
+/**
+ * A payment as the CLIENT sees it.
+ *
+ * A separate type rather than a subset of PublicPayment, deliberately: the
+ * commission is a term between the platform and the trainer, and the surest way
+ * for a client never to see it is for the shape they receive to have nowhere to
+ * put it. Omission enforced by the type, not by remembering to omit.
+ */
+export interface ClientPayment {
+  id: string;
+  productName: string;
+  amount: Money;
+  status: PaymentStatus;
+  createdAt: string;
+  paidAt: string | null;
+  checkoutUrl: string | null;
+}
+
+/** What the client app shows: what is owed, and what it bought. */
+export interface ClientPurchases {
+  payments: ClientPayment[];
+  entitlements: PublicEntitlement[];
 }
 
 /** What creating a checkout hands back to the trainer. */

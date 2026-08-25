@@ -18,6 +18,9 @@ export const TRAINER_EVENT_TEXT: Record<NotificationType, string> = {
   CLIENT_INACTIVE: 'Немає активності',
   TRAINER_MESSAGE: 'Повідомлення',
   CHAT_MESSAGE: 'Повідомлення',
+  PAYMENT_SUCCEEDED: 'Оплата',
+  PAYMENT_FAILED: 'Оплата не пройшла',
+  PAYMENT_REFUNDED: 'Повернення коштів',
 };
 
 export function trainerBody(type: NotificationType, detail: string | null): string {

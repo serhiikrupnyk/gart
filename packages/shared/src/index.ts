@@ -115,6 +115,9 @@ export type {
 } from './notification';
 export {
   formatMoney,
+  PAYMENT_STATUS_FILTERS,
+  PAYMENT_STATUS_LABELS,
+  PAYMENT_STATUSES,
   PRODUCT_ACCESS_DAYS_MAX,
   PRODUCT_ACCESS_DAYS_MIN,
   PRODUCT_DESCRIPTION_MAX,
@@ -130,10 +133,13 @@ export {
 } from './payment';
 export type {
   CheckoutResult,
+  ClientPayment,
+  ClientPurchases,
   CreateProductRequest,
   Currency,
   Money,
   PaymentStatus,
+  PaymentStatusFilter,
   ProductKind,
   ProductStatusFilter,
   PublicEntitlement,

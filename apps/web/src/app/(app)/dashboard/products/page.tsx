@@ -10,6 +10,7 @@ import {
 } from '@gart/shared';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { PaymentTabs } from '@/components/layout/payment-tabs';
 import { ProductFormModal } from '@/components/products/product-form-modal';
 import {
   Badge,
@@ -144,6 +145,7 @@ export default function ProductsPage() {
 
   return (
     <>
+      <PaymentTabs active="/dashboard/products" />
       <PageHeader
         title="Продукти"
         description="Що ви продаєте: разові пакети та підписки. Ціни у гривнях."
@@ -196,7 +198,7 @@ export default function ProductsPage() {
               <Th>Назва</Th>
               <Th>Тип</Th>
               <Th>Доступ</Th>
-              <Th>Ціна</Th>
+              <Th numeric>Ціна</Th>
               <Th>Статус</Th>
               <Th>Дії</Th>
             </Tr>

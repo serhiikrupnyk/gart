@@ -1,4 +1,5 @@
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { PAYMENT_STATUS_FILTERS, type PaymentStatusFilter } from '@gart/shared';
 
 const PRODUCT_MESSAGE = 'Некоректний продукт';
 
@@ -16,4 +17,10 @@ export class CreateCheckoutDto {
   @MinLength(1, { message: PRODUCT_MESSAGE })
   @MaxLength(64, { message: PRODUCT_MESSAGE })
   productId!: string;
+}
+
+export class PaymentListQuery {
+  @IsOptional()
+  @IsIn(PAYMENT_STATUS_FILTERS, { message: 'Некоректний фільтр' })
+  status?: PaymentStatusFilter;
 }

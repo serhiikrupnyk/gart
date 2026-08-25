@@ -1,4 +1,4 @@
-import type { SelectHTMLAttributes } from 'react';
+import type { Ref, SelectHTMLAttributes } from 'react';
 
 import { cx } from '@/lib/cx';
 import { CONTROL_BASE, controlBorder } from './input';
@@ -11,6 +11,8 @@ export interface SelectOption {
 export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'className'> {
   options: readonly SelectOption[];
   invalid?: boolean;
+  /** Forwarded to the underlying <select>; React 19 treats it as a plain prop. */
+  ref?: Ref<HTMLSelectElement>;
 }
 
 /**

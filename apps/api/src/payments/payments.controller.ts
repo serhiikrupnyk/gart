@@ -8,17 +8,23 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { CheckoutResult, PublicEntitlement, PublicPayment } from '@gart/shared';
+import type {
+  CheckoutResult,
+  ClientPurchases,
+  PublicEntitlement,
+  PublicPayment,
+} from '@gart/shared';
 
 import { type AuthContext, CurrentAuth } from '../auth/auth-context';
 import { type ClientAuthContext, CurrentClientAuth } from '../auth/client-auth-context';
 import { ClientGuard } from '../auth/client.guard';
 import { TrainerGuard } from '../auth/trainer.guard';
 import { callbackThrottle } from '../auth/throttle.config';
-import { CreateCheckoutDto } from './dto/payment.dto';
+import { CreateCheckoutDto, PaymentListQuery } from './dto/payment.dto';
 import { InvalidCallbackError } from './payment-provider';
 import { PaymentsService } from './payments.service';
 
@@ -50,6 +56,14 @@ export class ClientPaymentsController {
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
+  @Get()
+  async list(
+    @CurrentAuth() auth: AuthContext,
+    @Query() query: PaymentListQuery,
+  ): Promise<PublicPayment[]> {
+    return this.payments.forTrainer(auth.trainer.id, query.status ?? 'all');
+  }
+
   @Get(':id')
   async one(@CurrentAuth() auth: AuthContext, @Param('id') id: string): Promise<PublicPayment> {
     return this.payments.oneForTrainer(auth.trainer.id, id);
@@ -64,6 +78,25 @@ export class MeEntitlementsController {
   @Get()
   async mine(@CurrentClientAuth() auth: ClientAuthContext): Promise<PublicEntitlement[]> {
     return this.payments.entitlementsForClient(auth.trainer.id, auth.client.id, new Date());
+  }
+}
+
+/**
+ * What the client owes and what they own.
+ *
+ * Read-only, and there is deliberately no write here at all: a checkout is the
+ * trainer's act. The client cannot name a product, an amount or a fee because
+ * no route accepts one from them — the strongest form of «cannot influence» is
+ * the absence of a door, not the validation behind it.
+ */
+@Controller('me/purchases')
+@UseGuards(ClientGuard)
+export class MePurchasesController {
+  constructor(private readonly payments: PaymentsService) {}
+
+  @Get()
+  async mine(@CurrentClientAuth() auth: ClientAuthContext): Promise<ClientPurchases> {
+    return this.payments.purchasesForClient(auth.trainer.id, auth.client.id, new Date());
   }
 }
 

@@ -62,7 +62,7 @@ export function ShellSkeleton({ variant }: { variant: 'trainer' | 'client' }) {
       <div className="mx-auto flex max-w-5xl gap-8 px-4 sm:px-6">
         <aside className="hidden w-52 shrink-0 py-6 sm:block">
           <div className="space-y-1.5">
-            {Array.from({ length: 3 }, (_, index) => (
+            {Array.from({ length: 5 }, (_, index) => (
               <Skeleton key={index} className="h-11" />
             ))}
           </div>
@@ -78,8 +78,8 @@ export function ShellSkeleton({ variant }: { variant: 'trainer' | 'client' }) {
         </SkeletonRegion>
       </div>
 
-      <div className="fixed inset-x-3 bottom-3 grid grid-cols-3 gap-2 rounded-panel border border-border bg-surface p-2 shadow-e4 sm:hidden">
-        {Array.from({ length: 3 }, (_, index) => (
+      <div className="fixed inset-x-3 bottom-3 grid grid-cols-4 gap-2 rounded-panel border border-border bg-surface p-2 shadow-e4 sm:hidden">
+        {Array.from({ length: 4 }, (_, index) => (
           <Skeleton key={index} className="h-14" />
         ))}
       </div>

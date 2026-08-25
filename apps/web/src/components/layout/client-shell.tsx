@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { ClientSession } from '@gart/shared';
-import { ChartNoAxesCombined, Dumbbell, MessageCircle, Utensils } from 'lucide-react';
+import { ChartNoAxesCombined, Dumbbell, MessageCircle, Utensils, WalletCards } from 'lucide-react';
 
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { label: 'Тренування', href: '/client', icon: Dumbbell },
   { label: 'Прогрес', href: '/client/progress', icon: ChartNoAxesCombined },
   { label: 'Чат', href: '/client/chat', icon: MessageCircle },
+  { label: 'Оплати', href: '/client/payments', icon: WalletCards },
 ];
 
 /** The client-app sections later phases will fill; visible so the frame is honest. */
@@ -126,7 +127,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <p className="mb-2 hidden px-3 pt-2 text-2xs font-bold uppercase tracking-[0.14em] text-text-muted sm:block">
             Мій простір
           </p>
-          <ul className="grid grid-cols-3 gap-1 sm:block sm:space-y-1">
+          <ul className="grid grid-cols-4 gap-1 sm:block sm:space-y-1">
             {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
               const active = pathname === href;
 
@@ -138,7 +139,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
                     className={cx(
                       'flex min-h-14 flex-col items-center justify-center gap-1 rounded-control px-2 text-[0.6875rem] font-bold transition-[color,background-color,box-shadow] sm:min-h-11 sm:flex-row sm:justify-start sm:gap-3 sm:px-3 sm:text-sm',
                       active
-                        ? 'bg-accent-subtle text-accent-text shadow-[inset_0_0_0_1px_rgb(255_91_50_/_0.12)]'
+                        ? 'bg-accent-subtle text-accent-text shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]'
                         : 'text-text-secondary hover:bg-bg-subtle hover:text-text',
                     )}
                   >

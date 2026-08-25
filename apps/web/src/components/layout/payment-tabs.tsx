@@ -2,19 +2,22 @@ import { cx } from '@/lib/cx';
 import { ProgressLink } from './navigation-progress';
 
 const TABS = [
-  { href: '/dashboard/programs', label: 'Програми' },
-  { href: '/dashboard/exercises', label: 'Бібліотека вправ' },
+  { href: '/dashboard/products', label: 'Продукти' },
+  { href: '/dashboard/payments', label: 'Оплати' },
 ] as const;
 
 /**
- * The «Тренування» sub-navigation: real links between routes, so plain anchors
- * with aria-current rather than the ARIA tabs pattern (which is for switching
- * panels inside one page). Step 12 adds assignments here.
+ * The «Платежі» sub-navigation, the shape WorkoutTabs established: real links
+ * between routes, so plain anchors with aria-current rather than the ARIA tabs
+ * pattern, which is for switching panels inside one page.
+ *
+ * Step 23 deliberately shipped no strip at all, because a one-tab strip is
+ * chrome that says nothing. There are two now.
  */
-export function WorkoutTabs({ active }: { active: (typeof TABS)[number]['href'] }) {
+export function PaymentTabs({ active }: { active: (typeof TABS)[number]['href'] }) {
   return (
     <nav
-      aria-label="Розділи тренувань"
+      aria-label="Розділи платежів"
       className="mb-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-control border border-border bg-surface p-1 shadow-e1"
     >
       {TABS.map((tab) => {

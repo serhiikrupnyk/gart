@@ -34,7 +34,12 @@ const ITEMS: NavItem[] = [
     icon: Dumbbell,
   },
   { label: 'Прогрес', icon: ChartNoAxesCombined },
-  { label: 'Платежі', href: '/dashboard/products', icon: WalletCards },
+  {
+    label: 'Платежі',
+    href: '/dashboard/products',
+    activeUnder: ['/dashboard/products', '/dashboard/payments'],
+    icon: WalletCards,
+  },
 ];
 
 export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -85,7 +90,7 @@ export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
                 className={cx(
                   'group flex min-h-12 items-center gap-3 rounded-control px-3 text-sm font-semibold transition-[color,background-color,box-shadow] duration-200',
                   active
-                    ? 'bg-accent-subtle text-accent-text shadow-[inset_0_0_0_1px_rgb(255_91_50_/_0.12)]'
+                    ? 'bg-accent-subtle text-accent-text shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]'
                     : 'text-text-secondary hover:bg-bg-subtle hover:text-text',
                 )}
               >

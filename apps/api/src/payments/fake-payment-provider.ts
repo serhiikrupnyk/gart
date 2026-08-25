@@ -10,6 +10,8 @@ import {
   PaymentProvider,
   type ProviderCallback,
   type RawCallback,
+  type RecurrenceInstruction,
+  type SplitInstruction,
   toCurrency,
 } from './payment-provider';
 import { sign, signaturesMatch } from './signature';
@@ -40,6 +42,9 @@ interface IssuedCheckout {
   orderRef: string;
   providerRef: string;
   amount: Money;
+  /** Exactly what the caller instructed, kept so tests can assert it arrived. */
+  split: SplitInstruction | null;
+  recurrence: RecurrenceInstruction | null;
 }
 
 /**
@@ -87,6 +92,8 @@ export class FakePaymentProvider extends PaymentProvider {
       orderRef: request.orderRef,
       providerRef,
       amount: request.amount,
+      split: request.split,
+      recurrence: request.recurrence,
     });
 
     const outcome = this.outcome;

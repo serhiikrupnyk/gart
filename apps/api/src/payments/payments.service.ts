@@ -1,10 +1,25 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { CheckoutResult, PaymentStatus, PublicEntitlement, PublicPayment } from '@gart/shared';
+import { formatMoney } from '@gart/shared';
+import type {
+  CheckoutResult,
+  ClientPayment,
+  ClientPurchases,
+  PaymentStatus,
+  PaymentStatusFilter,
+  PublicEntitlement,
+  PublicPayment,
+} from '@gart/shared';
 
 import { ClientsService } from '../clients/clients.service';
+import { NotificationService } from '../notifications/notification.service';
 import { PrismaService } from '../database/prisma.service';
 import { requireEnv } from '../env';
-import type { EntitlementModel, PaymentModel, ProductModel } from '../generated/prisma/models.js';
+import type {
+  ClientModel,
+  EntitlementModel,
+  PaymentModel,
+  ProductModel,
+} from '../generated/prisma/models.js';
 import {
   CALLBACK_MAX_AGE_MS,
   CALLBACK_MAX_SKEW_MS,
@@ -15,14 +30,19 @@ import {
   type ProviderCallback,
   type RawCallback,
 } from './payment-provider';
+import { commissionPercent, splitAmount } from './commission';
 import { entitlementEnd } from './entitlement-window';
 import { amountsEqual, toMoney } from '../common/money';
 import { payloadDigest } from './signature';
 
 const PRODUCT_NOT_FOUND_MESSAGE = 'Продукт не знайдено';
+const ARCHIVED_CLIENT_MESSAGE = 'Клієнта архівовано — оплату виставити не можна';
 const PRODUCT_INACTIVE_MESSAGE = 'Продукт більше не продається';
 const PRODUCT_FREE_MESSAGE = 'Безкоштовний продукт не потребує оплати';
 const UNIQUE_CONSTRAINT_ERROR = 'P2002';
+
+/** Generous enough that a working trainer never meets it; Step 26 adds paging. */
+const PAYMENT_LIST_LIMIT = 500;
 
 /**
  * Which state a payment must already be in for an arriving status to apply.
@@ -50,7 +70,7 @@ const ALLOWED_FROM: Record<PaymentStatus, readonly PaymentStatus[]> = {
   REFUNDED: ['SUCCEEDED', 'PENDING'],
 };
 
-type PaymentWithProduct = PaymentModel & { product: ProductModel };
+type PaymentWithParties = PaymentModel & { product: ProductModel; client: ClientModel };
 
 /**
  * Taking money, and granting what it bought.
@@ -75,10 +95,17 @@ export class PaymentsService {
   private readonly apiOrigin = requireEnv('API_ORIGIN');
   private readonly webOrigin = requireEnv('WEB_ORIGIN');
 
+  /**
+   * Read once, at construction, so a nonsensical rate stops the boot rather
+   * than dividing somebody's money by surprise on the first sale.
+   */
+  private readonly commission = commissionPercent(process.env);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly clients: ClientsService,
     private readonly provider: PaymentProvider,
+    private readonly notifications: NotificationService,
   ) {}
 
   /**
@@ -94,6 +121,16 @@ export class PaymentsService {
     productId: string,
   ): Promise<CheckoutResult> {
     const client = await this.clients.requireOwned(trainerId, clientId);
+
+    // requireOwned answers «is this yours», not «is this still active». An
+    // archived client cannot sign in, so a checkout aimed at one produces a
+    // hosted page nobody can reach, an entitlement nobody can use and a
+    // notification nobody can read — while the trainer's payments list shows a
+    // sale. Assignments refuse the lighter write for the same reason.
+    if (client.status === 'ARCHIVED') {
+      throw new BadRequestException(ARCHIVED_CLIENT_MESSAGE);
+    }
+
     const product = await this.requireProduct(trainerId, productId);
 
     if (!product.isActive) {
@@ -110,6 +147,11 @@ export class PaymentsService {
 
     const amount = toMoney(product.priceAmount, product.currency);
 
+    // Computed here and stored, never recomputed on read. A rate change applies
+    // to the next checkout and rewrites nothing that has already been charged —
+    // the same argument as the amount and the grant terms beside it.
+    const { fee } = splitAmount(product.priceAmount, this.commission);
+
     // Created PENDING first, so the row that the provider's callback will name
     // already exists. A provider fast enough to call back before we had written
     // it would otherwise arrive at a payment we have never heard of.
@@ -120,6 +162,7 @@ export class PaymentsService {
         productId: product.id,
         amount: product.priceAmount,
         currency: product.currency,
+        platformFee: fee,
         status: 'PENDING',
         provider: this.provider.id,
         description: product.name,
@@ -127,7 +170,7 @@ export class PaymentsService {
         periodSnapshot: product.period,
         accessDaysSnapshot: product.accessDays,
       },
-      include: { product: true },
+      include: { product: true, client: true },
     });
 
     const session = await this.openCheckout(payment.id, {
@@ -137,18 +180,25 @@ export class PaymentsService {
       payerEmail: client.email,
       returnUrl: `${this.webOrigin}/client`,
       callbackUrl: `${this.apiOrigin}/payments/callback/${this.provider.id}`,
-      // Both arrive in Steps 24 and 25. The interface carries them now so that
-      // adding a commission or a renewal is a change of argument, not of shape.
-      split: null,
+      // The Step 22 interface carried this shape from the start, so populating
+      // it is a change of argument and nothing else — which is the whole claim
+      // that seam was making.
+      //
+      // `beneficiaryRef` is documented as the acquirer-side account of the
+      // trainer, and until an acquirer exists no such account does. The
+      // platform's own reference for them is sent instead; the adapter that
+      // lands with a real provider maps it to that provider's account id, which
+      // is precisely the translation an adapter exists to do.
+      split: { beneficiaryRef: trainerId, platformFee: toMoney(fee, product.currency) },
       recurrence: product.period === null ? null : { period: product.period, startsAt: null },
       metadata: { trainerId, clientId: client.id, productId: product.id },
     });
 
-    const withRef = await this.prisma.payment.update({
-      where: { id: payment.id },
-      data: { providerRef: session.providerRef },
-      include: { product: true },
-    });
+    // Inside the same compensation as the call that produced the session: a
+    // failure here would leave a payment PENDING with no reference — nothing
+    // for fetchStatus to ask about and nothing for the client to open — while
+    // a live hosted page sits at the acquirer waiting to be paid.
+    const withRef = await this.recordSession(payment.id, session);
 
     // A provider that settled synchronously reports through the SAME path a
     // webhook would take. There is exactly one place a payment can succeed.
@@ -167,6 +217,103 @@ export class PaymentsService {
     }
 
     return { payment: toPublicPayment(settled ?? withRef), redirectUrl: session.redirectUrl };
+  }
+
+  /** Binds the issued session to the payment, failing it closed if it cannot. */
+  private async recordSession(
+    paymentId: string,
+    session: CheckoutSession,
+  ): Promise<PaymentWithParties> {
+    try {
+      return await this.prisma.payment.update({
+        where: { id: paymentId },
+        data: { providerRef: session.providerRef, checkoutUrl: session.redirectUrl },
+        include: { product: true, client: true },
+      });
+    } catch (error: unknown) {
+      await this.prisma.payment
+        .update({
+          where: { id: paymentId },
+          data: { status: 'FAILED', failedAt: new Date(), providerStatus: 'session-unrecorded' },
+        })
+        .catch(() => undefined);
+
+      this.logger.error(`Could not record the provider session for payment ${paymentId}`);
+
+      throw error;
+    }
+  }
+
+  /**
+   * Tells both parties what happened, through the one notification door.
+   *
+   * Best effort by NotificationService's own design — a missing notification is
+   * a nuisance, and a payment that succeeded must not be un-succeeded because a
+   * push could not be delivered.
+   */
+  private async announce(payment: PaymentWithParties): Promise<void> {
+    if (payment.status === 'SUCCEEDED') {
+      await Promise.all([
+        this.notifications.notifyTrainer({
+          trainerId: payment.trainerId,
+          clientId: payment.clientId,
+          type: 'PAYMENT_SUCCEEDED',
+          detail: `${payment.description} · ${formatMoney(toMoney(payment.amount, payment.currency))}`,
+        }),
+        this.notifications.notifyClient({
+          trainerId: payment.trainerId,
+          clientId: payment.clientId,
+          type: 'PAYMENT_SUCCEEDED',
+          title: 'Оплату отримано',
+          // The client is told what they bought and what they paid. What the
+          // platform took is a term between the platform and their trainer.
+          body: `${payment.description} — доступ відкрито`,
+        }),
+      ]);
+
+      return;
+    }
+
+    if (payment.status === 'FAILED') {
+      await Promise.all([
+        this.notifications.notifyTrainer({
+          trainerId: payment.trainerId,
+          clientId: payment.clientId,
+          type: 'PAYMENT_FAILED',
+          detail: payment.description,
+        }),
+        this.notifications.notifyClient({
+          trainerId: payment.trainerId,
+          clientId: payment.clientId,
+          type: 'PAYMENT_FAILED',
+          title: 'Оплата не пройшла',
+          body: `${payment.description} — спробуйте ще раз`,
+        }),
+      ]);
+    }
+
+    if (payment.status === 'REFUNDED') {
+      // The refund already revoked the entitlement, so the client's access has
+      // just ended. Telling them is not Step 26's receipt — it is the reason
+      // the app they opened no longer has what they bought in it.
+      await Promise.all([
+        this.notifications.notifyTrainer({
+          trainerId: payment.trainerId,
+          clientId: payment.clientId,
+          type: 'PAYMENT_REFUNDED',
+          detail: `${payment.description} · ${formatMoney(toMoney(payment.amount, payment.currency))}`,
+        }),
+        this.notifications.notifyClient({
+          trainerId: payment.trainerId,
+          clientId: payment.clientId,
+          type: 'PAYMENT_REFUNDED',
+          title: 'Кошти повернуто',
+          body: `${payment.description} — доступ закрито`,
+        }),
+      ]);
+    }
+
+    // PENDING announces nothing: «we are still waiting» is not news.
   }
 
   /**
@@ -207,7 +354,7 @@ export class PaymentsService {
    * error retries, and retrying a duplicate forever is worse than accepting it.
    * Throws InvalidCallbackError only for a payload that does not verify.
    */
-  async applyCallback(raw: RawCallback, provider?: string): Promise<PaymentWithProduct | null> {
+  async applyCallback(raw: RawCallback, provider?: string): Promise<PaymentWithParties | null> {
     // A callback addressed to an acquirer we are not running is not ours to
     // interpret. Letting the bound provider parse it anyway would mean a
     // payload for one signing scheme being checked against another's secret.
@@ -225,7 +372,7 @@ export class PaymentsService {
 
     const payment = await this.prisma.payment.findUnique({
       where: { id: callback.orderRef },
-      include: { product: true },
+      include: { product: true, client: true },
     });
 
     if (payment === null) {
@@ -257,7 +404,17 @@ export class PaymentsService {
     // attempt, while a genuinely different delivery gets its own row.
     const delivery = callback.externalId === '' ? digest : callback.externalId;
 
-    return this.settle(payment, { ...callback, externalId: delivery }, digest);
+    const settled = await this.settle(payment, { ...callback, externalId: delivery }, digest);
+
+    // Only a delivery that changed something announces itself. settle() returns
+    // null for a duplicate, so a retrying provider cannot notify twice — and an
+    // out-of-order delivery it refused returns the row unchanged, which the
+    // status comparison below filters out.
+    if (settled !== null && settled.status !== payment.status) {
+      await this.announce(settled);
+    }
+
+    return settled;
   }
 
   async forClient(trainerId: string, clientId: string): Promise<PublicPayment[]> {
@@ -265,17 +422,61 @@ export class PaymentsService {
 
     const payments = await this.prisma.payment.findMany({
       where: { trainerId, clientId: client.id },
-      include: { product: true },
+      include: { product: true, client: true },
       orderBy: { createdAt: 'desc' },
     });
 
     return payments.map(toPublicPayment);
   }
 
+  /**
+   * Every payment this trainer has taken, newest first.
+   *
+   * Unpaged like the catalogue, and for a weaker reason — a payment list only
+   * grows. Bounded here rather than left open: the cap is generous enough that
+   * a working trainer never meets it, and Step 26's transaction history is
+   * where paging and export belong.
+   */
+  async forTrainer(trainerId: string, status: PaymentStatusFilter): Promise<PublicPayment[]> {
+    const payments = await this.prisma.payment.findMany({
+      where: { trainerId, ...(status === 'all' ? {} : { status }) },
+      include: { product: true, client: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: PAYMENT_LIST_LIMIT,
+    });
+
+    return payments.map(toPublicPayment);
+  }
+
+  /** What the client owes, and what they own. Their own rows only. */
+  async purchasesForClient(
+    trainerId: string,
+    clientId: string,
+    now: Date,
+  ): Promise<ClientPurchases> {
+    const [payments, entitlements] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: { trainerId, clientId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: PAYMENT_LIST_LIMIT,
+      }),
+      this.prisma.entitlement.findMany({
+        where: { trainerId, clientId },
+        include: { product: true, payment: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      payments: payments.map(toClientPayment),
+      entitlements: entitlements.map((entitlement) => toPublicEntitlement(entitlement, now)),
+    };
+  }
+
   async oneForTrainer(trainerId: string, paymentId: string): Promise<PublicPayment> {
     const payment = await this.prisma.payment.findFirst({
       where: { id: paymentId, trainerId },
-      include: { product: true },
+      include: { product: true, client: true },
     });
 
     if (payment === null) {
@@ -316,10 +517,10 @@ export class PaymentsService {
    * moment, which is exactly what a retrying provider produces.
    */
   private async settle(
-    payment: PaymentWithProduct,
+    payment: PaymentWithParties,
     callback: ProviderCallback,
     digest: string,
-  ): Promise<PaymentWithProduct | null> {
+  ): Promise<PaymentWithParties | null> {
     try {
       return await this.prisma.$transaction(async (tx) => {
         // Guard one: this delivery, recorded once. A replay collides here.
@@ -358,6 +559,10 @@ export class PaymentsService {
             // on a second card must not keep a failedAt contradicting its paidAt.
             ...(callback.status === 'SUCCEEDED' ? { paidAt: reportedAt, failedAt: null } : {}),
             ...(callback.status === 'FAILED' ? { failedAt: reportedAt, paidAt: null } : {}),
+            // A settled payment has no page left to pay on. Cleared here rather
+            // than merely hidden by the UI, so «is this payable» is one fact in
+            // the row instead of a rule two screens have to remember.
+            ...(callback.status === 'PENDING' ? {} : { checkoutUrl: null }),
           },
         });
 
@@ -401,7 +606,7 @@ export class PaymentsService {
 
         return tx.payment.findUniqueOrThrow({
           where: { id: payment.id },
-          include: { product: true },
+          include: { product: true, client: true },
         });
       });
     } catch (error: unknown) {
@@ -447,20 +652,43 @@ export class PaymentsService {
   }
 }
 
-export function toPublicPayment(payment: PaymentWithProduct): PublicPayment {
+export function toPublicPayment(payment: PaymentWithParties): PublicPayment {
   return {
     id: payment.id,
     clientId: payment.clientId,
+    clientName: payment.client.fullName,
     productId: payment.productId,
-    // The name at PURCHASE, not the one the catalogue carries now. `description`
-    // has held that snapshot since Step 22; reading the live row beside it meant
-    // a rename could rewrite what a completed payment says it bought.
+    // The name at PURCHASE, not the one the catalogue carries now: a rename
+    // must not rewrite what a completed payment says it bought.
+    productName: payment.description,
+    amount: toMoney(payment.amount, payment.currency),
+    platformFee: toMoney(payment.platformFee, payment.currency),
+    // Derived by subtraction from the two stored values, so it can never
+    // disagree with them — and never rounded a second time.
+    payout: toMoney(payment.amount.minus(payment.platformFee), payment.currency),
+    status: payment.status,
+    createdAt: payment.createdAt.toISOString(),
+    paidAt: payment.paidAt === null ? null : payment.paidAt.toISOString(),
+    checkoutUrl: payment.checkoutUrl,
+  };
+}
+
+/**
+ * The same row, as the client is allowed to see it.
+ *
+ * There is no fee and no payout here, and the type it returns has nowhere to
+ * put them — omission the compiler enforces rather than omission somebody has
+ * to remember.
+ */
+export function toClientPayment(payment: PaymentModel): ClientPayment {
+  return {
+    id: payment.id,
     productName: payment.description,
     amount: toMoney(payment.amount, payment.currency),
     status: payment.status,
-    description: payment.description,
     createdAt: payment.createdAt.toISOString(),
     paidAt: payment.paidAt === null ? null : payment.paidAt.toISOString(),
+    checkoutUrl: payment.checkoutUrl,
   };
 }
 

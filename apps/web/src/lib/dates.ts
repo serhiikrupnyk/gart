@@ -45,6 +45,17 @@ const DAY_TITLE = new Intl.DateTimeFormat('uk-UA', {
   month: 'long',
 });
 
+/**
+ * «25 серп. 2026 р.» — a stamp on a record that outlives the week it happened
+ * in. The workout screens can say «понеділок, 3 серпня» because they are always
+ * looking at the current week; a payment from last year cannot.
+ */
+const RECORD_DATE = new Intl.DateTimeFormat('uk-UA', { dateStyle: 'medium' });
+
+export function formatRecordDate(iso: string): string {
+  return RECORD_DATE.format(new Date(iso));
+}
+
 /** «понеділок, 3 серпня» — for use inside a sentence. */
 export function formatDay(date: Date): string {
   return DAY_TITLE.format(date);

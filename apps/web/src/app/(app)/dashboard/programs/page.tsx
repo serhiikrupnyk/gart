@@ -108,8 +108,8 @@ export default function ProgramsPage() {
               <Tr>
                 <Th>Програма</Th>
                 <Th>Тип</Th>
-                <Th>Секції</Th>
-                <Th>Вправи</Th>
+                <Th numeric>Секції</Th>
+                <Th numeric>Вправи</Th>
                 <Th>
                   <span className="sr-only">Дії</span>
                 </Th>

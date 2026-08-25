@@ -4,7 +4,17 @@ import { cx } from '@/lib/cx';
 
 export function Table({ children, caption }: { children: ReactNode; caption: string }) {
   return (
-    <div className="overflow-x-auto rounded-panel border border-border bg-surface shadow-e1">
+    // The scroll container is focusable and named on purpose. A wide table
+    // overflows here rather than on the page, and Chrome and Firefox make such
+    // a scroller keyboard-reachable implicitly — WebKit does not. Without the
+    // tabIndex, a Safari keyboard user cannot bring the off-screen columns into
+    // view at all, and on a payments table those columns are the whole point.
+    <div
+      role="region"
+      aria-label={caption}
+      tabIndex={0}
+      className="overflow-x-auto rounded-panel border border-border bg-surface shadow-e1"
+    >
       <table className="w-full border-collapse text-left text-sm">
         {/* Every table needs a caption for screen readers; hidden visually. */}
         <caption className="sr-only">{caption}</caption>
@@ -50,17 +60,33 @@ export function Tr({
   );
 }
 
-export function Th({ children }: { children: ReactNode }) {
+export function Th({ children, numeric = false }: { children: ReactNode; numeric?: boolean }) {
   return (
     <th
       scope="col"
-      className="px-4 py-3.5 text-2xs font-bold uppercase tracking-[0.08em] text-text-secondary sm:px-5"
+      className={cx(
+        'px-4 py-3.5 text-2xs font-bold uppercase tracking-[0.08em] text-text-secondary sm:px-5',
+        numeric && 'text-right',
+      )}
     >
       {children}
     </th>
   );
 }
 
+/**
+ * `numeric` right-aligns as well as setting tabular figures.
+ *
+ * Tabular figures line digits up WITHIN a row; they do nothing across rows of
+ * different magnitude. Left-aligned, «23,00 ₴» above «1 500,00 ₴» puts the
+ * hryvnia in different places, so a column cannot be scanned for size — which
+ * on a payments table means the amount − commission = payout relationship the
+ * screen exists to show cannot be read off it.
+ */
 export function Td({ children, numeric = false }: { children: ReactNode; numeric?: boolean }) {
-  return <td className={cx('px-4 py-4 text-text sm:px-5', numeric && 'tabular')}>{children}</td>;
+  return (
+    <td className={cx('px-4 py-4 text-text sm:px-5', numeric && 'tabular text-right')}>
+      {children}
+    </td>
+  );
 }

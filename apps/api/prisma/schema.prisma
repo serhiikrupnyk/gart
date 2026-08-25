@@ -746,6 +746,9 @@ enum NotificationType {
   CLIENT_INACTIVE
   TRAINER_MESSAGE
   CHAT_MESSAGE
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  PAYMENT_REFUNDED
 }
 
 /// One thing that happened and somebody may care about.
@@ -1020,6 +1023,14 @@ model Payment {
 
   /// What the payer was shown on the hosted page, snapshotted.
   description String
+
+  /// The hosted page this payment is collected on.
+  ///
+  /// Stored rather than returned once and forgotten, because the same row has
+  /// to serve two ways of reaching the payer: a link the trainer shares, and
+  /// the «Оплатити» affordance in the client's own app. Null until the provider
+  /// has issued one, and for providers that settle without a page at all.
+  checkoutUrl String?
 
   paidAt   DateTime?
   failedAt DateTime?

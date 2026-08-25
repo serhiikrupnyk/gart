@@ -649,6 +649,97 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## Checkout and the platform split
+
+The moat mechanic, and the step where the Step 22 seam stops being a promise: the
+trainer opens a checkout for a client and a product, the client pays, access is
+granted, and the money divides.
+
+### The split
+
+A single global rate, `PLATFORM_COMMISSION_PERCENT`, **snapshotted on every payment
+at checkout**. Not per-product — commission is a platform↔trainer commercial term,
+not a property of what is being sold, and putting it on `Product` would let the
+trainer set their own. Not per-trainer either, yet: that column would have no writer
+until Step 27 introduces plans, and a column nothing can write is dead. The snapshot
+is what makes a later per-plan rate purely additive — past payments already record
+what was actually charged, so nothing migrates.
+
+**The default of 5 is provisional and not a decided commercial number.** The product
+docs call split commission an additional potential stream beside the trainer's own
+subscription and name no rate. An acquirer takes roughly 2.5% of its own, so this is
+not the whole cost to the trainer, and it wants revisiting before a real acquirer
+goes live.
+
+### Two rounding rules, each doing one job
+
+```
+fee    = round_down(amount × percent / 100, 2)
+payout = amount − fee
+```
+
+**The platform never rounds its own commission up** — a fraction of a kopiyka always
+goes to the trainer, which is a rule that needs no explaining to the person on the
+other side of it. And the payout is **derived by subtraction, never rounded a second
+time**, which is what makes `fee + payout = amount` true by construction rather than
+by luck. Rounding both halves independently is the classic way for them to stop
+summing to what the client actually paid.
+
+Decimal throughout, and not theoretically: **₴23.00 at 5% is exactly 1.15**, but 1.15
+has no exact binary form, so a float lands on `1.1499999999999999` and the floor takes
+a whole kopiyka off the platform — on a round number. That case is in the tests
+verbatim, alongside the float result it must not equal.
+
+### `SplitInstruction` was the whole point of the seam
+
+Step 22 declared the shape and passed `null`. Step 24 passes a real instruction, and
+**nothing about the interface changed** — which is the claim that seam was making.
+The fake records what it received, so the tests assert the split reached the provider
+rather than that a variable was set.
+
+`beneficiaryRef` is documented as the acquirer-side account of the trainer, and until
+an acquirer exists no such account does. The platform's own reference is sent, and the
+adapter that lands with a real provider maps it to that provider's account id —
+precisely the translation an adapter exists to do. A `Trainer.payoutRef` column would
+be dead today: there is nothing to connect to.
+
+### The client can never influence a charge, because there is no door
+
+A checkout is the trainer's act. There is **no client-facing write anywhere in this
+flow** — the client cannot name a product, an amount or a fee because no route accepts
+one from them. That is a stronger guarantee than validation: not a check that could be
+got wrong, but the absence of the thing to check.
+
+What the client receives is a URL. `Payment.checkoutUrl` is stored rather than returned
+once and forgotten, so the same row serves both ways of reaching the payer — a link the
+trainer copies, and «Оплатити» in the client's own app. The link opens in the **same
+tab**, because the acquirer returns the payer through the `returnUrl` the checkout was
+opened with, and a new tab would strand that return.
+
+A checkout is refused for an **archived** client: they cannot sign in, so the hosted
+page would be unreachable, the entitlement unusable and the notification unreadable —
+while the trainer's list showed a sale. And `checkoutUrl` is **cleared when the payment
+settles**, so «is this payable» is one fact in the row rather than a rule every screen
+has to remember about a spent page.
+
+**The client is never shown the commission.** Not hidden — absent: `ClientPayment` is a
+separate type from `PublicPayment` with nowhere to put a fee, so the omission is
+enforced by the compiler rather than by remembering. A test asserts the string
+`platformFee` appears nowhere in the client's payload at all.
+
+### Both parties hear about it, once
+
+Settlement announces through the existing `NotificationService` — `notifyTrainer` and
+`notifyClient`, no parallel path. Only a delivery that actually **changed** the payment
+announces: a duplicate returns null from `settle` and an out-of-order delivery returns
+the row unchanged, so a retrying acquirer cannot notify twice. A pending checkout
+announces nothing, because «still waiting» is not news.
+
+A **refund** announces too. Step 22 made a reversal revoke the entitlement; leaving that
+silent would mean a client opening the app to find the programme they bought simply gone.
+The telling of it is not Step 26's receipt — it is the explanation for a change that has
+already happened.
+
 ## The product catalogue
 
 What a trainer sells: one-time blocks and subscriptions, priced in hryvnia. The `Product` model

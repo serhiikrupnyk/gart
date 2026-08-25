@@ -326,9 +326,15 @@ describe('editing a product that has been sold', () => {
       .set('Cookie', cookie)
       .expect(200);
 
-    // A financial record must not be rewritten by a catalogue edit — and the
-    // response must not contradict itself between two views of the same name.
+    // A financial record must not be rewritten by a catalogue edit.
     expect(payments.body[0].productName).toBe('Місяць супроводу');
-    expect(payments.body[0].description).toBe('Місяць супроводу');
+
+    // And the catalogue itself did change — so this is the snapshot holding,
+    // not the rename having failed.
+    const product = await request(harness.app.getHttpServer())
+      .get(`/products/${productId}`)
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(product.body.name).toBe('Рік супроводу');
   });
 });
