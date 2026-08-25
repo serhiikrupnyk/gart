@@ -36,7 +36,7 @@ export function ClientsFilters({
   const searchRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-3">
+    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-card border border-border bg-surface p-2.5 shadow-e1">
       <div
         role="group"
         aria-label="Фільтр за станом"
@@ -54,7 +54,7 @@ export function ClientsFilters({
                 onChange(filter.key);
               }}
               className={cx(
-                'inline-flex min-h-10 items-center gap-2 rounded-full border px-3.5 text-sm transition-colors',
+                'inline-flex min-h-9 items-center gap-2 rounded-control border px-3 text-xs font-semibold transition-colors',
                 selected
                   ? 'border-accent bg-accent-subtle font-medium text-accent-text hover:border-accent-hover'
                   : 'border-border-strong text-text-secondary hover:bg-bg-subtle hover:text-text',
@@ -79,7 +79,7 @@ export function ClientsFilters({
         })}
       </div>
 
-      <div className="relative ml-auto w-full sm:w-64">
+      <div className="relative ml-auto w-full sm:w-72">
         <Search
           aria-hidden="true"
           className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-secondary"

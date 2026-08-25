@@ -58,7 +58,7 @@ export function MyHabits({ date }: { date: string }) {
   return (
     <section className="mt-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold text-text">Звички</h2>
+        <h2 className="text-xl font-bold tracking-[-0.03em] text-text">Звички</h2>
         {done === view.habits.length ? (
           <span className="text-sm font-medium text-success">Усі звички на сьогодні виконано</span>
         ) : (
@@ -122,10 +122,10 @@ function HabitRow({
   }
 
   return (
-    <div className="rounded-card border border-border bg-surface px-4 py-3">
+    <div className="rounded-card border border-border bg-surface px-4 py-4 shadow-e1 transition-shadow hover:shadow-e2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-base font-medium text-text">{habit.name}</p>
+          <p className="text-base font-bold text-text">{habit.name}</p>
           <div className="mt-0.5 flex flex-wrap items-center gap-3">
             <StreakLabel streak={habit.currentStreak} longest={habit.longestStreak} />
             {habit.kind === 'AMOUNT' && (

@@ -93,7 +93,7 @@ export function SectionCard({
           onSectionDrop();
         }
       }}
-      className={`rounded-card border bg-surface p-4 ${
+      className={`rounded-panel border bg-surface p-4 shadow-e1 transition-[border-color,box-shadow] sm:p-5 ${
         dropTarget === section.uid && drag?.kind === 'section' ? 'border-accent' : 'border-border'
       }`}
     >

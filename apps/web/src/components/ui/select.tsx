@@ -23,7 +23,7 @@ export function Select({ options, invalid = false, ...rest }: SelectProps) {
     <select
       {...rest}
       aria-invalid={invalid || undefined}
-      className={cx(CONTROL_BASE, controlBorder(invalid), 'appearance-none pr-8')}
+      className={cx(CONTROL_BASE, controlBorder(invalid), 'pr-8')}
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>

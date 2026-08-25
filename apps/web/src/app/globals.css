@@ -7,64 +7,35 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * "Forged Ember" — graphite base, ember accent.
+ * "Forged Ember" — warm stone, deep graphite and one precise ember accent.
  *
- * Contrast was measured, not assumed. Two results shaped these tokens:
- *
- *   1. White text fails WCAG AA on every solid accent and semantic fill
- *      (accent is 3.55 light / 2.85 dark). Ink #14171F passes on all of them
- *      (5.05 / 6.30). `info` is the sole exception and wants white in light
- *      theme, so on-colours are per-token rather than one global value.
- *
- *   2. --text-muted is below AA for body copy (3.10 on bg, 2.89 on bg-subtle).
- *      It is reserved for decorative marks and disabled controls, which WCAG
- *      exempts. Anything the user must read uses --text-secondary (6.00 / 6.87).
+ * Ink sits on solid semantic fills; separate `-text` steps carry small copy on
+ * pale tints. `text-muted` remains reserved for decorative and disabled UI.
  */
 @theme {
-  --color-bg: #ffffff;
-  --color-bg-subtle: #f6f7f9;
-  --color-surface: #ffffff;
+  --color-bg: #f7f6f2;
+  --color-bg-subtle: #efeee8;
+  --color-surface: #fffefa;
   --color-surface-raised: #ffffff;
-  --color-border: #e4e7ec;
-  --color-border-strong: #cdd2db;
+  --color-border: #e3e1d8;
+  --color-border-strong: #cfccc0;
 
-  --color-text: #14171f;
-  --color-text-secondary: #5a6472;
-  --color-text-muted: #8a93a2;
+  --color-text: #171813;
+  --color-text-secondary: #5f645a;
+  --color-text-muted: #8c9287;
 
-  --color-accent: #f0512b;
-  --color-accent-hover: #d8431c;
-  --color-accent-subtle: #feece6;
-  --color-accent-contrast: #14171f;
+  --color-accent: #ff5b32;
+  --color-accent-hover: #dc3f17;
+  --color-accent-subtle: #ffede6;
+  --color-accent-contrast: #171813;
 
-  /*
-   * Solid buttons carry ink text, so darkening on hover moves the fill toward
-   * the label and *lowers* contrast (#D8431C would be 4.04, below AA). The
-   * solid hover therefore lightens instead: 5.50, above the resting 5.05.
-   * --color-accent-hover keeps its role on ghost, secondary and link hovers,
-   * where the label is not sitting on the fill.
-   */
-  --color-accent-solid-hover: #f15f3c;
+  /* Solid buttons lighten on hover; accent-coloured text uses the darker step. */
+  --color-accent-solid-hover: #ff704d;
 
   --color-success: #16a34a;
   --color-warning: #e8890c;
   --color-danger: #e5484d;
-  /*
-   * --color-danger is a fill: it is AA against ink, but as *text* it is
-   * 3.91 on surface and 3.44 on its own 10% tint — both below AA. Message
-   * text therefore uses a darker step of the same hue (358°), measured at
-   * 5.16 on surface and 4.54 on the tint. Same reasoning as
-   * --color-accent-solid-hover: the fill and the text want different values.
-   */
   --color-danger-text: #d61e24;
-  /*
-   * Same story as --color-danger-text, measured the same way. As text on their
-   * own 10% tint the semantic fills are 2.96 (success), 2.39 (warning) and
-   * 3.10 (accent on --color-accent-subtle) — all below AA at badge size. These
-   * are darker steps of the identical hue (142°, 34°, 12°), measured at 4.51,
-   * 4.52 and 4.50. Dark theme needs none of this: there the fills sit at
-   * 6.44, 6.80 and 5.92, so each -text token simply repeats the fill.
-   */
   --color-success-text: #11803a;
   --color-warning-text: #a36008;
   --color-accent-text: #cd330e;
@@ -75,7 +46,7 @@
   --color-on-danger: #14171f;
   --color-on-info: #ffffff;
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
 
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
@@ -100,9 +71,9 @@
   --text-6xl: 4.25rem;
   --text-6xl--line-height: 4.5rem;
 
-  --radius-control: 0.5rem;
-  --radius-card: 0.75rem;
-  --radius-panel: 1.25rem;
+  --radius-control: 0.75rem;
+  --radius-card: 1rem;
+  --radius-panel: 1.5rem;
 
   /*
    * One elevation scale instead of ad-hoc shadow utilities, so "raised" means
@@ -110,10 +81,10 @@
    * shadow disappears, so dark mode leans on a lighter ring rather than depth
    * alone.
    */
-  --shadow-e1: 0 1px 2px rgb(15 18 26 / 0.06);
-  --shadow-e2: 0 2px 6px rgb(15 18 26 / 0.07), 0 1px 2px rgb(15 18 26 / 0.05);
-  --shadow-e3: 0 8px 24px rgb(15 18 26 / 0.09), 0 2px 6px rgb(15 18 26 / 0.05);
-  --shadow-e4: 0 24px 60px rgb(15 18 26 / 0.13), 0 8px 20px rgb(15 18 26 / 0.07);
+  --shadow-e1: 0 1px 2px rgb(26 27 22 / 0.04), 0 1px 8px rgb(26 27 22 / 0.025);
+  --shadow-e2: 0 6px 18px rgb(26 27 22 / 0.06), 0 1px 3px rgb(26 27 22 / 0.05);
+  --shadow-e3: 0 14px 40px rgb(26 27 22 / 0.09), 0 3px 10px rgb(26 27 22 / 0.05);
+  --shadow-e4: 0 32px 80px rgb(26 27 22 / 0.14), 0 10px 28px rgb(26 27 22 / 0.08);
 
   /* expo-out: fast to settle, slow to stop. Every transition shares it. */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -177,24 +148,23 @@
 }
 
 .dark {
-  --color-bg: #0d0f14;
-  --color-bg-subtle: #12151c;
-  --color-surface: #171b23;
-  --color-surface-raised: #1e232d;
-  --color-border: #262c38;
-  --color-border-strong: #333a48;
+  --color-bg: #0c0e0d;
+  --color-bg-subtle: #111411;
+  --color-surface: #161a17;
+  --color-surface-raised: #1c211d;
+  --color-border: #282e29;
+  --color-border-strong: #3a413a;
 
-  --color-text: #f2f4f8;
-  --color-text-secondary: #9ba4b4;
-  --color-text-muted: #6b7484;
+  --color-text: #f5f5ef;
+  --color-text-secondary: #a9b0a6;
+  --color-text-muted: #737b72;
 
-  --color-accent: #ff6a3d;
-  --color-accent-hover: #ff7e56;
-  --color-accent-subtle: #2a1912;
-  --color-accent-contrast: #14171f;
+  --color-accent: #ff6b43;
+  --color-accent-hover: #ff805f;
+  --color-accent-subtle: #321b14;
+  --color-accent-contrast: #171813;
 
-  /* #FF7E56 against ink is 7.14 — the specified hover already works here. */
-  --color-accent-solid-hover: #ff7e56;
+  --color-accent-solid-hover: #ff805f;
 
   --color-success: #22c55e;
   --color-warning: #f59e0b;
@@ -230,6 +200,11 @@
     color: var(--color-text);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent) 28%, transparent);
   }
 
   /* Weights and figures the brand calls for: dense headings, aligned numerals. */
@@ -237,11 +212,11 @@
   h2,
   h3,
   h4 {
-    font-weight: 600;
-    letter-spacing: -0.015em;
+    font-weight: 700;
+    letter-spacing: -0.025em;
   }
 
-  /* Every focusable thing gets the same visible ring — 3.55 light, 6.74 dark. */
+  /* Every focusable control gets the same high-visibility ember ring. */
   /*
    * Tailwind v4 dropped the preflight rule that gave buttons a pointer, and
    * browsers default them to an arrow — so every button in the app read as

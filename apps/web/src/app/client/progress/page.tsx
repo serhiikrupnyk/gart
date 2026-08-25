@@ -39,7 +39,10 @@ export default function ClientProgressPage() {
 
   return (
     <>
-      <h1 className="pb-6 text-2xl font-semibold tracking-tight text-text">Прогрес</h1>
+      <p className="mb-2 text-2xs font-bold uppercase tracking-[0.16em] text-accent-text">
+        Мої результати
+      </p>
+      <h1 className="pb-6 text-3xl font-bold tracking-[-0.045em] text-text sm:text-4xl">Прогрес</h1>
 
       {empty ? (
         <EmptyState

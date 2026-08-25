@@ -29,19 +29,36 @@ export function WorkoutCard({ workout, ...logging }: { workout: ClientWorkout } 
   const done = lines.filter((line) => logging.logs[line.id]?.completed === true).length;
 
   return (
-    <article className="overflow-hidden rounded-card border border-border bg-surface">
-      <header className="border-b border-border px-4 py-3">
+    <article className="overflow-hidden rounded-panel border border-border bg-surface shadow-e2">
+      <header className="relative overflow-hidden border-b border-border bg-gradient-to-br from-surface via-surface to-accent-subtle/45 px-5 py-5">
+        <span
+          aria-hidden="true"
+          className="absolute -right-10 -top-12 size-32 rounded-full border border-accent/15"
+        />
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold text-text">{workout.name}</h2>
+          <h2 className="relative text-xl font-bold tracking-[-0.03em] text-text">
+            {workout.name}
+          </h2>
           <Badge tone="neutral">{WORKOUT_TYPE_LABELS[workout.type]}</Badge>
         </div>
         {workout.description !== null && (
           <p className="mt-1 text-sm text-text-secondary">{workout.description}</p>
         )}
         {lines.length > 0 && (
-          <p className="mt-1 text-sm text-text-secondary">
-            {done} з {lines.length} виконано
-          </p>
+          <div className="relative mt-4">
+            <div className="flex items-center justify-between gap-3 text-xs font-semibold text-text-secondary">
+              <span>Прогрес тренування</span>
+              <span className="tabular">
+                {done} з {lines.length} виконано
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
+              <span
+                className="block h-full rounded-full bg-accent transition-[width] duration-500 ease-out-expo"
+                style={{ width: `${String((done / lines.length) * 100)}%` }}
+              />
+            </div>
+          </div>
         )}
       </header>
 
@@ -58,9 +75,9 @@ function SectionBlock({ section, ...logging }: { section: ClientWorkoutSection }
   const config = sectionConfigLine(section);
 
   return (
-    <section className="px-4 py-4">
+    <section className="px-4 py-5 sm:px-5">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold text-text">
+        <h3 className="text-sm font-bold text-text">
           {section.name ?? WORKOUT_TYPE_LABELS[section.type]}
         </h3>
         {section.name !== null && (
@@ -94,8 +111,8 @@ function ExerciseCard({
   const logged = { ...line, log: logs[line.id] ?? null };
 
   return (
-    <div className="rounded-card border border-border bg-bg-subtle p-4">
-      <h4 className="text-base font-medium text-text">{line.exercise.name}</h4>
+    <div className="rounded-card border border-border bg-bg-subtle/70 p-4 shadow-e1 sm:p-5">
+      <h4 className="text-base font-bold text-text">{line.exercise.name}</h4>
       {prescription !== '' && (
         <p className="mt-1 text-lg font-semibold text-text">{prescription}</p>
       )}

@@ -109,7 +109,7 @@ export function ProgressPhotos({
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-text">Фото прогресу</h3>
+        <h3 className="text-xl font-bold tracking-[-0.03em] text-text">Фото прогресу</h3>
 
         <div className="flex items-center gap-2">
           {selected.length === 2 && (
@@ -143,7 +143,10 @@ export function ProgressPhotos({
       ) : (
         <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {photos.map((photo) => (
-            <li key={photo.id} className="rounded-card border border-border bg-surface p-2">
+            <li
+              key={photo.id}
+              className="rounded-card border border-border bg-surface p-3 shadow-e1"
+            >
               <button
                 type="button"
                 onClick={() => void view(photo)}

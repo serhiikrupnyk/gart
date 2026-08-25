@@ -54,13 +54,13 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       {/* Clicking away is a convenience; Esc and the close button are the
           accessible paths, so the backdrop is hidden from assistive tech. */}
       <div
         aria-hidden="true"
         onClick={onClose}
-        className="absolute inset-0 bg-[#0D0F14]/60 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-[#090b09]/70 backdrop-blur-[6px]"
       />
 
       <div
@@ -69,10 +69,10 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`relative w-full ${size === 'lg' ? 'max-w-2xl' : 'max-w-md'} rounded-card border border-border bg-surface-raised shadow-xl outline-none`}
+        className={`relative max-h-[92dvh] w-full overflow-hidden ${size === 'lg' ? 'max-w-2xl' : 'max-w-md'} rounded-t-panel border border-border bg-surface-raised shadow-e4 outline-none sm:rounded-panel`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-          <h2 id={titleId} className="text-base font-semibold text-text">
+        <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-6 sm:py-5">
+          <h2 id={titleId} className="text-lg font-bold text-text">
             {title}
           </h2>
 
@@ -81,12 +81,14 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
           </Button>
         </div>
 
-        <div ref={bodyRef} className="px-5 py-5">
+        <div ref={bodyRef} className="max-h-[calc(92dvh-9rem)] overflow-y-auto px-5 py-5 sm:px-6">
           {children}
         </div>
 
         {footer !== undefined && (
-          <div className="flex justify-end gap-2 border-t border-border px-5 py-4">{footer}</div>
+          <div className="flex justify-end gap-2 border-t border-border bg-bg-subtle/50 px-5 py-4 sm:px-6">
+            {footer}
+          </div>
         )}
       </div>
     </div>

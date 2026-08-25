@@ -48,13 +48,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div
         aria-live="polite"
         aria-atomic="false"
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-60 flex flex-col items-center gap-2 p-4"
+        className="pointer-events-none fixed inset-x-0 bottom-24 z-60 flex flex-col items-center gap-2 p-4 sm:bottom-0"
       >
         {toasts.map((toast) => (
           <div
             key={toast.id}
             className={cx(
-              'pointer-events-auto rounded-control border px-4 py-2.5 text-sm shadow-lg',
+              'pointer-events-auto rounded-card border px-4 py-3 text-sm font-medium shadow-e3',
               TONES[toast.tone],
             )}
           >

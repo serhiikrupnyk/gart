@@ -1,6 +1,6 @@
 'use client';
 
-import { UserPlus } from 'lucide-react';
+import { Activity, UserCheck, UserPlus, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ClientListItem, ClientWithInvite } from '@gart/shared';
 
@@ -165,6 +165,30 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {clients !== undefined && clients.length > 0 && (
+        <section aria-label="Огляд клієнтів" className="mb-6 grid gap-3 sm:grid-cols-3 lg:mb-8">
+          <OverviewMetric
+            icon={UsersRound}
+            label="Усього клієнтів"
+            value={clients.length}
+            detail="у вашому просторі"
+          />
+          <OverviewMetric
+            icon={UserCheck}
+            label="Активні"
+            value={clients.filter((client) => client.status === 'ACTIVE').length}
+            detail="з активним супроводом"
+          />
+          <OverviewMetric
+            icon={Activity}
+            label="Потребують уваги"
+            value={needAttention}
+            detail={needAttention > 0 ? 'варто переглянути сьогодні' : 'усе під контролем'}
+            accent={needAttention > 0}
+          />
+        </section>
+      )}
+
       {clients === undefined ? (
         <>
           <div aria-hidden="true" className="mb-4 flex flex-wrap items-center gap-3">
@@ -254,5 +278,42 @@ export default function DashboardPage() {
         onCreated={handleCreated}
       />
     </>
+  );
+}
+
+function OverviewMetric({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  accent = false,
+}: {
+  icon: typeof UsersRound;
+  label: string;
+  value: number;
+  detail: string;
+  accent?: boolean;
+}) {
+  return (
+    <article className="relative overflow-hidden rounded-card border border-border bg-surface p-4 shadow-e1 sm:p-5">
+      {accent && (
+        <span
+          aria-hidden="true"
+          className="absolute -right-8 -top-8 size-24 rounded-full bg-accent/10 blur-2xl"
+        />
+      )}
+      <div className="relative flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold text-text-secondary">{label}</p>
+          <p className="mt-2 text-3xl font-bold tracking-[-0.05em] text-text tabular">{value}</p>
+          <p className="mt-1 text-xs text-text-muted">{detail}</p>
+        </div>
+        <span
+          className={`inline-flex size-10 shrink-0 items-center justify-center rounded-card ${accent ? 'bg-accent text-accent-contrast' : 'bg-bg-subtle text-text-secondary'}`}
+        >
+          <Icon className="size-4.5" aria-hidden="true" />
+        </span>
+      </div>
+    </article>
   );
 }

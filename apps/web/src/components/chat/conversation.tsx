@@ -153,13 +153,13 @@ export function Conversation({ threadId, mine }: { threadId: string; mine: ChatR
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col overflow-hidden rounded-panel border border-border bg-surface p-2 shadow-e2 sm:p-3">
       {/* Polite live region: incoming messages are announced without stealing
           focus from whatever the reader is doing. */}
       <ul
         aria-live="polite"
         aria-label="Листування"
-        className="max-h-96 space-y-2 overflow-y-auto rounded-card border border-border bg-bg-subtle p-3"
+        className="max-h-[55dvh] min-h-80 space-y-2 overflow-y-auto rounded-card bg-bg-subtle p-3 sm:p-4"
       >
         {messages.length === 0 ? (
           <li className="py-6 text-center text-sm text-text-secondary">
@@ -173,7 +173,7 @@ export function Conversation({ threadId, mine }: { threadId: string; mine: ChatR
             >
               <div
                 className={cx(
-                  'max-w-[80%] rounded-card px-3 py-2',
+                  'max-w-[85%] rounded-card px-3.5 py-2.5 shadow-e1 sm:max-w-[78%]',
                   message.senderRole === mine
                     ? 'bg-accent text-accent-contrast'
                     : 'bg-surface text-text',
@@ -210,10 +210,10 @@ export function Conversation({ threadId, mine }: { threadId: string; mine: ChatR
         </p>
       )}
 
-      <div className="mt-2 flex items-end gap-2">
+      <div className="mt-2 flex items-end gap-2 rounded-card bg-surface p-1">
         <label
           className={cx(
-            'inline-flex h-10 shrink-0 cursor-pointer items-center rounded-control border border-border-strong bg-surface px-3 text-sm text-text hover:bg-bg-subtle',
+            'inline-flex h-11 shrink-0 cursor-pointer items-center rounded-control border border-border-strong bg-surface px-3 text-sm text-text shadow-e1 hover:bg-bg-subtle',
             pending && 'pointer-events-none opacity-60',
           )}
         >

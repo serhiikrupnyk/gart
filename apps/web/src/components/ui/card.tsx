@@ -13,9 +13,9 @@ export function Card({ children, tone = 'surface', padded = true }: CardProps) {
   return (
     <div
       className={cx(
-        'rounded-card border border-border',
+        'rounded-card border border-border shadow-e1',
         tone === 'raised' ? 'bg-surface-raised' : 'bg-surface',
-        padded && 'p-6',
+        padded && 'p-5 sm:p-6',
       )}
     >
       {children}

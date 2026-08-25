@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Manrope } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import { ThemeProvider } from '@/components/theme/theme-provider';
@@ -9,10 +9,10 @@ import { ToastProvider } from '@/components/ui';
 import './globals.css';
 
 // Cyrillic is not optional here — the entire interface is Ukrainian.
-const inter = Inter({
+const manrope = Manrope({
   subsets: ['latin', 'cyrillic'],
   display: 'swap',
-  variable: '--font-inter',
+  variable: '--font-manrope',
 });
 
 export const metadata: Metadata = {
@@ -24,8 +24,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#FFFFFF' },
-    { media: '(prefers-color-scheme: dark)', color: '#0D0F14' },
+    { media: '(prefers-color-scheme: light)', color: '#F7F6F2' },
+    { media: '(prefers-color-scheme: dark)', color: '#0C0E0D' },
   ],
 };
 
@@ -39,11 +39,11 @@ export const viewport: Viewport = {
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="uk" className={inter.variable} suppressHydrationWarning>
+    <html lang="uk" className={manrope.variable} suppressHydrationWarning>
       <head>
         <ThemeScript />
       </head>
-      <body>
+      <body className="min-h-dvh overflow-x-hidden">
         <ThemeProvider>
           <ToastProvider>{children}</ToastProvider>
         </ThemeProvider>

@@ -17,7 +17,10 @@ export function TableSkeleton({
   label?: string;
 }) {
   return (
-    <SkeletonRegion label={label} className="overflow-hidden rounded-card border border-border">
+    <SkeletonRegion
+      label={label}
+      className="overflow-hidden rounded-panel border border-border bg-surface shadow-e1"
+    >
       <div className="flex items-center gap-4 border-b border-border bg-bg-subtle px-4 py-3">
         {Array.from({ length: columns }, (_, index) => (
           <Skeleton key={index} className="h-3.5 flex-1" />
@@ -44,7 +47,7 @@ export function CardListSkeleton({ count = 3, label }: { count?: number; label?:
   return (
     <SkeletonRegion label={label} className="space-y-4">
       {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="rounded-card border border-border bg-surface p-4">
+        <div key={index} className="rounded-card border border-border bg-surface p-4 shadow-e1">
           <div className="flex items-center justify-between">
             <Skeleton className="h-4 w-40" />
             <Skeleton className="h-5 w-16 rounded-full" />

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { AuthSession } from '@gart/shared';
-import { Menu } from 'lucide-react';
+import { Menu, Sparkles, X } from 'lucide-react';
 
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
@@ -122,7 +122,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="relative flex min-h-dvh flex-col bg-bg-subtle">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_78%_0%,color-mix(in_srgb,var(--color-accent)_7%,transparent),transparent_28rem)]"
+      />
       <NavigationProgress />
       <a
         href="#main"
@@ -131,8 +135,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         Перейти до вмісту
       </a>
 
-      <header className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="flex h-14 items-center gap-3 px-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-40 border-b border-border/80 bg-bg/80 backdrop-blur-xl">
+        <div className="relative flex h-16 items-center gap-3 px-3 sm:px-6 lg:h-[4.5rem] lg:px-7">
           <span className="lg:hidden">
             <Button
               ref={menuButtonRef}
@@ -151,16 +155,23 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <Wordmark href="/dashboard" />
 
+          <span className="hidden items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-text-secondary shadow-e1 sm:flex">
+            <Sparkles className="size-3.5 text-accent-text" aria-hidden="true" />
+            Кабінет тренера
+          </span>
+
           <div className="ml-auto flex items-center gap-1">
             <NotificationBell />
             <ThemeToggle />
+
+            <span className="hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
 
             <DropdownMenu
               triggerLabel="Меню користувача"
               trigger={
                 <>
                   <Avatar name={session.trainer.displayName} size="sm" />
-                  <span className="hidden text-sm text-text sm:inline">
+                  <span className="hidden text-sm font-semibold text-text sm:inline">
                     {session.trainer.displayName}
                   </span>
                 </>
@@ -184,7 +195,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           onClick={() => {
             setNavOpen(false);
           }}
-          className="fixed inset-0 z-40 bg-[#0D0F14]/60 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-40 bg-[#090b09]/70 backdrop-blur-[5px] lg:hidden"
         />
       )}
 
@@ -201,12 +212,26 @@ export function AppShell({ children }: { children: ReactNode }) {
           id="app-nav"
           ref={drawerRef}
           className={cx(
-            'shrink-0 border-border lg:block lg:w-60 lg:border-r',
-            'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-72 max-lg:border-r max-lg:bg-surface max-lg:shadow-e4',
+            'relative shrink-0 border-border lg:block lg:w-[17rem] lg:border-r lg:bg-surface/65',
+            'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-[19rem] max-lg:border-r max-lg:bg-surface max-lg:shadow-e4',
             drawerOpen ? 'block' : 'hidden',
           )}
         >
-          <div className="p-4 lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)] lg:overflow-y-auto lg:p-4">
+          <div className="flex h-16 items-center justify-between border-b border-border px-4 lg:hidden">
+            <Wordmark href="/dashboard" />
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Закрити меню"
+              onClick={() => {
+                setNavOpen(false);
+                menuButtonRef.current?.focus();
+              }}
+            >
+              <X className="size-5" aria-hidden="true" />
+            </Button>
+          </div>
+          <div className="h-[calc(100dvh-4rem)] overflow-y-auto p-4 lg:sticky lg:top-[4.5rem] lg:h-[calc(100dvh-4.5rem)] lg:p-5">
             <AppNav
               onNavigate={() => {
                 setNavOpen(false);
@@ -215,8 +240,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        <main id="main" className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {children}
+        <main
+          id="main"
+          className="relative min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-10 xl:px-10"
+        >
+          <div className="mx-auto w-full max-w-[90rem]">{children}</div>
         </main>
       </div>
     </div>

@@ -24,7 +24,10 @@ export function WeekStrip({
   onSelect: (date: string) => void;
 }) {
   return (
-    <nav aria-label="Дні тижня" className="grid grid-cols-7 gap-1">
+    <nav
+      aria-label="Дні тижня"
+      className="grid grid-cols-7 gap-1.5 rounded-card border border-border bg-surface p-1.5 shadow-e1 sm:gap-2 sm:p-2"
+    >
       {week.map((date) => {
         const value = localDateString(date);
         const isSelected = value === selected;
@@ -41,24 +44,24 @@ export function WeekStrip({
               onSelect(value);
             }}
             className={cx(
-              'flex min-h-16 flex-col items-center justify-center gap-0.5 rounded-card border transition-colors',
+              'flex min-h-16 flex-col items-center justify-center gap-0.5 rounded-[0.7rem] border transition-[color,background-color,border-color,box-shadow,transform] motion-safe:active:scale-95',
               isSelected
-                ? 'border-accent bg-accent text-accent-contrast'
+                ? 'border-accent bg-accent text-accent-contrast shadow-[0_6px_16px_rgb(255_91_50_/_0.22)]'
                 : cx(
-                    'bg-surface text-text hover:bg-bg-subtle',
-                    value === today ? 'border-accent' : 'border-border',
+                    'bg-transparent text-text hover:bg-bg-subtle',
+                    value === today ? 'border-accent/60' : 'border-transparent',
                   ),
             )}
           >
             <span
               className={cx(
-                'text-2xs uppercase tracking-wide',
+                'text-[0.6rem] font-bold uppercase tracking-wide sm:text-2xs',
                 isSelected ? 'text-accent-contrast' : 'text-text-secondary',
               )}
             >
               {DAY_OF_WEEK_LABELS[isoWeekdayOf(date)]}
             </span>
-            <span className="text-base font-semibold">{date.getDate()}</span>
+            <span className="text-sm font-bold sm:text-base">{date.getDate()}</span>
             <span
               aria-hidden="true"
               className={cx(

@@ -4,7 +4,7 @@ import { cx } from '@/lib/cx';
 
 export function Table({ children, caption }: { children: ReactNode; caption: string }) {
   return (
-    <div className="overflow-x-auto rounded-card border border-border bg-surface">
+    <div className="overflow-x-auto rounded-panel border border-border bg-surface shadow-e1">
       <table className="w-full border-collapse text-left text-sm">
         {/* Every table needs a caption for screen readers; hidden visually. */}
         <caption className="sr-only">{caption}</caption>
@@ -20,11 +20,11 @@ export function Thead({ children }: { children: ReactNode }) {
   // It has no height constraint, so it never scrolls vertically and a sticky
   // thead inside it would silently do nothing. Making one work means changing
   // how Table scrolls, which is a wider change than a header deserves.
-  return <thead className="border-b border-border">{children}</thead>;
+  return <thead className="border-b border-border bg-bg-subtle/70">{children}</thead>;
 }
 
 export function Tbody({ children }: { children: ReactNode }) {
-  return <tbody className="divide-y divide-border">{children}</tbody>;
+  return <tbody className="divide-y divide-border/80">{children}</tbody>;
 }
 
 export function Tr({
@@ -41,7 +41,7 @@ export function Tr({
     <tr
       onClick={onClick}
       className={cx(
-        onClick !== undefined && 'cursor-pointer transition-colors hover:bg-bg-subtle',
+        onClick !== undefined && 'cursor-pointer transition-colors hover:bg-bg-subtle/70',
         className,
       )}
     >
@@ -52,12 +52,15 @@ export function Tr({
 
 export function Th({ children }: { children: ReactNode }) {
   return (
-    <th scope="col" className="px-4 py-2.5 text-xs font-medium text-text-secondary">
+    <th
+      scope="col"
+      className="px-4 py-3.5 text-2xs font-bold uppercase tracking-[0.08em] text-text-secondary sm:px-5"
+    >
       {children}
     </th>
   );
 }
 
 export function Td({ children, numeric = false }: { children: ReactNode; numeric?: boolean }) {
-  return <td className={cx('px-4 py-3 text-text', numeric && 'tabular')}>{children}</td>;
+  return <td className={cx('px-4 py-4 text-text sm:px-5', numeric && 'tabular')}>{children}</td>;
 }

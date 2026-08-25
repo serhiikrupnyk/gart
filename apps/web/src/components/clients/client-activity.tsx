@@ -68,7 +68,7 @@ export function ClientActivity({ clientId }: { clientId: string }) {
   return (
     <section className="mt-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-text">Активність</h2>
+        <h2 className="text-xl font-bold tracking-[-0.03em] text-text">Активність</h2>
         <Tabs
           label="Період активності"
           items={RANGES.map((range) => ({ ...range, content: null }))}
@@ -147,7 +147,7 @@ function SessionRow({ session }: { session: TrainerWorkoutSession }) {
     }));
 
   return (
-    <div className="overflow-hidden rounded-card border border-border bg-surface">
+    <div className="overflow-hidden rounded-card border border-border bg-surface shadow-e1">
       <button
         type="button"
         aria-expanded={open}

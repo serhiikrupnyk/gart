@@ -17,7 +17,13 @@ const ICONS: Record<ThemePreference, LucideIcon> = {
   system: Monitor,
 };
 
-export function ThemeToggle({ align = 'end' }: { align?: 'start' | 'end' } = {}) {
+export function ThemeToggle({
+  align = 'end',
+  tone = 'default',
+}: {
+  align?: 'start' | 'end';
+  tone?: 'default' | 'inverted';
+} = {}) {
   const { preference, choose } = useTheme();
   const Icon = ICONS[preference];
 
@@ -25,6 +31,11 @@ export function ThemeToggle({ align = 'end' }: { align?: 'start' | 'end' } = {})
     <DropdownMenu
       align={align}
       triggerLabel="Тема оформлення"
+      triggerClassName={
+        tone === 'inverted'
+          ? 'text-[#f7f6f2] hover:bg-white/10 hover:text-white lg:text-text lg:hover:bg-bg-subtle lg:hover:text-text'
+          : undefined
+      }
       trigger={<Icon className="size-5" aria-hidden="true" />}
     >
       {(close) => (

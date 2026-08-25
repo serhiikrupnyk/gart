@@ -88,7 +88,9 @@ export default function ClientHomePage() {
   if (plans.length === 0 && day.workouts.length === 0) {
     return (
       <>
-        <h1 className="pb-6 text-2xl font-semibold tracking-tight text-text">Мої тренування</h1>
+        <h1 className="pb-6 text-2xl font-bold tracking-[-0.04em] text-text sm:text-3xl">
+          Мої тренування
+        </h1>
         <EmptyState
           title="Тренувань ще немає"
           description="Ваш тренер незабаром складе вашу першу програму — вона з'явиться тут."
@@ -111,7 +113,10 @@ export default function ClientHomePage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight text-text">
+      <p className="mb-2 text-2xs font-bold uppercase tracking-[0.16em] text-accent-text">
+        Мій розклад
+      </p>
+      <h1 className="text-3xl font-bold tracking-[-0.045em] text-text sm:text-4xl">
         {isToday ? 'Сьогодні' : formatDayTitle(selectedDate)}
       </h1>
       {isToday && <p className="mt-0.5 text-sm text-text-secondary">{formatDay(selectedDate)}</p>}
@@ -162,7 +167,7 @@ export default function ClientHomePage() {
       <MyHabits date={selected} />
 
       <section className="mt-8">
-        <h2 className="text-lg font-semibold text-text">Мій план</h2>
+        <h2 className="text-xl font-bold tracking-[-0.03em] text-text">Мій план</h2>
         <div className="mt-3">
           <PlanList plans={plans} />
         </div>

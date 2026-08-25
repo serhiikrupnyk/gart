@@ -34,7 +34,12 @@ export default function ClientChatPage() {
 
   return (
     <>
-      <h1 className="pb-4 text-2xl font-semibold tracking-tight text-text">{thread.title}</h1>
+      <p className="mb-2 text-2xs font-bold uppercase tracking-[0.16em] text-accent-text">
+        Звʼязок із тренером
+      </p>
+      <h1 className="pb-4 text-3xl font-bold tracking-[-0.045em] text-text sm:text-4xl">
+        {thread.title}
+      </h1>
       <Conversation threadId={thread.id} mine="CLIENT" />
     </>
   );

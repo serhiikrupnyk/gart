@@ -49,7 +49,7 @@ export function ProgressVariables({
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-text">Показники</h3>
+        <h3 className="text-xl font-bold tracking-[-0.03em] text-text">Показники</h3>
         {mode === 'trainer' && (
           <Button
             variant="secondary"
@@ -74,7 +74,7 @@ export function ProgressVariables({
           {variables.map((variable) => (
             <li
               key={variable.id}
-              className="rounded-card border border-border bg-surface px-4 py-3"
+              className="rounded-card border border-border bg-surface px-4 py-4 shadow-e1 sm:p-5"
             >
               <VariableCard
                 variable={variable}
@@ -150,7 +150,7 @@ function VariableCard({
   return (
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h4 className="text-base font-medium text-text">
+        <h4 className="text-base font-bold text-text">
           {variable.name}
           <span className="ml-2 text-sm text-text-secondary">{variable.unit}</span>
         </h4>

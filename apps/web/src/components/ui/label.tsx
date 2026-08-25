@@ -6,7 +6,7 @@ export interface LabelProps extends Omit<LabelHTMLAttributes<HTMLLabelElement>, 
 
 export function Label({ children, ...rest }: LabelProps) {
   return (
-    <label {...rest} className="block text-sm font-medium text-text">
+    <label {...rest} className="block text-sm font-semibold text-text">
       {children}
     </label>
   );

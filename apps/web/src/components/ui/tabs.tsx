@@ -41,7 +41,7 @@ export function Tabs({ items, value, onChange, label }: TabsProps) {
         ref={listRef}
         role="tablist"
         aria-label={label}
-        className="flex gap-1 border-b border-border"
+        className="inline-flex max-w-full gap-1 overflow-x-auto rounded-control border border-border bg-bg-subtle p-1 shadow-inner"
         onKeyDown={(event) => {
           if (event.key === 'ArrowRight') {
             event.preventDefault();
@@ -69,10 +69,10 @@ export function Tabs({ items, value, onChange, label }: TabsProps) {
                 onChange(item.value);
               }}
               className={cx(
-                '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                'min-h-9 whitespace-nowrap rounded-[0.55rem] px-3.5 py-2 text-sm font-semibold transition-[color,background-color,box-shadow]',
                 selected
-                  ? 'border-accent text-text'
-                  : 'border-transparent text-text-secondary hover:text-text',
+                  ? 'bg-surface text-text shadow-e1'
+                  : 'text-text-secondary hover:bg-surface/60 hover:text-text',
               )}
             >
               {item.label}

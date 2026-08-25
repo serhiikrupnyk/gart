@@ -1,6 +1,13 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import {
+  ChartNoAxesCombined,
+  Dumbbell,
+  LayoutDashboard,
+  WalletCards,
+  type LucideIcon,
+} from 'lucide-react';
 
 import { cx } from '@/lib/cx';
 import { ProgressLink } from './navigation-progress';
@@ -8,6 +15,7 @@ import { ProgressLink } from './navigation-progress';
 interface NavItem {
   label: string;
   href?: string;
+  icon: LucideIcon;
   /** Paths that light this item up besides its own href (sub-areas). */
   activeUnder?: string[];
 }
@@ -18,14 +26,15 @@ interface NavItem {
  * rendered as plain text so keyboard users never land on a dead control.
  */
 const ITEMS: NavItem[] = [
-  { label: 'Клієнти', href: '/dashboard' },
+  { label: 'Клієнти', href: '/dashboard', icon: LayoutDashboard },
   {
     label: 'Тренування',
     href: '/dashboard/programs',
     activeUnder: ['/dashboard/programs', '/dashboard/exercises'],
+    icon: Dumbbell,
   },
-  { label: 'Прогрес' },
-  { label: 'Платежі' },
+  { label: 'Прогрес', icon: ChartNoAxesCombined },
+  { label: 'Платежі', icon: WalletCards },
 ];
 
 export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -33,21 +42,33 @@ export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
 
   // The longest matching href wins: /dashboard is a prefix of every section, so
   // a plain startsWith would light «Клієнти» up on /dashboard/exercises too.
-  const activeHref = ITEMS.filter(
-    (item): item is NavItem & { href: string } =>
-      item.href !== undefined && (pathname === item.href || pathname.startsWith(`${item.href}/`)),
-  ).sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  const activeHref = ITEMS.filter((item): item is NavItem & { href: string } => {
+    if (item.href === undefined) return false;
+
+    const paths = item.activeUnder ?? [item.href];
+    return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  }).sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
-    <nav aria-label="Основна навігація">
-      <ul className="space-y-0.5">
+    <nav aria-label="Основна навігація" className="flex h-full flex-col">
+      <p className="mb-3 px-3 text-2xs font-bold uppercase tracking-[0.16em] text-text-muted">
+        Робочий простір
+      </p>
+      <ul className="space-y-1.5">
         {ITEMS.map((item) => {
+          const Icon = item.icon;
+
           if (item.href === undefined) {
             return (
               <li key={item.label}>
-                <span className="flex items-center justify-between rounded-control px-3 py-2 text-sm text-text-muted">
-                  {item.label}
-                  <span className="text-2xs uppercase tracking-wide">скоро</span>
+                <span className="flex min-h-12 items-center gap-3 rounded-control px-3 text-sm text-text-muted">
+                  <span className="inline-flex size-8 items-center justify-center rounded-[0.6rem] bg-bg-subtle">
+                    <Icon className="size-4" aria-hidden="true" />
+                  </span>
+                  <span>{item.label}</span>
+                  <span className="ml-auto rounded-full border border-border px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide">
+                    скоро
+                  </span>
                 </span>
               </li>
             );
@@ -62,18 +83,36 @@ export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
                 aria-current={active ? 'page' : undefined}
                 onClick={onNavigate}
                 className={cx(
-                  'block rounded-control px-3 py-2 text-sm font-medium transition-colors',
+                  'group flex min-h-12 items-center gap-3 rounded-control px-3 text-sm font-semibold transition-[color,background-color,box-shadow] duration-200',
                   active
-                    ? 'bg-accent-subtle text-accent'
+                    ? 'bg-accent-subtle text-accent-text shadow-[inset_0_0_0_1px_rgb(255_91_50_/_0.12)]'
                     : 'text-text-secondary hover:bg-bg-subtle hover:text-text',
                 )}
               >
-                {item.label}
+                <span
+                  className={cx(
+                    'inline-flex size-8 items-center justify-center rounded-[0.6rem] transition-colors',
+                    active
+                      ? 'bg-accent text-accent-contrast shadow-e1'
+                      : 'bg-bg-subtle text-text-secondary group-hover:bg-surface',
+                  )}
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                </span>
+                <span>{item.label}</span>
               </ProgressLink>
             </li>
           );
         })}
       </ul>
+
+      <div className="mt-auto hidden rounded-card border border-border bg-bg-subtle p-4 lg:block">
+        <span aria-hidden="true" className="mb-3 block size-2 rounded-full bg-accent" />
+        <p className="text-xs font-bold text-text">Ваш простір для росту</p>
+        <p className="mt-1 text-xs leading-relaxed text-text-secondary">
+          Усі клієнти, плани й результати — в одному ритмі.
+        </p>
+      </div>
     </nav>
   );
 }

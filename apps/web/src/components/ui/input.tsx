@@ -4,10 +4,11 @@ import type { InputHTMLAttributes } from 'react';
 import { cx } from '@/lib/cx';
 
 export const CONTROL_BASE =
-  'w-full rounded-control border bg-surface px-3 py-2 text-sm text-text transition-colors ' +
+  'min-h-11 w-full rounded-control border bg-surface px-3.5 py-2.5 text-sm text-text shadow-e1 ' +
+  'transition-[border-color,box-shadow,background-color] duration-200 ' +
   // Placeholders use text-secondary, not text-muted: muted is below AA.
   'placeholder:text-text-secondary disabled:cursor-not-allowed disabled:bg-bg-subtle ' +
-  'disabled:text-text-muted';
+  'disabled:text-text-muted focus:border-accent focus:shadow-[0_0_0_3px_rgb(255_91_50_/_0.1)]';
 
 export function controlBorder(invalid: boolean): string {
   return invalid ? 'border-danger' : 'border-border-strong hover:border-text-muted';
@@ -28,7 +29,7 @@ export function Input({ invalid = false, leadingIcon: Icon, ...rest }: InputProp
     <input
       {...rest}
       aria-invalid={invalid || undefined}
-      className={cx(CONTROL_BASE, controlBorder(invalid), Icon !== undefined && 'pl-9')}
+      className={cx(CONTROL_BASE, controlBorder(invalid), Icon !== undefined && 'pl-10')}
     />
   );
 
@@ -41,7 +42,7 @@ export function Input({ invalid = false, leadingIcon: Icon, ...rest }: InputProp
       <Icon
         aria-hidden="true"
         className={cx(
-          'pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2',
+          'pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2',
           rest.disabled === true ? 'text-text-muted' : 'text-text-secondary',
         )}
       />
