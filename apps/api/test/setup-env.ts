@@ -14,3 +14,4 @@ if (testDatabaseUrl === undefined || testDatabaseUrl === '') {
 // so redirecting it here is what keeps the suite off the development database.
 process.env.DATABASE_URL = testDatabaseUrl;
 process.env.WEB_ORIGIN ??= 'http://localhost:3000';
+process.env.API_ORIGIN ??= 'http://localhost:4001';

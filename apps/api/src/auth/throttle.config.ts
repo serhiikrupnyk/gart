@@ -6,6 +6,7 @@ const DEFAULT_WINDOW_MS = 60_000;
 const DEFAULT_MESSAGE_LIMIT = 20;
 const DEFAULT_MESSAGE_WINDOW_MS = 60 * 60_000;
 const DEFAULT_CHAT_LIMIT = 60;
+const DEFAULT_CALLBACK_LIMIT = 300;
 
 function numberFromEnv(name: string, fallback: number): number {
   const parsed = Number(process.env[name]);
@@ -62,5 +63,24 @@ export function chatThrottle(): { limit: () => number; ttl: () => number } {
   return {
     ttl: () => numberFromEnv('CHAT_THROTTLE_TTL_MS', DEFAULT_MESSAGE_WINDOW_MS),
     limit: () => numberFromEnv('CHAT_THROTTLE_LIMIT', DEFAULT_CHAT_LIMIT),
+  };
+}
+
+/**
+ * The budget for provider callbacks, counted per address like the global one.
+ *
+ * Deliberately the loosest limit in the app. Every acquirer retries a delivery
+ * it could not hand over, and several will retry in a burst after an outage of
+ * their own; a limit that turned those away would convert a temporary problem
+ * into paid access that never arrives. The endpoint is cheap, does nothing
+ * without a valid signature, and is idempotent — so the flood a tighter limit
+ * would prevent costs less than the deliveries it would drop.
+ */
+export function callbackThrottle(): Record<string, { limit: () => number; ttl: () => number }> {
+  return {
+    default: {
+      ttl: () => numberFromEnv('CALLBACK_THROTTLE_TTL_MS', DEFAULT_WINDOW_MS),
+      limit: () => numberFromEnv('CALLBACK_THROTTLE_LIMIT', DEFAULT_CALLBACK_LIMIT),
+    },
   };
 }

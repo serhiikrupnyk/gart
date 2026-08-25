@@ -15,6 +15,7 @@ import { InvitesModule } from './invites/invites.module';
 import { MeModule } from './me/me.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PaymentsModule } from './payments/payments.module';
 import { ProgramsModule } from './programs/programs.module';
 import { ProgressModule } from './progress/progress.module';
 
@@ -34,6 +35,7 @@ import { ProgressModule } from './progress/progress.module';
     HabitsModule,
     NotificationsModule,
     ChatModule,
+    PaymentsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

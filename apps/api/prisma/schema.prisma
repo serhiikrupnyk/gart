@@ -120,6 +120,9 @@ model Trainer {
   habits            Habit[]
   notifications     Notification[]
   chatThreads       ChatThread[]
+  products          Product[]
+  payments          Payment[]
+  entitlements      Entitlement[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -271,6 +274,8 @@ model Client {
   habits            Habit[]
   notifications     Notification[]
   chatThreads       ChatThread[]
+  payments          Payment[]
+  entitlements      Entitlement[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.
@@ -897,4 +902,189 @@ model ChatAttachment {
   durationSeconds Int?
 
   createdAt DateTime @default(now())
+}
+
+/// Prices are money, so Decimal — never Float. Step 10 settled that for
+/// progress values; here the stakes are a bank transfer rather than a chart.
+enum Currency {
+  UAH
+}
+
+enum ProductKind {
+  ONE_TIME
+  SUBSCRIPTION
+}
+
+/// Counted in months rather than days so a renewal lands on a month boundary.
+/// The vocabulary is the roadmap's own (Step 23), fixed now so the subscription
+/// lifecycle in Step 25 inherits it rather than renaming it.
+enum SubscriptionPeriod {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+/// The canonical lifecycle. Each provider's own vocabulary — LiqPay's
+/// `wait_accept`, Fondy's `approved`, WayForPay's `Approved` — is mapped onto
+/// exactly these four inside the provider adapter, so nothing downstream ever
+/// learns which acquirer is behind the seam.
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+/// What a trainer sells. The MODEL lands in Step 22 because a payment's amount
+/// must come from stored data rather than from the request; the trainer-facing
+/// catalogue, its CRUD and its UI are Step 23.
+model Product {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+
+  kind ProductKind
+  /// Set exactly when kind is SUBSCRIPTION; the service enforces the pairing.
+  period SubscriptionPeriod?
+
+  priceAmount Decimal  @db.Decimal(12, 2)
+  currency    Currency @default(UAH)
+
+  /// How long a ONE_TIME purchase grants access for. Null means perpetual.
+  accessDays Int?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments     Payment[]
+  entitlements Entitlement[]
+
+  @@index([trainerId])
+}
+
+/// One attempt to collect money. `id` doubles as the order reference handed to
+/// the provider — LiqPay's `order_id`, Fondy's `order_id`, WayForPay's
+/// `orderReference` all require a merchant-owned unique value, and reusing the
+/// primary key means the provider dedupes on exactly what we dedupe on.
+///
+/// `amount` is a SNAPSHOT of the product price at purchase, never a lookup: a
+/// trainer raising a price must not retroactively change what was charged.
+model Payment {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  amount   Decimal  @db.Decimal(12, 2)
+  currency Currency
+
+  /// The platform's cut, snapshotted alongside the amount. Zero until Step 24
+  /// introduces the split; the column existing now is what keeps that step from
+  /// being a migration of historical rows.
+  platformFee Decimal @db.Decimal(12, 2) @default(0)
+
+  status PaymentStatus @default(PENDING)
+
+  /// Which adapter produced this row, so a later multi-provider world stays
+  /// legible and reconciliation knows who to ask.
+  provider String
+  /// The provider's own identifier, once it has told us one.
+  providerRef String?
+  /// The provider's own status word, kept verbatim for audit and support.
+  providerStatus String?
+
+  /// What the payer was shown on the hosted page, snapshotted.
+  description String
+
+  paidAt   DateTime?
+  failedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events      PaymentEvent[]
+  entitlement Entitlement?
+
+  /// Null refs never collide in Postgres, so many PENDING rows coexist while a
+  /// settled reference stays unique to one payment.
+  @@unique([provider, providerRef])
+  @@index([trainerId, clientId])
+  @@index([trainerId, status])
+}
+
+/// Append-only: every callback delivery ever accepted, in the provider's own
+/// words. The audit trail behind "why does this client have access?".
+///
+/// `externalId` is the provider's identifier for THIS DELIVERY, not for the
+/// payment. Providers that do not supply one get a digest of the canonical
+/// payload, so a byte-identical retry collides with its own first attempt.
+model PaymentEvent {
+  id String @id @default(cuid())
+
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  externalId String
+  status     PaymentStatus
+  /// The provider's own status word for this delivery.
+  rawStatus String
+
+  /// SHA-256 of the raw body. Enough to prove what arrived without keeping a
+  /// payload that may carry payer details we have no reason to store.
+  payloadDigest String
+
+  receivedAt DateTime @default(now())
+
+  /// The first of the two idempotency guards: a replayed delivery is rejected
+  /// by Postgres, not by a service-level check that a race could slip past.
+  @@unique([paymentId, externalId])
+  @@index([paymentId])
+}
+
+/// What a payment bought. One row per grant, never mutated in place: Step 25's
+/// renewals add rows and access is the union of the periods they cover, which
+/// keeps every grant individually auditable and lets `paymentId` stay unique.
+model Entitlement {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  /// The second idempotency guard, and the stronger one: access can be granted
+  /// at most once per payment BECAUSE THE DATABASE SAYS SO. Two callbacks that
+  /// somehow carry different delivery ids still cannot double-grant.
+  paymentId String  @unique
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  startsAt DateTime @default(now())
+  /// Null means perpetual — a one-time purchase that never lapses.
+  endsAt DateTime?
+
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([trainerId, clientId])
+  /// "Is this client's access live right now?" — the query Steps 23-28 lean on.
+  @@index([clientId, endsAt])
 }

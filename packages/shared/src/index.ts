@@ -113,6 +113,17 @@ export type {
   SendMessageRequest,
   UnsubscribePushRequest,
 } from './notification';
+export { SUBSCRIPTION_PERIOD_MONTHS } from './payment';
+export type {
+  CheckoutResult,
+  Currency,
+  Money,
+  PaymentStatus,
+  ProductKind,
+  PublicEntitlement,
+  PublicPayment,
+  SubscriptionPeriod,
+} from './payment';
 export {
   CHAT_ATTACHMENT_KINDS,
   CHAT_ATTACHMENT_LABELS,

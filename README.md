@@ -649,6 +649,123 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## Payments, behind a seam
+
+The moat is Ukrainian acquiring with **split payments** — the trainer receives, the platform takes
+a commission — and Step 22 builds the machinery for it **without an acquirer**. `PaymentProvider`
+is a third abstract class in the same idiom as `StorageService` and `NotificationQueue`: bound to a
+real implementation, faked in tests. **No test run needs a bank**, and the whole of Phase 3 can be
+built and tested end to end before a merchant account exists.
+
+The interface is drawn from what LiqPay, Fondy and WayForPay actually require, so a real adapter
+arrives later as a **drop-in implementation and nothing else changes**: a merchant-owned order
+reference (`Payment.id` serves as one), a hosted page to redirect to, a signed callback to verify,
+a status vocabulary of the provider's own to map, and — declared now so adding them is a change of
+argument rather than of shape — `split` for Step 24's commission and `recurrence` for Step 25's
+subscriptions.
+
+`FakePaymentProvider` is deliberately not a stub that returns `SUCCEEDED`. It mints a payload in
+the envelope a real acquirer uses — a base64 `data` blob with a detached HMAC, which is LiqPay's
+actual shape — and returns it as an **inline callback**. The settlement then travels the same road
+a webhook will: verified, mapped, applied once. A stub that short-circuited would have left the
+only code that matters untested.
+
+### Money is Decimal, and never a float
+
+Elsewhere in this codebase `Number(decimal)` is how a Decimal reaches the wire, and for a habit
+target at `8,2` that is fine — a chart is the only consumer. Money is the exception. It is stored
+`Decimal(12,2)`, computed with `Prisma.Decimal`, and serialised as a **string**; it becomes a
+JavaScript number at no point on the way. `0.1 + 0.2` is the oldest bug in billing and a float that
+has been through JSON has already lost the argument.
+
+The amount comes from the **stored product** and from nowhere else — which is why `Product` lands
+here rather than in Step 23, whose job is the catalogue, its CRUD and its UI. A request cannot
+propose what it would like to pay: there is no `amount` field on the DTO, the global pipe runs
+`forbidNonWhitelisted` so one that arrives is a 400, and no code path would read it. A callback
+claiming an amount we never charged grants nothing.
+
+### Granting access exactly once
+
+Two **independent database constraints**, not service-level checks — a check-then-write would be
+correct only until two callbacks arrived at once, which is precisely what a retrying provider
+produces:
+
+- `PaymentEvent(paymentId, externalId)` is unique, so a **replayed delivery is refused by
+  Postgres**. An adapter for a provider that supplies no delivery id returns an empty one and gets a
+  digest of the canonical payload instead, so a byte-identical retry still collides with its own
+  first attempt. The `P2002` that results is matched narrowly: `Payment(provider, providerRef)` can
+  also collide, and calling _that_ a duplicate would answer 204 to a genuine first delivery.
+- `Entitlement.paymentId` is unique, so **access can be granted at most once per payment** — even
+  for two deliveries that somehow carry different ids. This is the stronger of the two, and the
+  reason both exist.
+
+Both are asserted by tests that bypass the service entirely and insert straight through Prisma.
+A duplicate callback answers 204 rather than an error: a provider that receives an error retries,
+and retrying a duplicate for ever is worse than accepting it.
+
+An `Entitlement` is one row per payment, never mutated in place. Step 25's renewals will add rows
+and access becomes the union of the periods they cover — which keeps every grant individually
+auditable and is what lets `paymentId` stay unique. Subscription periods are counted in **months,
+not days**: thirty days is not a month, and a monthly subscription billed every thirty days drifts
+forward until the charge lands in the wrong calendar month.
+
+Access starts on **our** clock, not the provider's. A signed `occurredAt` is kept on `paidAt` for
+reconciliation, but it never decides how long access lasts: a settlement minutes either side of a
+month boundary would otherwise anchor `addMonths` to the wrong month and cost the client three days
+of a monthly plan.
+
+### Which way a payment may move
+
+Acquirers do not promise ordered delivery, and they retry — so applying whatever status last
+arrived is wrong. A small transition table decides, and it is enforced as a **compare-and-set**
+(the permitted prior status is part of the `WHERE` clause), so two deliveries racing cannot both
+win:
+
+- A late `processing` cannot walk a paid payment back to PENDING, and a late `failure` cannot
+  contradict one that succeeded.
+- `FAILED → SUCCEEDED` **is** allowed, and this is the case that matters: the order reference given
+  to the acquirer is the payment's own id, so a payer whose first card is declined and who reaches
+  for a second on the same hosted page produces a success for the _same_ order. Treating FAILED as
+  terminal would take their money and grant nothing.
+- A refund **revokes** — `revokedAt` is written, and the entitlement stops counting as active. It
+  is accepted from PENDING as well as SUCCEEDED, so a reversal that overtakes the success delivery
+  it followed cannot later be undone by that success arriving late.
+
+Every delivery is recorded either way. Refusing to act on one is not the same as pretending it
+never arrived.
+
+### The callback endpoint
+
+`POST /payments/callback/:provider` is **unauthenticated**, because an acquirer's servers hold no
+session and never will. The signature is the credential, the provider adapter is the only thing
+that ever sees one, and the comparison is constant-time — `a === b` on strings returns at the first
+differing byte, and that timing is measurable by someone replaying a payload a byte at a time.
+
+Idempotency already makes a replay harmless; a **freshness window** refuses it anyway, so a payload
+captured today is not still accepted next month merely because its signature verifies. A provider
+that signs no timestamp is exempt, because a timestamp outside the signature is one an attacker can
+set.
+
+The window is a **day**, not the few minutes that first suggest themselves, and the reason is worth
+recording: what every acquirer signs is the _event_ time, not the delivery time — LiqPay's
+`create_date`, Fondy's `order_time`, WayForPay's `processingDate`. A retry carries the same
+timestamp as the attempt that failed, which is exactly what makes it a retry, and those chains run
+for hours. A five-minute window would have fallen almost entirely on legitimate retries of payments
+we had simply not received yet — and since a refused delivery is answered 204, the acquirer would
+have recorded it as accepted and never tried again. Money taken, nothing granted.
+
+For the same reason the route's rate limit is the loosest in the app: every acquirer retries,
+several burst after an outage of their own, and a webhook throttled into dropping deliveries is
+paid access that silently never arrives.
+
+### The fake refuses to run in production
+
+Every other seam here is safe to fake by accident — a fake bucket loses an upload, a fake queue
+drops a notification. A fake **acquirer** hands out paid access, takes no money, looks exactly like
+success, and is discovered from the bank statement. So `resolvePaymentProvider` throws at boot when
+`NODE_ENV=production` would get the fake, unless `ALLOW_FAKE_PAYMENTS=true` says so deliberately,
+and a typo in `PAYMENT_PROVIDER` stops the boot rather than falling back. Tests assert the throw.
+
 ## The landing redesign
 
 Same brand, same copy, same product-shot idea — rebuilt around depth and typography instead of flat

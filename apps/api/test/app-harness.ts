@@ -8,6 +8,8 @@ import { PrismaService } from '../src/database/prisma.service';
 import { configureSecurity } from '../src/security';
 import { NotificationQueue } from '../src/notifications/notification-queue';
 import { WebPushSender } from '../src/notifications/web-push-sender';
+import { FakePaymentProvider } from '../src/payments/fake-payment-provider';
+import { PaymentProvider } from '../src/payments/payment-provider';
 import { StorageService } from '../src/storage/storage.service';
 import { FakeNotificationQueue, FakeWebPushSender } from './fake-notifications';
 import { FakeStorage } from './fake-storage';
@@ -20,6 +22,8 @@ export interface Harness {
   /** Bound to the queue and push tokens — no test ever needs Redis. */
   queue: FakeNotificationQueue;
   push: FakeWebPushSender;
+  /** Bound to the payment token — no test ever needs an acquirer. */
+  payments: FakePaymentProvider;
   close: () => Promise<void>;
 }
 
@@ -37,6 +41,8 @@ export async function createHarness(): Promise<Harness> {
     .useValue(new FakeNotificationQueue())
     .overrideProvider(WebPushSender)
     .useValue(new FakeWebPushSender())
+    .overrideProvider(PaymentProvider)
+    .useValue(new FakePaymentProvider())
     .compile();
 
   // Silenced because one test deliberately triggers a 500, and Nest would print
@@ -50,6 +56,7 @@ export async function createHarness(): Promise<Harness> {
   const storage = app.get(StorageService) as FakeStorage;
   const queue = app.get(NotificationQueue) as FakeNotificationQueue;
   const push = app.get(WebPushSender) as FakeWebPushSender;
+  const payments = app.get(PaymentProvider) as FakePaymentProvider;
 
   return {
     app,
@@ -57,6 +64,7 @@ export async function createHarness(): Promise<Harness> {
     storage,
     queue,
     push,
+    payments,
     close: async () => {
       await app.close();
     },
@@ -66,7 +74,7 @@ export async function createHarness(): Promise<Harness> {
 /** Clears every table between tests. CASCADE also removes dependent rows. */
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "ChatMessage", "ChatThread", "Notification", "PushSubscription", "HabitLog", "Habit", "ProgressEntry", "ProgressVariable", "ProgressPhoto", "WorkoutSetLog", "WorkoutLog", "AssignmentExercise", "AssignmentSection", "Assignment", "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
+    'TRUNCATE TABLE "Entitlement", "PaymentEvent", "Payment", "Product", "ChatMessage", "ChatThread", "Notification", "PushSubscription", "HabitLog", "Habit", "ProgressEntry", "ProgressVariable", "ProgressPhoto", "WorkoutSetLog", "WorkoutLog", "AssignmentExercise", "AssignmentSection", "Assignment", "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
   );
 }
 
