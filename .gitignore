@@ -28,7 +28,9 @@ npm-debug.log*
 .DS_Store
 
 # local tool settings
-.claude/settings.local.json
+# Agent tooling: installed skill packs and local session state. Large, machine
+# specific, and regenerated on demand — never part of the project.
+.claude/
 
 # planning documents — working notes, deliberately not part of the repository
 gart-master-plan.md
