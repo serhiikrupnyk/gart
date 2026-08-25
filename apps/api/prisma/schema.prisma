@@ -996,6 +996,18 @@ model Payment {
   /// being a migration of historical rows.
   platformFee Decimal @db.Decimal(12, 2) @default(0)
 
+  /// What was bought, frozen at checkout — the grant terms, exactly as `amount`
+  /// freezes the price.
+  ///
+  /// Step 22 read these from the live Product, which was safe only because
+  /// nothing could edit one. Step 23 gives the trainer a catalogue, and a
+  /// trainer who shortens a product's access between a client's checkout and
+  /// the acquirer's callback would otherwise change what that client receives
+  /// after they have paid. Null on rows written before this column existed;
+  /// the service falls back to the product for those.
+  periodSnapshot     SubscriptionPeriod?
+  accessDaysSnapshot Int?
+
   status PaymentStatus @default(PENDING)
 
   /// Which adapter produced this row, so a later multi-provider world stays

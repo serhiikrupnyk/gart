@@ -156,10 +156,15 @@ describe('AppShell', () => {
     expect(workouts).toHaveAttribute('href', '/dashboard/programs');
     expect(workouts).not.toHaveAttribute('aria-current');
 
+    // Платежі became a link in Step 23 — it lands on the product catalogue.
+    const payments = screen.getByRole('link', { name: 'Платежі' });
+    expect(payments).toHaveAttribute('href', '/dashboard/products');
+    expect(payments).not.toHaveAttribute('aria-current');
+
     // Still-unbuilt sections are visible but are not links, so keyboard users
-    // never land on a control that does nothing.
+    // never land on a control that does nothing. Прогрес is the last one.
     expect(screen.queryByRole('link', { name: /Прогрес/ })).not.toBeInTheDocument();
-    expect(screen.getAllByText('скоро')).toHaveLength(2);
+    expect(screen.getAllByText('скоро')).toHaveLength(1);
   });
 
   it('sends an unauthenticated visitor to the login page', async () => {

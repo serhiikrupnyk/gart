@@ -113,16 +113,34 @@ export type {
   SendMessageRequest,
   UnsubscribePushRequest,
 } from './notification';
-export { SUBSCRIPTION_PERIOD_MONTHS } from './payment';
+export {
+  formatMoney,
+  PRODUCT_ACCESS_DAYS_MAX,
+  PRODUCT_ACCESS_DAYS_MIN,
+  PRODUCT_DESCRIPTION_MAX,
+  PRODUCT_KIND_LABELS,
+  PRODUCT_KINDS,
+  PRODUCT_NAME_MAX,
+  PRODUCT_PRICE_MAX,
+  PRODUCT_PRICE_MIN,
+  PRODUCT_STATUS_FILTERS,
+  SUBSCRIPTION_PERIOD_LABELS,
+  SUBSCRIPTION_PERIOD_MONTHS,
+  SUBSCRIPTION_PERIODS,
+} from './payment';
 export type {
   CheckoutResult,
+  CreateProductRequest,
   Currency,
   Money,
   PaymentStatus,
   ProductKind,
+  ProductStatusFilter,
   PublicEntitlement,
   PublicPayment,
+  PublicProduct,
   SubscriptionPeriod,
+  UpdateProductRequest,
 } from './payment';
 export {
   CHAT_ATTACHMENT_KINDS,

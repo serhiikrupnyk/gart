@@ -16,7 +16,7 @@ import {
   type RawCallback,
 } from './payment-provider';
 import { entitlementEnd } from './entitlement-window';
-import { amountsEqual, toMoney } from './money';
+import { amountsEqual, toMoney } from '../common/money';
 import { payloadDigest } from './signature';
 
 const PRODUCT_NOT_FOUND_MESSAGE = 'Продукт не знайдено';
@@ -123,6 +123,9 @@ export class PaymentsService {
         status: 'PENDING',
         provider: this.provider.id,
         description: product.name,
+        // Frozen with the price: what was bought includes how long it lasts.
+        periodSnapshot: product.period,
+        accessDaysSnapshot: product.accessDays,
       },
       include: { product: true },
     });
@@ -297,7 +300,7 @@ export class PaymentsService {
   ): Promise<PublicEntitlement[]> {
     const entitlements = await this.prisma.entitlement.findMany({
       where: { trainerId, clientId },
-      include: { product: true },
+      include: { product: true, payment: true },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -375,7 +378,13 @@ export class PaymentsService {
               productId: payment.productId,
               paymentId: payment.id,
               startsAt: observedAt,
-              endsAt: entitlementEnd(observedAt, payment.product),
+              endsAt: entitlementEnd(observedAt, {
+                // The terms this payment was BOUGHT under, not the ones the
+                // catalogue carries now. Backfilled by the migration that added
+                // them, so every payment has a snapshot and nothing guesses.
+                period: payment.periodSnapshot,
+                accessDays: payment.accessDaysSnapshot,
+              }),
             },
           });
         }
@@ -443,7 +452,10 @@ export function toPublicPayment(payment: PaymentWithProduct): PublicPayment {
     id: payment.id,
     clientId: payment.clientId,
     productId: payment.productId,
-    productName: payment.product.name,
+    // The name at PURCHASE, not the one the catalogue carries now. `description`
+    // has held that snapshot since Step 22; reading the live row beside it meant
+    // a rename could rewrite what a completed payment says it bought.
+    productName: payment.description,
     amount: toMoney(payment.amount, payment.currency),
     status: payment.status,
     description: payment.description,
@@ -453,7 +465,7 @@ export function toPublicPayment(payment: PaymentWithProduct): PublicPayment {
 }
 
 export function toPublicEntitlement(
-  entitlement: EntitlementModel & { product: ProductModel },
+  entitlement: EntitlementModel & { product: ProductModel; payment: PaymentModel },
   now: Date,
 ): PublicEntitlement {
   const started = entitlement.startsAt.getTime() <= now.getTime();
@@ -462,7 +474,9 @@ export function toPublicEntitlement(
   return {
     id: entitlement.id,
     productId: entitlement.productId,
-    productName: entitlement.product.name,
+    // Same snapshot, for the same reason — and this one is what the CLIENT sees
+    // for the thing they bought.
+    productName: entitlement.payment.description,
     startsAt: entitlement.startsAt.toISOString(),
     endsAt: entitlement.endsAt === null ? null : entitlement.endsAt.toISOString(),
     isActive: entitlement.revokedAt === null && started && notEnded,

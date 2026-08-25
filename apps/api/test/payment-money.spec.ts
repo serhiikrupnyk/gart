@@ -1,6 +1,6 @@
 import { Prisma } from '../src/generated/prisma/client.js';
 import { entitlementEnd, addMonths } from '../src/payments/entitlement-window';
-import { amountsEqual, parseAmount, toMoney } from '../src/payments/money';
+import { amountsEqual, parseAmount, toMoney } from '../src/common/money';
 import { payloadDigest, sign, signaturesMatch } from '../src/payments/signature';
 
 describe('money', () => {

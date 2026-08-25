@@ -34,7 +34,7 @@ const ITEMS: NavItem[] = [
     icon: Dumbbell,
   },
   { label: 'Прогрес', icon: ChartNoAxesCombined },
-  { label: 'Платежі', icon: WalletCards },
+  { label: 'Платежі', href: '/dashboard/products', icon: WalletCards },
 ];
 
 export function AppNav({ onNavigate }: { onNavigate?: () => void }) {

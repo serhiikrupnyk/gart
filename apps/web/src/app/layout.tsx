@@ -10,7 +10,8 @@ import './globals.css';
 
 // Cyrillic is not optional here — the entire interface is Ukrainian.
 const manrope = Manrope({
-  subsets: ['latin', 'cyrillic'],
+  // cyrillic-ext carries ₴ (U+20B4); without it every price would fall back.
+  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
   display: 'swap',
   variable: '--font-manrope',
 });

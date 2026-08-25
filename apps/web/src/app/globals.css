@@ -35,10 +35,18 @@
   --color-success: #16a34a;
   --color-warning: #e8890c;
   --color-danger: #e5484d;
-  --color-danger-text: #d61e24;
-  --color-success-text: #11803a;
-  --color-warning-text: #a36008;
-  --color-accent-text: #cd330e;
+  --color-danger-text: #c31b21;
+
+  /* These three were measured against the plain background, where they passed.
+     A Badge renders its label on a 10% tint of its own fill, which is lighter
+     than any page ground — so on their real backdrop they measured 3.92-4.50
+     and every semantic badge in light theme was under AA. Re-derived against
+     the tint over the darkest ground they can sit on (bg-subtle): success 4.59,
+     warning 4.60, danger 4.56, and 4.98-5.16 as plain text. Dark theme already
+     cleared it at 4.67 and is unchanged. */
+  --color-success-text: #0f7435;
+  --color-warning-text: #945707;
+  --color-accent-text: #c9320e;
   --color-info: #2563eb;
 
   --color-on-success: #14171f;

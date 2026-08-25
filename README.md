@@ -649,6 +649,79 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## The product catalogue
+
+What a trainer sells: one-time blocks and subscriptions, priced in hryvnia. The `Product` model
+arrived in Step 22 because a payment's amount has to come from stored data rather than from the
+request; this step gives it CRUD, rules and a screen — and, in doing so, makes a product **mutable**
+for the first time, which is what the rest of this section is about.
+
+Coherence lives in one table rather than scattered across decorators, the same shape as the program
+section rules and `resolveHabitShape`:
+
+```
+                  period          accessDays
+  ONE_TIME        forbidden       optional (null = access never lapses)
+  SUBSCRIPTION    required        forbidden (the period IS the duration)
+```
+
+A decorator can only ever see one field, so it cannot express a relationship between two. `PATCH`
+resolves the shape against the **merged** product rather than the patch, or a coherent row could be
+made incoherent one field at a time — sending `kind: SUBSCRIPTION` alone would leave the stored
+`accessDays` in place.
+
+### Editing a catalogue that has already sold
+
+Deleting is allowed only for a product that was never sold. `Payment.productId` and
+`Entitlement.productId` are `onDelete: Restrict`, so Postgres refuses and the refusal becomes a
+clean **409** telling the trainer to deactivate instead — the Step 7 delete contract, extended to
+money. Deactivating is the ordinary retirement: `createCheckout` already refuses an inactive
+product, so it disappears from new sales while history keeps referring to it.
+
+**Editing never rewrites a past sale**, and that took one addition. Step 22 read the grant terms
+from the live `Product`, which was safe only because nothing could edit one. Now a trainer who
+shortens a product's access between a client's checkout and the acquirer's callback would change
+what that client receives _after they have paid_ — so `Payment` snapshots `periodSnapshot` and
+`accessDaysSnapshot` at checkout, exactly as it already snapshots `amount`. What was bought includes
+how long it lasts.
+
+### ₴ never passes through a float
+
+Prices are `Decimal(12,2)` on the way in, decimal strings on the wire, and formatted for display
+**from the string**. `Intl.NumberFormat('uk-UA', …)` produces byte-identical output — the tests
+assert exactly that — but only by taking a number first, and the rule Step 22 set is that money
+never becomes a float _anywhere_, which has to include the screen or it is not a rule. The price
+field is `inputMode="decimal"` on a text input for the same reason: a number input hands back a
+float.
+
+Both separators in «1 500,00 ₴» are U+00A0, so a price never wraps between its thousands nor away
+from its symbol. The symbol itself needed the font: ₴ is U+20B4, which Google serves in
+`cyrillic-ext` rather than `cyrillic`, so the subset list grew — without it every price would have
+rendered in a fallback face beside Manrope's digits.
+
+**Zero is not a price.** A free offer, if it ever makes sense, is a different concept that must
+never touch the payment path: no acquirer can settle nothing, `parseAmount` refuses a non-positive
+amount, and such a product could only ever produce a payment stuck pending for ever. The floor of
+₴1 and ceiling of ₴1 000 000 catch a misplaced decimal point in either direction.
+
+### The badge tones were measured against the wrong ground
+
+Adding a status badge to this table turned up a design-system fault, not a page
+one. The `-text` steps were derived in Step 22 against the plain background, where
+they pass — but a `Badge` renders its label on a **10 % tint of its own fill**, which
+is lighter than any page ground. On their real backdrop success, warning and danger
+measured 3.92–4.50 and every semantic badge in light theme was under AA, everywhere
+it appeared. Re-derived against the tint over the darkest ground they can sit on:
+4.56–4.60 on tint, 4.98–5.16 as plain text. Dark theme already cleared it and is
+unchanged, and white-on-accent still fails at 3.09 — the documented rule holding.
+
+The lesson is the Step 22 one again, one layer down: a pairing that was measured is
+not the same as the pairing that ships.
+
+«Платежі» stops saying СКОРО and lands on the catalogue. The form shows a period or an access
+window depending on the kind — the other is **absent, not disabled**, because the rules table says
+it is meaningless, and a disabled field invites the trainer to wonder what filling it would do.
+
 ## Payments, behind a seam
 
 The moat is Ukrainian acquiring with **split payments** — the trainer receives, the platform takes
