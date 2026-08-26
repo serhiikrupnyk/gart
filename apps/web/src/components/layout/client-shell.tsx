@@ -5,14 +5,28 @@ import { type ReactNode, useEffect, useState } from 'react';
 import type { ClientSession } from '@gart/shared';
 import { ChartNoAxesCombined, Dumbbell, MessageCircle, Utensils } from 'lucide-react';
 
+import { BrandMark } from '@/components/branding/brand-mark';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { Avatar, DropdownItem, DropdownMenu } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
+import { BRAND, brandStyle, hasBrand } from '@/lib/brand';
 import { cx } from '@/lib/cx';
 import { Wordmark } from './wordmark';
 import { NavigationProgress, ProgressLink } from './navigation-progress';
 import { ShellSkeleton } from './shell-skeleton';
+
+/**
+ * How strongly the ambient wash tints the page, as a percentage.
+ *
+ * MEASURED, not chosen. At the 8% this started life as, secondary text over a
+ * black or blue brand fell to 4.38:1 — under AA — because the wash is the one
+ * surface a trainer's arbitrary colour shares with text. Five per cent holds at
+ * 4.68:1 for every colour in the space, with margin rather than a hairline
+ * pass. See test/brand-contrast.spec.ts, which measures it rather than trusting
+ * this comment.
+ */
+export const BRAND_WASH_PERCENT = 5;
 
 const NAV_ITEMS = [
   { label: 'Тренування', href: '/client', icon: Dumbbell },
@@ -68,10 +82,16 @@ export function ClientShell({ children }: { children: ReactNode }) {
   const { client, trainer } = session;
 
   return (
-    <div className="relative min-h-dvh bg-bg-subtle">
+    // The trainer's colour enters the tree exactly once, as a custom property.
+    // Everything below reads `var(--brand, var(--color-accent))`, so an unset
+    // brand is not a special case anywhere — the app keeps its own accent.
+    <div className="relative min-h-dvh bg-bg-subtle" style={brandStyle(trainer.brandColor)}>
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_srgb,var(--color-accent)_8%,transparent),transparent_70%)]"
+        style={{
+          backgroundImage: `radial-gradient(circle at 50% 0%, color-mix(in srgb, ${BRAND} ${String(BRAND_WASH_PERCENT)}%, transparent), transparent 70%)`,
+        }}
+        className="pointer-events-none fixed inset-x-0 top-0 h-80"
       />
       <NavigationProgress />
       <a
@@ -82,12 +102,24 @@ export function ClientShell({ children }: { children: ReactNode }) {
       </a>
 
       <header className="sticky top-0 z-40 border-b border-border/80 bg-bg/80 backdrop-blur-xl">
+        {/* A brand rule, carrying no text and therefore safe at any colour. */}
+        <span
+          aria-hidden="true"
+          data-testid="brand-bar"
+          className="absolute inset-x-0 top-0 h-[3px]"
+          style={{ backgroundColor: BRAND }}
+        />
         <div className="relative mx-auto flex h-16 max-w-5xl items-center gap-3 px-4 sm:h-[4.5rem] sm:px-6">
-          <TrainerBrandMark
-            brandName={trainer.brandName}
-            brandLogoUrl={trainer.brandLogoUrl}
-            brandColor={trainer.brandColor}
-          />
+          {hasBrand(trainer) ? (
+            <BrandMark
+              displayName={trainer.displayName}
+              brandName={trainer.brandName}
+              brandLogoUrl={trainer.brandLogoUrl}
+              brandColor={trainer.brandColor}
+            />
+          ) : (
+            <Wordmark href="/client" />
+          )}
 
           <div className="ml-auto flex items-center gap-1">
             <NotificationBell />
@@ -111,6 +143,14 @@ export function ClientShell({ children }: { children: ReactNode }) {
                     <span className="mt-0.5 block">Тренер: {trainer.displayName}</span>
                   </p>
                   <LogoutItem />
+                  {/* The attribution white-label SaaS normally carries: present
+                      and honest, but nowhere near the header the trainer owns. */}
+                  {/* `text-secondary`, not `text-muted`: muted is reserved for
+                      decorative and disabled UI and measures 3.19:1 here, which
+                      is under AA for real copy at this size. */}
+                  <p className="border-t border-border px-3 py-2 text-2xs text-text-secondary">
+                    Працює на Gart
+                  </p>
                 </>
               )}
             </DropdownMenu>
@@ -137,11 +177,22 @@ export function ClientShell({ children }: { children: ReactNode }) {
                     aria-current={active ? 'page' : undefined}
                     className={cx(
                       'flex min-h-14 flex-col items-center justify-center gap-1 rounded-control px-2 text-[0.6875rem] font-bold transition-[color,background-color,box-shadow] sm:min-h-11 sm:flex-row sm:justify-start sm:gap-3 sm:px-3 sm:text-sm',
+                      'relative',
                       active
-                        ? 'bg-accent-subtle text-accent-text shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_12%,transparent)]'
+                        ? 'bg-accent-subtle text-accent-text'
                         : 'text-text-secondary hover:bg-bg-subtle hover:text-text',
                     )}
                   >
+                    {active && (
+                      // The indicator carries the brand; the label keeps the
+                      // AA-measured accent token, so what a client reads never
+                      // depends on what their trainer picked.
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-x-3 bottom-0 h-[2px] rounded-full sm:inset-x-auto sm:bottom-auto sm:left-0 sm:h-6 sm:w-[3px]"
+                        style={{ backgroundColor: BRAND }}
+                      />
+                    )}
                     <Icon className="size-5 sm:size-4" aria-hidden="true" />
                     <span>{label}</span>
                   </ProgressLink>
@@ -169,48 +220,6 @@ export function ClientShell({ children }: { children: ReactNode }) {
         </main>
       </div>
     </div>
-  );
-}
-
-/**
- * The trainer's brand, or the Gart wordmark when they have not set one.
- * `brandColor` is an arbitrary trainer-chosen value, so it is never allowed to
- * carry text — it appears only as a decorative mark beside an AA-checked label.
- */
-function TrainerBrandMark({
-  brandName,
-  brandLogoUrl,
-  brandColor,
-}: {
-  brandName: string | null;
-  brandLogoUrl: string | null;
-  brandColor: string | null;
-}) {
-  if (brandName === null && brandLogoUrl === null) {
-    return <Wordmark href="/client" />;
-  }
-
-  return (
-    <span className="flex min-w-0 items-center gap-2.5">
-      {brandLogoUrl !== null && (
-        // Plain <img>: the URL points wherever the trainer hosts their logo,
-        // which next/image would reject without per-domain configuration.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={brandLogoUrl} alt="" className="size-7 shrink-0 rounded-full object-cover" />
-      )}
-
-      {brandColor !== null && (
-        <span
-          aria-hidden="true"
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: brandColor }}
-        />
-      )}
-
-      <span className="truncate text-lg font-bold tracking-[-0.03em] text-text">
-        {brandName ?? 'Gart'}
-      </span>
-    </span>
   );
 }
 

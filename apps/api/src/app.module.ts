@@ -19,6 +19,7 @@ import { LapsedSubscriptionGuard } from './payments/lapsed.guard';
 import { PaymentsModule } from './payments/payments.module';
 import { ProgramsModule } from './programs/programs.module';
 import { ProgressModule } from './progress/progress.module';
+import { TrainersModule } from './trainers/trainers.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ProgressModule } from './progress/progress.module';
     NotificationsModule,
     ChatModule,
     PaymentsModule,
+    TrainersModule,
   ],
   controllers: [HealthController],
   providers: [

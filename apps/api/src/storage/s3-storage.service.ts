@@ -104,6 +104,32 @@ export class S3StorageService extends StorageService {
     }
   }
 
+  async read(key: string, maxBytes: number): Promise<Buffer | null> {
+    try {
+      const response = await this.requireClient().send(
+        new GetObjectCommand({
+          Bucket: this.requireBucket(),
+          Key: key,
+          // One byte past the cap, so an object that exceeds it is DETECTED
+          // rather than silently truncated — and never fully transferred.
+          Range: `bytes=0-${String(maxBytes)}`,
+        }),
+      );
+      const bytes = await response.Body?.transformToByteArray();
+
+      if (bytes === undefined || bytes.length > maxBytes) {
+        return null;
+      }
+
+      return Buffer.from(bytes);
+    } catch (error) {
+      if (isNotFound(error)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   async delete(key: string): Promise<void> {
     await this.requireClient().send(
       new DeleteObjectCommand({ Bucket: this.requireBucket(), Key: key }),

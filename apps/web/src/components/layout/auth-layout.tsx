@@ -1,7 +1,30 @@
 import type { ReactNode } from 'react';
 
 import { ThemeToggle } from '@/components/theme/theme-toggle';
+import { BRAND, brandStyle } from '@/lib/brand';
 import { Wordmark } from './wordmark';
+
+/**
+ * How strongly the brand glow tints the dark panel, as a percentage.
+ *
+ * MEASURED. At the 30% this started at, the panel's secondary line fell to
+ * 3.24:1 against a white brand — the glow is large and text sits over it.
+ * Eighteen per cent holds at 5.07:1 for every colour. One value for branded and
+ * unbranded alike, because two would mean the unbranded path drifting out from
+ * under the bound the moment somebody edited the wrong one.
+ */
+export const BRAND_GLOW_PERCENT = 18;
+
+/**
+ * The dimmest copy the panel carries.
+ *
+ * Was #777e75 and #5f655d, which measured 4.43 and 3.09 on the bare panel —
+ * already under AA before any brand touched them. Under a white brand's glow
+ * they fell to 2.57 and 1.80. Raised to the value the pitch body already uses,
+ * which holds at 5.07 against the worst glow any colour can produce. The grey
+ * hierarchy flattens slightly; text somebody cannot read has no hierarchy at
+ * all. Measured in test/brand-contrast.spec.ts.
+ */
 
 export interface AuthLayoutProps {
   title: string;
@@ -14,6 +37,17 @@ export interface AuthLayoutProps {
    * not being sold to the way an invited client is being welcomed.
    */
   pitch?: ReactNode;
+  /**
+   * A trainer's brand, on the one unauthenticated screen that knows whose it
+   * is: an invite carries a token, and the token names the trainer.
+   *
+   * The login screens cannot do this and are not meant to. A client signs in
+   * with an email and a password, so nobody knows which trainer they belong to
+   * until after they are authenticated — there is no brand to show yet.
+   */
+  brandMark?: ReactNode;
+  /** Decorative only: tints the panel's glow, never any text or ground. */
+  brandColor?: string | null;
 }
 
 /**
@@ -26,9 +60,20 @@ export interface AuthLayoutProps {
  * is not `aria-hidden` — it holds a real link — and it duplicates nothing,
  * because exactly one wordmark is in the tree at every width.
  */
-export function AuthLayout({ title, subtitle, children, footer, pitch }: AuthLayoutProps) {
+export function AuthLayout({
+  title,
+  subtitle,
+  children,
+  footer,
+  pitch,
+  brandMark,
+  brandColor = null,
+}: AuthLayoutProps) {
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#121411] lg:grid lg:grid-cols-[minmax(28rem,1.08fr)_minmax(30rem,0.92fr)]">
+    <div
+      className="relative min-h-dvh overflow-hidden bg-[#121411] lg:grid lg:grid-cols-[minmax(28rem,1.08fr)_minmax(30rem,0.92fr)]"
+      style={brandStyle(brandColor)}
+    >
       <header className="absolute right-4 top-3 z-30 sm:right-6 sm:top-6 lg:fixed lg:right-7 lg:top-7">
         <ThemeToggle tone="inverted" />
       </header>
@@ -45,7 +90,10 @@ export function AuthLayout({ title, subtitle, children, footer, pitch }: AuthLay
         />
         <div
           aria-hidden="true"
-          className="absolute -bottom-28 -left-24 size-[34rem] rounded-full bg-accent/30 blur-[100px] motion-safe:animate-ember"
+          className="absolute -bottom-28 -left-24 size-[34rem] rounded-full blur-[100px] motion-safe:animate-ember"
+          style={{
+            backgroundColor: `color-mix(in srgb, ${BRAND} ${String(BRAND_GLOW_PERCENT)}%, transparent)`,
+          }}
         />
         <span
           aria-hidden="true"
@@ -53,7 +101,8 @@ export function AuthLayout({ title, subtitle, children, footer, pitch }: AuthLay
         />
         <span
           aria-hidden="true"
-          className="absolute right-4 top-32 size-36 rounded-full border border-accent/50 sm:right-24 sm:size-40 lg:right-4 lg:top-[21%] lg:size-[18rem]"
+          className="absolute right-4 top-32 size-36 rounded-full border sm:right-24 sm:size-40 lg:right-4 lg:top-[21%] lg:size-[18rem]"
+          style={{ borderColor: `color-mix(in srgb, ${BRAND} 50%, transparent)` }}
         />
         <span
           aria-hidden="true"
@@ -63,10 +112,14 @@ export function AuthLayout({ title, subtitle, children, footer, pitch }: AuthLay
         </span>
 
         <div className="relative">
-          <Wordmark size="lg" href="/" tone="light" />
-          <p className="mt-1 text-[0.58rem] font-bold uppercase tracking-[0.24em] text-[#777e75]">
-            Private coaching OS
-          </p>
+          {brandMark ?? (
+            <>
+              <Wordmark size="lg" href="/" tone="light" />
+              <p className="mt-1 text-[0.58rem] font-bold uppercase tracking-[0.24em] text-[#aeb4aa]">
+                Private coaching OS
+              </p>
+            </>
+          )}
         </div>
 
         {pitch !== undefined ? (
@@ -80,12 +133,16 @@ export function AuthLayout({ title, subtitle, children, footer, pitch }: AuthLay
         <div className="relative hidden w-full items-end justify-between lg:flex">
           <div>
             <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-[#aeb4aa]">
-              <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
+              <span
+                className="size-1.5 rounded-full"
+                aria-hidden="true"
+                style={{ backgroundColor: BRAND }}
+              />
               Створено для українських тренерів
             </div>
-            <p className="text-xs text-[#777e75]">Програми · Прогрес · Звички · Чат</p>
+            <p className="text-xs text-[#aeb4aa]">Програми · Прогрес · Звички · Чат</p>
           </div>
-          <span className="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-[#5f655d]">
+          <span className="text-[0.6rem] font-bold uppercase tracking-[0.2em] text-[#aeb4aa]">
             01 / Access
           </span>
         </div>
@@ -99,7 +156,11 @@ export function AuthLayout({ title, subtitle, children, footer, pitch }: AuthLay
         </span>
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-10 top-10 hidden size-2 rounded-full bg-accent shadow-[0_0_0_8px_rgb(255_91_50_/_0.1)] lg:block"
+          className="pointer-events-none absolute left-10 top-10 hidden size-2 rounded-full lg:block"
+          style={{
+            backgroundColor: BRAND,
+            boxShadow: `0 0 0 8px color-mix(in srgb, ${BRAND} 10%, transparent)`,
+          }}
         />
 
         <div className="relative mx-auto w-full max-w-md">

@@ -211,5 +211,11 @@ export {
   type UpdateProgramRequest,
   type WorkoutType,
 } from './program';
-export type { PublicTrainer } from './trainer';
+export {
+  BRAND_COLOR_PATTERN,
+  BRAND_LOGO_RULES,
+  BRAND_NAME_MAX_LENGTH,
+  isBrandColor,
+} from './trainer';
+export type { BrandSettings, PublicTrainer, UpdateBrandRequest } from './trainer';
 export type { PublicUser } from './user';

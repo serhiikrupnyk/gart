@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { CircleAlert, Lock } from 'lucide-react';
 import type { InvitePreview } from '@gart/shared';
 
+import { BrandMark } from '@/components/branding/brand-mark';
 import { AuthLayout, AuthPitch } from '@/components/layout/auth-layout';
 import { Button, FormError, FormField, Input, Skeleton, SkeletonRegion } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
@@ -111,10 +112,30 @@ export default function InvitePage() {
     );
   }
 
+  const { preview } = state;
+
   return (
     <AuthLayout
-      title={`Вас запросив ${state.preview.trainerName}`}
-      subtitle={`${state.preview.clientFullName}, створіть пароль, щоб почати`}
+      title={`Вас запросив ${preview.trainerName}`}
+      subtitle={`${preview.clientFullName}, створіть пароль, щоб почати`}
+      // The one unauthenticated screen that knows whose brand to wear: the
+      // token names the trainer, and this is the client's first impression.
+      brandColor={preview.brandColor}
+      // Only when there is a brand to show. Otherwise the panel keeps the Gart
+      // wordmark — which is a real link, and the only one in that panel — rather
+      // than repeating at 2xl the name the heading beside it already carries.
+      brandMark={
+        preview.brandLogoUrl === null && preview.brandColor === null ? undefined : (
+          <BrandMark
+            displayName={preview.trainerName}
+            brandName={null}
+            brandLogoUrl={preview.brandLogoUrl}
+            brandColor={preview.brandColor}
+            size="lg"
+            tone="light"
+          />
+        )
+      }
       pitch={
         <AuthPitch
           headline="Ласкаво просимо."

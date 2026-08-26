@@ -16,6 +16,10 @@ jest.mock('next/navigation', () => ({
 const apiFetch = jest.fn();
 jest.mock('@/lib/api', () => ({
   apiFetch: (...args: unknown[]) => apiFetch(...args) as unknown,
+  // The shell reaches API_URL transitively through @/lib/brand, to resolve a
+  // logo against the API rather than the Next origin. Omitting it here left
+  // brandLogoSrc yielding "undefined/brand/…" with nothing asserting on it.
+  API_URL: 'http://api.test',
   ApiError: class extends Error {},
 }));
 

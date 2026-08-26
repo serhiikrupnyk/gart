@@ -15,6 +15,11 @@ export interface AuthSession {
 /**
  * The slice of a trainer their client is allowed to see: enough to brand the
  * client app, nothing about the business behind it.
+ *
+ * `brandColor` is DECORATIVE ONLY. A trainer picks it, so it cannot be
+ * contrast-verified, and it is therefore never allowed to carry text or to
+ * become a ground that text sits on — see the client shell, where it appears
+ * only as marks and rules beside AA-checked labels.
  */
 export interface TrainerBrand {
   displayName: string;

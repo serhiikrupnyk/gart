@@ -64,8 +64,17 @@ describe('client authentication', () => {
     });
 
     it('returns the brand and only the brand of the trainer', async () => {
-      await harness.prisma.trainer.updateMany({
-        data: { brandName: 'Кузня', brandColor: '#F0512B', brandLogoUrl: 'https://x.test/l.png' },
+      const trainerRow = await harness.prisma.trainer.findFirstOrThrow();
+
+      await harness.prisma.trainer.update({
+        where: { id: trainerRow.id },
+        data: {
+          brandName: 'Кузня',
+          brandColor: '#F0512B',
+          // A storage KEY, never a foreign URL: the wire value is derived from
+          // it and points at Gart.
+          brandLogoKey: `brand/${trainerRow.id}/abcdef.png`,
+        },
       });
 
       const response = await login(CLIENT_EMAIL).expect(200);
@@ -75,7 +84,7 @@ describe('client authentication', () => {
         displayName: validRegistration.displayName,
         brandName: 'Кузня',
         brandColor: '#F0512B',
-        brandLogoUrl: 'https://x.test/l.png',
+        brandLogoUrl: `/brand/${trainerRow.id}/logo/abcdef.png`,
       });
     });
 

@@ -98,10 +98,36 @@ model Trainer {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  displayName  String
-  brandName    String?
-  brandLogoUrl String?
-  brandColor   String?
+  displayName String
+
+  /// What this trainer's own CLIENTS see instead of Gart's name.
+  brandName String?
+
+  /// The stored logo, as a storage KEY rather than a URL.
+  ///
+  /// A key and not a URL because a URL would be somebody else's host embedded
+  /// in our page — hotlinked, unverifiable, and outside every check the media
+  /// path performs. The key is server-generated, so its random segment changes
+  /// on every upload, which is what lets the serving route cache immutably.
+  brandLogoKey String?
+
+  /// The verified content type of the stored logo.
+  ///
+  /// Recorded at finalize, exactly as ProgressPhoto and ExerciseMedia record
+  /// theirs, so serving the logo costs ONE storage round trip rather than two —
+  /// this is the only unauthenticated byte-serving route in the app, and asking
+  /// storage twice per request doubles its cost for nothing. It is also the
+  /// verified value rather than a re-derived one, so a later change to the
+  /// media-type table cannot retroactively change what an old logo claims to be.
+  brandLogoType String?
+
+  /// An arbitrary trainer-chosen colour, and therefore DECORATIVE ONLY.
+  ///
+  /// It cannot be contrast-verified — the trainer picks it, not us — so it is
+  /// never allowed to carry text or to become a background that text sits on.
+  /// Stored strictly as `#RRGGBB`: the value reaches a CSS `style` attribute,
+  /// and the only safe policy for that is an exact-shape allowlist.
+  brandColor String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

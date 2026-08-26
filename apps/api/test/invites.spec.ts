@@ -46,9 +46,14 @@ describe('client invites', () => {
         .get(`/invites/${token}`)
         .expect(200);
 
+      // The brand travels with it since Step 28 — and nothing else does. The
+      // exhaustive shape is the assertion: a field added here would be a field
+      // shown on an unauthenticated page.
       expect(response.body).toEqual({
         trainerName: 'Олена Ковальчук',
         clientFullName: 'Марія Бондаренко',
+        brandLogoUrl: null,
+        brandColor: null,
       });
       // The public page must not learn the client's address or any identifier.
       expect(JSON.stringify(response.body)).not.toContain('maria@example.com');

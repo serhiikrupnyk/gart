@@ -17,6 +17,7 @@ import type { Response } from 'express';
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from '../auth/session-cookie';
 import { authThrottle } from '../auth/throttle.config';
 import { AcceptInviteService } from './accept-invite.service';
+import { brandLogoUrl } from '../trainers/trainer.mapper';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { InvitesService } from './invites.service';
 
@@ -51,6 +52,8 @@ export class InvitesController {
     return {
       trainerName: lookup.invite.trainer.brandName ?? lookup.invite.trainer.displayName,
       clientFullName: lookup.invite.client.fullName,
+      brandLogoUrl: brandLogoUrl(lookup.invite.trainer),
+      brandColor: lookup.invite.trainer.brandColor,
     };
   }
 

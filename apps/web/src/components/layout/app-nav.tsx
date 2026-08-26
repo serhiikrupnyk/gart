@@ -5,6 +5,7 @@ import {
   ChartNoAxesCombined,
   Dumbbell,
   LayoutDashboard,
+  Palette,
   WalletCards,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ const ITEMS: NavItem[] = [
   },
   { label: 'Прогрес', icon: ChartNoAxesCombined },
   { label: 'Платежі', href: '/dashboard/billing', icon: WalletCards },
+  { label: 'Бренд', href: '/dashboard/brand', icon: Palette },
 ];
 
 export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
