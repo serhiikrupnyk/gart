@@ -42,8 +42,8 @@ export function amountsEqual(left: Prisma.Decimal, right: string): boolean {
  * MEANINGLESS: "1500.000" is 1500.00 and is a legitimate way for an acquirer to
  * render it, while "1500.005" is a different amount and is refused. Bounding
  * the format at two decimals instead would have rejected the first — and since
- * a refused callback answers 204, the provider would never retry, so the client
- * would have paid for access that never arrived.
+ * a refused callback answers 204, the provider would never retry, so a charge
+ * that succeeded would never be recorded.
  */
 export function parseAmount(value: string): Prisma.Decimal | null {
   if (!/^\d{1,10}(\.\d{1,6})?$/.test(value)) {

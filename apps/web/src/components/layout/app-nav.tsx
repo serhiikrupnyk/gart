@@ -34,12 +34,7 @@ const ITEMS: NavItem[] = [
     icon: Dumbbell,
   },
   { label: 'Прогрес', icon: ChartNoAxesCombined },
-  {
-    label: 'Платежі',
-    href: '/dashboard/products',
-    activeUnder: ['/dashboard/products', '/dashboard/payments'],
-    icon: WalletCards,
-  },
+  { label: 'Платежі', icon: WalletCards },
 ];
 
 export function AppNav({ onNavigate }: { onNavigate?: () => void }) {

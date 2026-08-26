@@ -1,5 +1,4 @@
 import { Prisma } from '../src/generated/prisma/client.js';
-import { entitlementEnd, addMonths } from '../src/payments/entitlement-window';
 import { amountsEqual, parseAmount, toMoney } from '../src/common/money';
 import { payloadDigest, sign, signaturesMatch } from '../src/payments/signature';
 
@@ -78,36 +77,5 @@ describe('signatures', () => {
     );
     // Array order is meaning, not formatting.
     expect(payloadDigest([1, 2])).not.toBe(payloadDigest([2, 1]));
-  });
-});
-
-describe('entitlement windows', () => {
-  const start = new Date('2026-01-31T12:00:00.000Z');
-
-  it('clamps a month boundary rather than rolling into the next month', () => {
-    // 31 January + 1 month is 28 February, not 3 March.
-    expect(addMonths(start, 1).toISOString()).toBe('2026-02-28T12:00:00.000Z');
-  });
-
-  it('counts subscriptions in months', () => {
-    expect(entitlementEnd(start, { period: 'MONTHLY', accessDays: null })?.toISOString()).toBe(
-      '2026-02-28T12:00:00.000Z',
-    );
-    expect(entitlementEnd(start, { period: 'ANNUAL', accessDays: null })?.toISOString()).toBe(
-      '2027-01-31T12:00:00.000Z',
-    );
-  });
-
-  it('counts one-time access in days, and perpetual access not at all', () => {
-    expect(entitlementEnd(start, { period: null, accessDays: 30 })?.toISOString()).toBe(
-      '2026-03-02T12:00:00.000Z',
-    );
-    expect(entitlementEnd(start, { period: null, accessDays: null })).toBeNull();
-  });
-
-  it('prefers the subscription period when a product carries both', () => {
-    expect(entitlementEnd(start, { period: 'MONTHLY', accessDays: 5 })?.toISOString()).toBe(
-      '2026-02-28T12:00:00.000Z',
-    );
   });
 });

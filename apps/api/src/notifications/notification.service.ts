@@ -27,6 +27,22 @@ export interface TrainerEvent {
   detail?: string | null;
 }
 
+/**
+ * Something about the trainer's own account, with no client involved.
+ *
+ * `notifyTrainer` titles its notification with the client's name and links to
+ * that client's page, which is right for «client X did Y» and wrong for
+ * «your subscription lapsed». Billing has no client, so it says its own title.
+ */
+export interface TrainerDirectEvent {
+  trainerId: string;
+  type: NotificationType;
+  title: string;
+  body?: string | null;
+  /** Where a tap should land, relative to the web app. */
+  url: string;
+}
+
 export interface ClientEvent {
   trainerId: string;
   clientId: string;
@@ -79,6 +95,33 @@ export class NotificationService {
         title: client.fullName,
         body: trainerBody(event.type, event.detail ?? null),
         url: `/dashboard/clients/${event.clientId}`,
+      });
+    } catch (error) {
+      this.warn(error);
+    }
+  }
+
+  /** «Your account did Y» — the trainer's own affairs, no client attached. */
+  async notifyTrainerDirect(event: TrainerDirectEvent): Promise<void> {
+    try {
+      const trainer = await this.prisma.trainer.findUnique({
+        where: { id: event.trainerId },
+        select: { userId: true },
+      });
+
+      if (trainer === null) {
+        return;
+      }
+
+      await this.emit({
+        userId: trainer.userId,
+        trainerId: event.trainerId,
+        clientId: null,
+        audience: 'TRAINER',
+        type: event.type,
+        title: event.title,
+        body: event.body ?? null,
+        url: event.url,
       });
     } catch (error) {
       this.warn(error);

@@ -55,7 +55,7 @@ export function resolvePaymentProvider(env: NodeJS.ProcessEnv): PaymentProvider 
   // Loud on purpose. Even where the fake is legitimate, the one failure mode
   // worth never being subtle about is money that was never actually taken.
   new Logger('PaymentProvider').warn(
-    'Payments are FAKE: checkouts confirm themselves and no money is taken.',
+    'Payments are FAKE: charges confirm themselves and no money is taken.',
   );
 
   return new FakePaymentProvider();

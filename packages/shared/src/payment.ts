@@ -16,7 +16,7 @@ export interface Money {
 export type Currency = 'UAH';
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  UAH: '\u20B4',
+  UAH: '₴',
 };
 
 /**
@@ -24,12 +24,11 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
  *
  * Formatted from the DECIMAL STRING, never through `Intl.NumberFormat`, which
  * would produce byte-identical output but only by taking a number first. The
- * rule this project set in Step 22 is that money never becomes a float
- * anywhere, and «anywhere» has to include the screen or it is not a rule.
+ * rule is that money never becomes a float anywhere, and «anywhere» has to
+ * include the screen or it is not a rule.
  *
- * The separators are the ones uk-UA actually uses, and both are U+00A0: a
- * grouped price must not wrap between its thousands, nor a symbol away from its
- * amount.
+ * Both separators are U+00A0: a grouped price must not wrap between its
+ * thousands, nor a symbol away from its amount.
  */
 export function formatMoney(money: Money): string {
   const [whole = '0', fraction = ''] = money.amount.split('.');
@@ -39,45 +38,37 @@ export function formatMoney(money: Money): string {
   return `${grouped},${cents}\u00A0${CURRENCY_SYMBOLS[money.currency]}`;
 }
 
-/** What a trainer sells: one-time access, or a recurring subscription. */
-export const PRODUCT_KINDS = ['ONE_TIME', 'SUBSCRIPTION'] as const;
-export type ProductKind = (typeof PRODUCT_KINDS)[number];
-
-export const PRODUCT_KIND_LABELS: Record<ProductKind, string> = {
-  ONE_TIME: 'Разовий',
-  SUBSCRIPTION: 'Підписка',
-};
-
-/** The roadmap's own subscription vocabulary, fixed here so Step 25 inherits it. */
-export const SUBSCRIPTION_PERIODS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const;
-export type SubscriptionPeriod = (typeof SUBSCRIPTION_PERIODS)[number];
-
-export const SUBSCRIPTION_PERIOD_LABELS: Record<SubscriptionPeriod, string> = {
-  MONTHLY: 'Щомісяця',
-  QUARTERLY: 'Раз на квартал',
-  SEMIANNUAL: 'Раз на пів року',
-  ANNUAL: 'Раз на рік',
-};
+/**
+ * What a trainer subscribes to.
+ *
+ * Gart's own tiers, not anything a trainer sells: the platform's only revenue
+ * is the trainer's subscription to it. Money never flows between a client and
+ * their trainer through this system — they settle that between themselves.
+ */
+export const SUBSCRIPTION_PLANS = ['PRO', 'GROW', 'SCALE'] as const;
+export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
 
 /**
- * Price bounds, in whole hryvnia.
+ * Monthly price per plan, in hryvnia.
  *
- * Zero is NOT a price. A free offer is a different concept that must never
- * touch the payment path — an acquirer cannot settle nothing, and Step 22's
- * `parseAmount` already refuses a non-positive amount, so a zero-priced product
- * could only ever produce a payment stuck pending. The floor of ₴1 and ceiling
- * of ₴1 000 000 are there to catch a misplaced decimal point in either
- * direction, which is the realistic data-entry error.
+ * PROVISIONAL — NOT DECIDED COMMERCIAL NUMBERS. The product docs say prices are
+ * finalised against what a Ukrainian trainer can actually pay and name no
+ * figures; these exist so the billing machinery can be built and measured.
+ * They must be settled before anybody is charged.
+ *
+ * The docs also say a yearly payment should cost less than twelve monthly ones.
+ * That discount is deliberately NOT invented here: `planPrice` multiplies, and
+ * the schedule is Step 27's to decide rather than this file's to guess.
  */
-export const PRODUCT_PRICE_MIN = 1;
-export const PRODUCT_PRICE_MAX = 1_000_000;
+const PLAN_MONTHLY_PRICES: Record<SubscriptionPlan, string> = {
+  PRO: '500.00',
+  GROW: '900.00',
+  SCALE: '1500.00',
+};
 
-/** A one-time product may grant access for a bounded stretch, or for ever. */
-export const PRODUCT_ACCESS_DAYS_MIN = 1;
-export const PRODUCT_ACCESS_DAYS_MAX = 3650;
-
-export const PRODUCT_NAME_MAX = 80;
-export const PRODUCT_DESCRIPTION_MAX = 500;
+/** The roadmap's own subscription vocabulary, fixed here so Step 27 inherits it. */
+export const SUBSCRIPTION_PERIODS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const;
+export type SubscriptionPeriod = (typeof SUBSCRIPTION_PERIODS)[number];
 
 /**
  * Periods are counted in MONTHS, not days: a subscription bought on the 31st
@@ -91,130 +82,32 @@ export const SUBSCRIPTION_PERIOD_MONTHS: Record<SubscriptionPeriod, number> = {
 };
 
 /**
+ * What one period of a plan costs.
+ *
+ * Whole hryvnia by construction — a monthly price with two decimal places times
+ * a whole number of months, so the string arithmetic below cannot produce a
+ * fraction of a kopiyka. The server re-derives this; it is never sent in.
+ */
+export function planPrice(plan: SubscriptionPlan, period: SubscriptionPeriod): Money {
+  const [whole = '0', cents = '00'] = PLAN_MONTHLY_PRICES[plan].split('.');
+  const months = SUBSCRIPTION_PERIOD_MONTHS[period];
+  const total = (Number(whole) * 100 + Number(cents.padEnd(2, '0'))) * months;
+
+  return {
+    amount: `${String(Math.floor(total / 100))}.${String(total % 100).padStart(2, '0')}`,
+    currency: 'UAH',
+  };
+}
+
+/**
  * The canonical payment lifecycle. Every provider's own vocabulary maps onto
  * exactly these four before it reaches anything outside the provider adapter.
  */
 export const PAYMENT_STATUSES = ['PENDING', 'SUCCEEDED', 'FAILED', 'REFUNDED'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
-export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
-  PENDING: 'В обробці',
-  SUCCEEDED: 'Оплачено',
-  FAILED: 'Не вдалося',
-  REFUNDED: 'Повернуто',
-};
-
-export const PAYMENT_STATUS_FILTERS = ['all', ...PAYMENT_STATUSES] as const;
-export type PaymentStatusFilter = (typeof PAYMENT_STATUS_FILTERS)[number];
-
-export interface PublicProduct {
-  id: string;
-  name: string;
-  description: string | null;
-  kind: ProductKind;
-  /** Set exactly when kind is SUBSCRIPTION. */
-  period: SubscriptionPeriod | null;
-  price: Money;
-  /** Set only for ONE_TIME. Null there means access never lapses. */
-  accessDays: number | null;
-  isActive: boolean;
-  createdAt: string;
-}
-
-export interface CreateProductRequest {
-  name: string;
-  description?: string | null;
-  kind: ProductKind;
-  period?: SubscriptionPeriod | null;
-  /** A decimal string, so a price never travels as a float. */
-  price: string;
-  accessDays?: number | null;
-}
-
-export type UpdateProductRequest = Partial<CreateProductRequest> & { isActive?: boolean };
-
-export const PRODUCT_STATUS_FILTERS = ['all', 'active', 'inactive'] as const;
-export type ProductStatusFilter = (typeof PRODUCT_STATUS_FILTERS)[number];
-
-/**
- * A payment as the TRAINER sees it: the whole commercial picture, including
- * what the platform took and what is left for them.
- */
-export interface PublicPayment {
-  id: string;
-  clientId: string;
-  clientName: string;
-  productId: string;
-  productName: string;
-  amount: Money;
-  /** The platform's cut, as charged on this payment — never recomputed. */
-  platformFee: Money;
-  /** amount − platformFee. The two always sum back to amount, exactly. */
-  payout: Money;
-  status: PaymentStatus;
-  createdAt: string;
-  paidAt: string | null;
-  /** Where the payer completes it, while it is still open. */
-  checkoutUrl: string | null;
-}
-
-/**
- * A payment as the CLIENT sees it.
- *
- * A separate type rather than a subset of PublicPayment, deliberately: the
- * commission is a term between the platform and the trainer, and the surest way
- * for a client never to see it is for the shape they receive to have nowhere to
- * put it. Omission enforced by the type, not by remembering to omit.
- */
-export interface ClientPayment {
-  id: string;
-  productName: string;
-  amount: Money;
-  status: PaymentStatus;
-  createdAt: string;
-  paidAt: string | null;
-  checkoutUrl: string | null;
-}
-
-/** What the client app shows: what is owed, and what it bought. */
-export interface ClientPurchases {
-  payments: ClientPayment[];
-  entitlements: PublicEntitlement[];
-}
-
-/** What creating a checkout hands back to the trainer. */
-export interface CheckoutResult {
-  payment: PublicPayment;
-  /**
-   * Where the payer must be sent to pay. Null when the provider settled inline
-   * and there is no hosted page to visit.
-   */
-  redirectUrl: string | null;
-}
-
-export interface PublicEntitlement {
-  id: string;
-  productId: string;
-  productName: string;
-  startsAt: string;
-  /** Null means perpetual — a one-time purchase that never lapses. */
-  endsAt: string | null;
-  /** Whether it covers this moment: granted, not revoked, not yet expired. */
-  isActive: boolean;
-}
-
 export const SUBSCRIPTION_STATUSES = ['ACTIVE', 'PAST_DUE', 'CANCELLED', 'ENDED'] as const;
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
-
-export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
-  ACTIVE: 'Активна',
-  PAST_DUE: 'Оплата не пройшла',
-  CANCELLED: 'Скасована',
-  ENDED: 'Завершена',
-};
-
-export const SUBSCRIPTION_STATUS_FILTERS = ['all', ...SUBSCRIPTION_STATUSES] as const;
-export type SubscriptionStatusFilter = (typeof SUBSCRIPTION_STATUS_FILTERS)[number];
 
 /**
  * The dunning policy, in one place because it is a POLICY and not a detail.
@@ -223,9 +116,9 @@ export type SubscriptionStatusFilter = (typeof SUBSCRIPTION_STATUS_FILTERS)[numb
  * follow — on days 1, 3 and 5 after the period ended — and access continues
  * throughout. Only when the fourth attempt fails does access lapse.
  *
- * A card expiring should not cost somebody their training programme the same
- * morning. Five days is long enough to notice an email and fix a card, and
- * short enough that it is not a month of unpaid coaching.
+ * A card expiring should not cost somebody their workspace the same morning.
+ * Five days is long enough to notice an email and fix a card, and short enough
+ * that it is not a month of unpaid service.
  */
 export const DUNNING_RETRY_DAYS = [1, 3, 5] as const;
 
@@ -238,49 +131,35 @@ export const DUNNING_MAX_ATTEMPTS = DUNNING_RETRY_DAYS.length + 1;
  * One day LONGER than the last retry, not the same day. A job can only run at
  * or after its due time, so grace expiring on the instant the final attempt is
  * scheduled would mean access had already lapsed before that attempt got its
- * chance — and a client whose fourth charge succeeds would have been locked out
- * waiting for it.
+ * chance.
  */
 export const DUNNING_GRACE_DAYS = 6;
 
-/** A subscription as the TRAINER sees it. */
+/** One charge against a trainer's plan. */
+export interface PublicPayment {
+  id: string;
+  /** Null only if the subscription behind the charge is gone. */
+  plan: SubscriptionPlan | null;
+  amount: Money;
+  status: PaymentStatus;
+  createdAt: string;
+  paidAt: string | null;
+}
+
+/** A trainer's own subscription to Gart. */
 export interface PublicSubscription {
   id: string;
-  clientId: string;
-  clientName: string;
-  productId: string;
-  productName: string;
-  price: Money;
+  plan: SubscriptionPlan;
   period: SubscriptionPeriod;
+  price: Money;
   status: SubscriptionStatus;
   currentPeriodEnd: string;
-  /** How long access actually runs, grace included. */
+  /** How long access actually runs, dunning grace included. */
   accessUntil: string;
   nextChargeAt: string | null;
   /** 0 while healthy; 1..4 once charges are failing. */
   failedAttempts: number;
-  cancelledBy: 'CLIENT' | 'TRAINER' | null;
-  /** Whether access is live right now, by the one shared rule. */
-  isActive: boolean;
-}
-
-/**
- * The same subscription as the CLIENT sees it.
- *
- * Their own cost and dates, and nothing about the trainer's commission — the
- * same separation PublicPayment and ClientPayment keep, for the same reason.
- */
-export interface ClientSubscription {
-  id: string;
-  productName: string;
-  price: Money;
-  period: SubscriptionPeriod;
-  status: SubscriptionStatus;
-  /** When the next charge happens, if one is coming. */
-  nextChargeAt: string | null;
-  /** The date access runs to — what a cancellation preserves. */
-  accessUntil: string;
-  failedAttempts: number;
+  /** Whether the workspace is live right now, by the one shared rule. */
   isActive: boolean;
   /** Whether reactivating is still possible, or it has lapsed for good. */
   canReactivate: boolean;

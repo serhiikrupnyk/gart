@@ -120,10 +120,8 @@ model Trainer {
   habits            Habit[]
   notifications     Notification[]
   chatThreads       ChatThread[]
-  products          Product[]
   payments          Payment[]
-  entitlements      Entitlement[]
-  subscriptions     Subscription[]
+  subscription      Subscription?
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -275,9 +273,6 @@ model Client {
   habits            Habit[]
   notifications     Notification[]
   chatThreads       ChatThread[]
-  payments          Payment[]
-  entitlements      Entitlement[]
-  subscriptions     Subscription[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.
@@ -748,9 +743,6 @@ enum NotificationType {
   CLIENT_INACTIVE
   TRAINER_MESSAGE
   CHAT_MESSAGE
-  PAYMENT_SUCCEEDED
-  PAYMENT_FAILED
-  PAYMENT_REFUNDED
   SUBSCRIPTION_PAST_DUE
   SUBSCRIPTION_ENDED
 }
@@ -917,14 +909,18 @@ enum Currency {
   UAH
 }
 
-enum ProductKind {
-  ONE_TIME
-  SUBSCRIPTION
+/// What a trainer subscribes to: Gart's own tiers.
+///
+/// The platform's only revenue is the trainer's subscription to it. Money never
+/// flows between a client and their trainer through this system — they settle
+/// that between themselves, and Gart knows nothing about it.
+enum SubscriptionPlan {
+  PRO
+  GROW
+  SCALE
 }
 
 /// Counted in months rather than days so a renewal lands on a month boundary.
-/// The vocabulary is the roadmap's own (Step 23), fixed now so the subscription
-/// lifecycle in Step 25 inherits it rather than renaming it.
 enum SubscriptionPeriod {
   MONTHLY
   QUARTERLY
@@ -943,78 +939,23 @@ enum PaymentStatus {
   REFUNDED
 }
 
-/// What a trainer sells. The MODEL lands in Step 22 because a payment's amount
-/// must come from stored data rather than from the request; the trainer-facing
-/// catalogue, its CRUD and its UI are Step 23.
-model Product {
-  id String @id @default(cuid())
-
-  trainerId String
-  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-
-  name        String
-  description String?
-
-  kind ProductKind
-  /// Set exactly when kind is SUBSCRIPTION; the service enforces the pairing.
-  period SubscriptionPeriod?
-
-  priceAmount Decimal  @db.Decimal(12, 2)
-  currency    Currency @default(UAH)
-
-  /// How long a ONE_TIME purchase grants access for. Null means perpetual.
-  accessDays Int?
-
-  isActive Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  payments      Payment[]
-  entitlements  Entitlement[]
-  subscriptions Subscription[]
-
-  @@index([trainerId])
-}
-
-/// One attempt to collect money. `id` doubles as the order reference handed to
-/// the provider — LiqPay's `order_id`, Fondy's `order_id`, WayForPay's
-/// `orderReference` all require a merchant-owned unique value, and reusing the
-/// primary key means the provider dedupes on exactly what we dedupe on.
+/// One attempt to collect a trainer's subscription fee.
 ///
-/// `amount` is a SNAPSHOT of the product price at purchase, never a lookup: a
-/// trainer raising a price must not retroactively change what was charged.
+/// `id` doubles as the order reference handed to the provider — LiqPay's
+/// `order_id`, Fondy's `order_id`, WayForPay's `orderReference` all require a
+/// merchant-owned unique value, and reusing the primary key means the provider
+/// deduplicates on exactly the value we deduplicate on.
+///
+/// `amount` is a SNAPSHOT of the plan price at the time of the charge, never a
+/// lookup: a price change must not retroactively alter what was billed.
 model Payment {
   id String @id @default(cuid())
 
   trainerId String
   trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
 
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-
   amount   Decimal  @db.Decimal(12, 2)
   currency Currency
-
-  /// The platform's cut, snapshotted alongside the amount. Zero until Step 24
-  /// introduces the split; the column existing now is what keeps that step from
-  /// being a migration of historical rows.
-  platformFee Decimal @db.Decimal(12, 2) @default(0)
-
-  /// What was bought, frozen at checkout — the grant terms, exactly as `amount`
-  /// freezes the price.
-  ///
-  /// Step 22 read these from the live Product, which was safe only because
-  /// nothing could edit one. Step 23 gives the trainer a catalogue, and a
-  /// trainer who shortens a product's access between a client's checkout and
-  /// the acquirer's callback would otherwise change what that client receives
-  /// after they have paid. Null on rows written before this column existed;
-  /// the service falls back to the product for those.
-  periodSnapshot     SubscriptionPeriod?
-  accessDaysSnapshot Int?
 
   status PaymentStatus @default(PENDING)
 
@@ -1026,16 +967,21 @@ model Payment {
   /// The provider's own status word, kept verbatim for audit and support.
   providerStatus String?
 
-  /// What the payer was shown on the hosted page, snapshotted.
+  /// The provider's handle on the mandate this payment established, when it
+  /// established one. Carried here because the provider returns it with the
+  /// session — before the callback that settles it — and the subscription needs
+  /// it to charge against later.
+  recurrenceRef String?
+
+  /// What the payer was shown, snapshotted.
   description String
 
-  /// The subscription period this payment is for, when it is a renewal.
+  /// The subscription period this payment is for.
   ///
   /// The triple below is unique, which is what makes a re-run of the renewal
-  /// job a no-op rather than a second charge: two workers racing over the same
-  /// due subscription both try to insert the same (subscription, period,
-  /// attempt), and Postgres lets exactly one of them win. Null on a one-time
-  /// purchase, and nulls never collide, so those are unaffected.
+  /// job a no-op rather than a second charge: two workers racing the same due
+  /// subscription both try to insert the same (subscription, period, attempt),
+  /// and Postgres lets exactly one of them win.
   subscriptionId String?
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   periodStart    DateTime?
@@ -1043,24 +989,13 @@ model Payment {
   /// for the first dunning retry, and so on.
   ///
   /// Part of the key because a RETRY is a legitimate second charge for the same
-  /// period, and keying on the period alone would have made the guard refuse
-  /// the dunning schedule it exists alongside. One charge per attempt is the
+  /// period, and keying on the period alone would have made the guard refuse the
+  /// dunning schedule it exists alongside. One charge per attempt is the
   /// invariant that actually holds.
   periodAttempt Int?
 
-  /// The provider's handle on the mandate this payment established, when it
-  /// established one. Carried here because the provider returns it with the
-  /// session — before the callback that settles it — and the subscription needs
-  /// it to charge against later.
-  recurrenceRef String?
-
-  /// The hosted page this payment is collected on.
-  ///
-  /// Stored rather than returned once and forgotten, because the same row has
-  /// to serve two ways of reaching the payer: a link the trainer shares, and
-  /// the «Оплатити» affordance in the client's own app. Null until the provider
-  /// has issued one, and for providers that settle without a page at all.
-  checkoutUrl String?
+  /// The cadence this payment bought, frozen at the time of the charge.
+  periodSnapshot SubscriptionPeriod?
 
   paidAt   DateTime?
   failedAt DateTime?
@@ -1068,19 +1003,17 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  events      PaymentEvent[]
-  entitlement Entitlement?
+  events PaymentEvent[]
 
   /// Null refs never collide in Postgres, so many PENDING rows coexist while a
   /// settled reference stays unique to one payment.
   @@unique([provider, providerRef])
   @@unique([subscriptionId, periodStart, periodAttempt])
-  @@index([trainerId, clientId])
   @@index([trainerId, status])
 }
 
 /// Append-only: every callback delivery ever accepted, in the provider's own
-/// words. The audit trail behind "why does this client have access?".
+/// words. The audit trail behind "why does this subscription say it is paid?".
 ///
 /// `externalId` is the provider's identifier for THIS DELIVERY, not for the
 /// payment. Providers that do not supply one get a digest of the canonical
@@ -1102,45 +1035,10 @@ model PaymentEvent {
 
   receivedAt DateTime @default(now())
 
-  /// The first of the two idempotency guards: a replayed delivery is rejected
-  /// by Postgres, not by a service-level check that a race could slip past.
+  /// A replayed delivery is rejected by Postgres, not by a service-level check
+  /// that a race could slip past.
   @@unique([paymentId, externalId])
   @@index([paymentId])
-}
-
-/// What a payment bought. One row per grant, never mutated in place: Step 25's
-/// renewals add rows and access is the union of the periods they cover, which
-/// keeps every grant individually auditable and lets `paymentId` stay unique.
-model Entitlement {
-  id String @id @default(cuid())
-
-  trainerId String
-  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-
-  /// The second idempotency guard, and the stronger one: access can be granted
-  /// at most once per payment BECAUSE THE DATABASE SAYS SO. Two callbacks that
-  /// somehow carry different delivery ids still cannot double-grant.
-  paymentId String  @unique
-  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-
-  startsAt DateTime @default(now())
-  /// Null means perpetual — a one-time purchase that never lapses.
-  endsAt DateTime?
-
-  revokedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([trainerId, clientId])
-  /// "Is this client's access live right now?" — the query Steps 23-28 lean on.
-  @@index([clientId, endsAt])
 }
 
 /// Where a subscription stands. ACTIVE and PAST_DUE both still have access —
@@ -1152,37 +1050,25 @@ enum SubscriptionStatus {
   ENDED
 }
 
-/// Recorded so the history can answer «who ended this», which matters when the
-/// two sides remember it differently.
-enum CancelledBy {
-  CLIENT
-  TRAINER
-}
-
-/// The current state of a recurring arrangement.
+/// A trainer's subscription to Gart.
 ///
-/// The division of labour this model rests on: an ENTITLEMENT is the audit
-/// ledger — one immutable row per payment, recording what that payment bought
-/// and never rewritten. A SUBSCRIPTION is the current-state head: where things
-/// stand now, and what happens next. Every period this subscription ever had
-/// survives as its own Payment and Entitlement, so advancing it rewrites no
-/// history.
+/// The division of labour this model rests on: a PAYMENT is the audit ledger —
+/// one immutable row per charge, never rewritten. A SUBSCRIPTION is the
+/// current-state head: where things stand now, and what happens next.
 model Subscription {
   id String @id @default(cuid())
 
-  trainerId String
+  /// One Gart subscription per trainer. A trainer who resubscribes after theirs
+  /// ended reuses this row; what they paid lives in the Payments that
+  /// reference it.
+  trainerId String  @unique
   trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
 
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  /// Which tier, snapshotted: changing plans is a decision, not a drift.
+  plan SubscriptionPlan
 
   status SubscriptionStatus @default(ACTIVE)
 
-  /// Snapshotted from the product, like every other term: a catalogue edit
-  /// changes what the NEXT subscription buys, never this one's cadence.
   period SubscriptionPeriod
 
   currentPeriodStart DateTime
@@ -1193,16 +1079,14 @@ model Subscription {
   ///
   /// Without it the anniversary can only ratchet downward: 31 January clamps to
   /// 28 February, and computing the next period from the 28th gives 28 March
-  /// instead of the 31st, for ever. Every real billing system retains the
-  /// anchor for exactly this reason.
+  /// instead of the 31st, for ever.
   anchorDay Int
 
-  /// The authority for subscription access, and deliberately not an Entitlement.
+  /// The authority for access, and deliberately not derived from a payment.
   ///
-  /// An entitlement records what a PAYMENT BOUGHT. Dunning grace was not
-  /// bought, so it cannot honestly be one — extending an entitlement would make
-  /// the ledger claim a payment covered days nobody paid for. This column says
-  /// how long access actually runs, including grace.
+  /// A payment records what was BOUGHT. Dunning grace was not bought, so it
+  /// cannot honestly be expressed as one. This column says how long the
+  /// workspace actually runs, including grace.
   accessUntil DateTime
 
   /// When the next charge is attempted. Null once nothing further is due —
@@ -1216,7 +1100,6 @@ model Subscription {
   recurrenceRef String?
 
   cancelledAt DateTime?
-  cancelledBy CancelledBy?
   endedAt     DateTime?
 
   createdAt DateTime @default(now())
@@ -1224,11 +1107,6 @@ model Subscription {
 
   payments Payment[]
 
-  /// One live arrangement per client and product. A client who resubscribes
-  /// after theirs ended reuses this row; the history of what they paid lives in
-  /// the Payments that reference it.
-  @@unique([clientId, productId])
   /// The renewal job's whole query: what is due, and when.
   @@index([status, nextChargeAt])
-  @@index([trainerId, status])
 }

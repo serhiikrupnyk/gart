@@ -66,27 +66,20 @@ describe('landing page', () => {
     }
   });
 
-  it('marks payments as coming rather than claiming them', () => {
+  it('promises nothing it will not do', () => {
     renderLanding();
 
-    const payments = screen
-      .getByRole('heading', { name: 'Українські оплати', level: 3 })
-      .closest('li') as HTMLElement;
+    // Gart does not sit between a client and their trainer: they settle
+    // payments between themselves, and the marketing must not say otherwise.
+    const body = document.body.textContent ?? '';
 
-    expect(within(payments).getByText('Скоро')).toBeInTheDocument();
+    expect(body).not.toContain('ФОП');
+    expect(body).not.toContain('спліт');
+    expect(body).not.toContain('скинь на картку');
+    expect(screen.queryByRole('heading', { name: /Українські оплати/ })).not.toBeInTheDocument();
+
     // Nutrition is Phase 4: promised in the roadmap strip, never as a feature.
     expect(screen.getByText(/Попереду: харчування/)).toBeInTheDocument();
-  });
-
-  it('never claims payments already work', () => {
-    renderLanding();
-
-    // Both places that mention Ukrainian payments qualify them.
-    const moat = screen
-      .getByRole('heading', { name: 'Українські платежі', level: 3 })
-      .closest('li') as HTMLElement;
-
-    expect(moat).toHaveTextContent(/Скоро/);
   });
 
   it('shows the honest social-proof placeholder, with no invented trainers', () => {

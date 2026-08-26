@@ -13,6 +13,7 @@ import { PaymentProvider } from '../src/payments/payment-provider';
 import { StorageService } from '../src/storage/storage.service';
 import { FakeNotificationQueue, FakeWebPushSender } from './fake-notifications';
 import { FakeStorage } from './fake-storage';
+import { chargeAt, periodFrom } from '../src/payments/subscriptions.service';
 
 export interface Harness {
   app: INestApplication;
@@ -74,7 +75,7 @@ export async function createHarness(): Promise<Harness> {
 /** Clears every table between tests. CASCADE also removes dependent rows. */
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "Entitlement", "PaymentEvent", "Payment", "Subscription", "Product", "ChatMessage", "ChatThread", "Notification", "PushSubscription", "HabitLog", "Habit", "ProgressEntry", "ProgressVariable", "ProgressPhoto", "WorkoutSetLog", "WorkoutLog", "AssignmentExercise", "AssignmentSection", "Assignment", "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
+    'TRUNCATE TABLE "PaymentEvent", "Payment", "Subscription", "ChatMessage", "ChatThread", "Notification", "PushSubscription", "HabitLog", "Habit", "ProgressEntry", "ProgressVariable", "ProgressPhoto", "WorkoutSetLog", "WorkoutLog", "AssignmentExercise", "AssignmentSection", "Assignment", "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
   );
 }
 
@@ -181,4 +182,63 @@ export function sessionCookie(headers: ResponseHeaders): string {
   }
 
   return session.split(';')[0] ?? '';
+}
+
+/**
+ * Puts a trainer on a plan, as a completed subscribe flow would.
+ *
+ * There is no route for this yet — Step 27 builds the purchase — so the row is
+ * written directly, with a mandate the fake will happily charge. Everything the
+ * renewal machinery does afterwards is exercised exactly as it will be in
+ * production.
+ */
+export async function subscribeTrainer(
+  harness: Harness,
+  trainerId: string,
+  overrides: Partial<{
+    plan: 'PRO' | 'GROW' | 'SCALE';
+    period: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
+    periodStart: Date;
+    recurrenceRef: string | null;
+  }> = {},
+): Promise<{ id: string; currentPeriodEnd: Date; nextChargeAt: Date }> {
+  const periodStart = overrides.periodStart ?? new Date('2026-08-01T12:00:00.000Z');
+  const period = overrides.period ?? 'MONTHLY';
+  const periodEnd = periodFrom(periodStart, period, periodStart.getUTCDate());
+
+  const subscription = await harness.prisma.subscription.create({
+    data: {
+      trainerId,
+      plan: overrides.plan ?? 'PRO',
+      period,
+      status: 'ACTIVE',
+      anchorDay: periodStart.getUTCDate(),
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+      accessUntil: periodEnd,
+      nextChargeAt: chargeAt(periodEnd),
+      recurrenceRef:
+        overrides.recurrenceRef === undefined ? 'fake_mandate_test' : overrides.recurrenceRef,
+    },
+  });
+
+  return {
+    id: subscription.id,
+    currentPeriodEnd: subscription.currentPeriodEnd,
+    nextChargeAt: subscription.nextChargeAt ?? periodEnd,
+  };
+}
+
+/** The trainer id behind a registration email. */
+export async function trainerIdFor(harness: Harness, email: string): Promise<string> {
+  const user = await harness.prisma.user.findFirstOrThrow({
+    where: { email },
+    include: { trainer: true },
+  });
+
+  if (user.trainer === null) {
+    throw new Error(`User ${email} has no trainer`);
+  }
+
+  return user.trainer.id;
 }

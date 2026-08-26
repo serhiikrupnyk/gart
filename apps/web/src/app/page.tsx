@@ -3,7 +3,6 @@ import Link from 'next/link';
 import {
   ArrowUpRight,
   Check,
-  CreditCard,
   Dumbbell,
   Flame,
   MessageCircle,
@@ -39,14 +38,12 @@ const CHAOS = [
   'Харчування — в нотатках',
   'Прогрес — ніде',
   'Чат із клієнтами впереміш з особистим',
-  'Оплати — «скинь на картку»',
 ];
 
 interface Feature {
   icon: LucideIcon;
   title: string;
   copy: string;
-  soon?: boolean;
 }
 
 const FEATURES: Feature[] = [
@@ -75,12 +72,6 @@ const FEATURES: Feature[] = [
     title: 'Чат і сповіщення',
     copy: 'Робоче спілкування окремо від особистого: текст, голосові, фото й відео — у контексті тренувань.',
   },
-  {
-    icon: CreditCard,
-    title: 'Українські оплати',
-    copy: 'Разові оплати й підписки через українські платіжні системи, з ФОП-обліком. Без «скинь на картку».',
-    soon: true,
-  },
 ];
 
 const AUDIENCES = [
@@ -101,16 +92,11 @@ const AUDIENCES = [
 const MOAT = [
   {
     number: '01',
-    title: 'Українські платежі',
-    copy: 'Скоро — оплати через LiqPay, Fondy чи WayForPay, зі сплітом і ФОП-обліком. Те, чого закордонна платформа не зробить заради нашого ринку.',
-  },
-  {
-    number: '02',
     title: 'Українською повністю',
     copy: 'Інтерфейс, підтримка і база вправ — не переклад, а контент, створений під український ринок.',
   },
   {
-    number: '03',
+    number: '02',
     title: 'Свій',
     copy: 'Локальний бренд, підтримка українською, ціни в гривні — під українського тренера, а не під західні ціни.',
   },
@@ -370,11 +356,6 @@ export default function LandingPage() {
                     >
                       <feature.icon className="size-5" />
                     </span>
-                    {feature.soon === true && (
-                      <span className="rounded-full border border-[#171813]/20 px-2 py-0.5 text-xs font-semibold text-[#5f645a]">
-                        Скоро
-                      </span>
-                    )}
                   </div>
                   <h3
                     className={`relative mt-6 font-bold ${index === 0 ? 'max-w-md text-3xl tracking-[-0.05em] text-accent-contrast sm:text-4xl' : index === FEATURES.length - 1 ? 'text-lg text-[#171813]' : 'text-lg text-[#f7f6f2]'}`}
@@ -475,8 +456,7 @@ export default function LandingPage() {
               <Eyebrow>Чому ми</Eyebrow>
               <SectionHeading id="chomu-gart">Чому Gart, а не глобальні сервіси</SectionHeading>
               <p className="text-pretty mt-6 max-w-sm text-sm leading-relaxed text-text-secondary">
-                Глобальні сервіси — англійською, в доларах, зі Stripe, недоступним ФОПу. Gart живе
-                там, куди вони не заходять.
+                Глобальні сервіси — англійською і в доларах. Gart живе там, куди вони не заходять.
               </p>
             </div>
 

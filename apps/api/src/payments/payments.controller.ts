@@ -8,95 +8,26 @@ import {
   HttpStatus,
   Param,
   Post,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type {
-  CheckoutResult,
-  ClientPurchases,
-  PublicEntitlement,
-  PublicPayment,
-} from '@gart/shared';
+import type { PublicPayment } from '@gart/shared';
 
 import { type AuthContext, CurrentAuth } from '../auth/auth-context';
-import { type ClientAuthContext, CurrentClientAuth } from '../auth/client-auth-context';
-import { ClientGuard } from '../auth/client.guard';
 import { TrainerGuard } from '../auth/trainer.guard';
 import { callbackThrottle } from '../auth/throttle.config';
-import { CreateCheckoutDto, PaymentListQuery } from './dto/payment.dto';
 import { InvalidCallbackError } from './payment-provider';
 import { PaymentsService } from './payments.service';
 
-@Controller('clients/:clientId/payments')
-@UseGuards(TrainerGuard)
-export class ClientPaymentsController {
-  constructor(private readonly payments: PaymentsService) {}
-
-  @Get()
-  async forClient(
-    @CurrentAuth() auth: AuthContext,
-    @Param('clientId') clientId: string,
-  ): Promise<PublicPayment[]> {
-    return this.payments.forClient(auth.trainer.id, clientId);
-  }
-
-  @Post()
-  async create(
-    @CurrentAuth() auth: AuthContext,
-    @Param('clientId') clientId: string,
-    @Body() dto: CreateCheckoutDto,
-  ): Promise<CheckoutResult> {
-    return this.payments.createCheckout(auth.trainer.id, clientId, dto.productId);
-  }
-}
-
-@Controller('payments')
+@Controller('billing/payments')
 @UseGuards(TrainerGuard)
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
+  /** What this trainer has been charged for their own subscription. */
   @Get()
-  async list(
-    @CurrentAuth() auth: AuthContext,
-    @Query() query: PaymentListQuery,
-  ): Promise<PublicPayment[]> {
-    return this.payments.forTrainer(auth.trainer.id, query.status ?? 'all');
-  }
-
-  @Get(':id')
-  async one(@CurrentAuth() auth: AuthContext, @Param('id') id: string): Promise<PublicPayment> {
-    return this.payments.oneForTrainer(auth.trainer.id, id);
-  }
-}
-
-@Controller('me/entitlements')
-@UseGuards(ClientGuard)
-export class MeEntitlementsController {
-  constructor(private readonly payments: PaymentsService) {}
-
-  @Get()
-  async mine(@CurrentClientAuth() auth: ClientAuthContext): Promise<PublicEntitlement[]> {
-    return this.payments.entitlementsForClient(auth.trainer.id, auth.client.id, new Date());
-  }
-}
-
-/**
- * What the client owes and what they own.
- *
- * Read-only, and there is deliberately no write here at all: a checkout is the
- * trainer's act. The client cannot name a product, an amount or a fee because
- * no route accepts one from them — the strongest form of «cannot influence» is
- * the absence of a door, not the validation behind it.
- */
-@Controller('me/purchases')
-@UseGuards(ClientGuard)
-export class MePurchasesController {
-  constructor(private readonly payments: PaymentsService) {}
-
-  @Get()
-  async mine(@CurrentClientAuth() auth: ClientAuthContext): Promise<ClientPurchases> {
-    return this.payments.purchasesForClient(auth.trainer.id, auth.client.id, new Date());
+  async mine(@CurrentAuth() auth: AuthContext): Promise<PublicPayment[]> {
+    return this.payments.forTrainer(auth.trainer.id);
   }
 }
 
@@ -106,8 +37,8 @@ export class MePurchasesController {
  * credential, and PaymentProvider verifies it — this controller never sees one.
  *
  * The budget is its own and generous. A webhook throttled into dropping
- * deliveries is a payment that silently never grants access, which is a far
- * worse failure than the flood the limit exists to stop.
+ * deliveries is a payment that silently never settles, which is a far worse
+ * failure than the flood the limit exists to stop.
  */
 @Controller('payments/callback')
 export class PaymentCallbackController {

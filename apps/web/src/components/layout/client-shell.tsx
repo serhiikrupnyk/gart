@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import type { ClientSession } from '@gart/shared';
-import { ChartNoAxesCombined, Dumbbell, MessageCircle, Utensils, WalletCards } from 'lucide-react';
+import { ChartNoAxesCombined, Dumbbell, MessageCircle, Utensils } from 'lucide-react';
 
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
@@ -18,7 +18,6 @@ const NAV_ITEMS = [
   { label: 'Тренування', href: '/client', icon: Dumbbell },
   { label: 'Прогрес', href: '/client/progress', icon: ChartNoAxesCombined },
   { label: 'Чат', href: '/client/chat', icon: MessageCircle },
-  { label: 'Оплати', href: '/client/payments', icon: WalletCards },
 ];
 
 /** The client-app sections later phases will fill; visible so the frame is honest. */
@@ -127,7 +126,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <p className="mb-2 hidden px-3 pt-2 text-2xs font-bold uppercase tracking-[0.14em] text-text-muted sm:block">
             Мій простір
           </p>
-          <ul className="grid grid-cols-4 gap-1 sm:block sm:space-y-1">
+          <ul className="grid grid-cols-3 gap-1 sm:block sm:space-y-1">
             {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
               const active = pathname === href;
 

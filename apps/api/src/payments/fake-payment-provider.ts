@@ -4,22 +4,19 @@ import { Injectable } from '@nestjs/common';
 import type { Money, PaymentStatus } from '@gart/shared';
 
 import {
-  type CheckoutRequest,
-  type CheckoutSession,
+  type ChargeResult,
   InvalidCallbackError,
   PaymentProvider,
   type ProviderCallback,
   type RawCallback,
-  type RecurrenceInstruction,
   type RecurringChargeRequest,
-  type SplitInstruction,
   toCurrency,
 } from './payment-provider';
 import { sign, signaturesMatch } from './signature';
 
 /**
- * What the next checkout settles as. Narrower than PaymentStatus on purpose: a
- * checkout cannot open already refunded, so REFUNDED is reachable only as a
+ * What the next charge settles as. Narrower than PaymentStatus on purpose: a
+ * charge cannot settle as already refunded, so REFUNDED is reachable only as a
  * later callback, which is exactly how a real reversal arrives.
  */
 export type FakeOutcome = 'SUCCEEDED' | 'FAILED' | 'PENDING';
@@ -39,13 +36,10 @@ const STATUS_BY_RAW: Record<string, PaymentStatus> = {
   reversed: 'REFUNDED',
 };
 
-interface IssuedCheckout {
+interface IssuedCharge {
   orderRef: string;
   providerRef: string;
   amount: Money;
-  /** Exactly what the caller instructed, kept so tests can assert it arrived. */
-  split: SplitInstruction | null;
-  recurrence: RecurrenceInstruction | null;
 }
 
 /**
@@ -74,49 +68,13 @@ export class FakePaymentProvider extends PaymentProvider {
   outcome: FakeOutcome = 'SUCCEEDED';
 
   /**
-   * Makes the next checkout fail to open at all, which is a different failure
-   * from a payment that opens and then declines: no hosted page, no reference,
-   * nothing for a callback to ever name.
+   * Makes the next charge fail outright, which is a different failure from a
+   * charge the acquirer accepts and then declines: no reference, and nothing
+   * for a callback to ever name.
    */
   unavailable = false;
 
-  private readonly issued = new Map<string, IssuedCheckout>();
-
-  async createCheckout(request: CheckoutRequest): Promise<CheckoutSession> {
-    if (this.unavailable) {
-      throw new Error('Fake acquirer is unavailable');
-    }
-
-    const providerRef = `fake_${randomUUID()}`;
-
-    this.issued.set(providerRef, {
-      orderRef: request.orderRef,
-      providerRef,
-      amount: request.amount,
-      split: request.split,
-      recurrence: request.recurrence,
-    });
-
-    const outcome = this.outcome;
-
-    return {
-      providerRef,
-      // A mandate exists only where one was asked for, so a one-time purchase
-      // gets null and nothing can later charge against it.
-      recurrenceRef: request.recurrence === null ? null : `fake_mandate_${randomUUID()}`,
-      // A hosted page the payer would visit. Nothing serves it: the settlement
-      // has already been decided, and the URL exists so callers handle a
-      // redirect the same way they will when a real page is behind it.
-      redirectUrl: `https://fake-checkout.invalid/${providerRef}`,
-      status: outcome,
-      // PENDING means the provider is still thinking, so it reports nothing
-      // yet — exactly the case where a later webhook is the only news.
-      inlineCallback:
-        outcome === 'PENDING'
-          ? null
-          : this.buildCallback(providerRef, outcome, request.amount, request.orderRef),
-    };
-  }
+  private readonly issued = new Map<string, IssuedCharge>();
 
   async parseCallback(raw: RawCallback): Promise<ProviderCallback> {
     const envelope = raw.body;
@@ -143,11 +101,11 @@ export class FakePaymentProvider extends PaymentProvider {
   /**
    * A renewal: charged, not visited.
    *
-   * Settles the same way a checkout does — same envelope, same signature, same
-   * inline callback — because a renewal that took a different road would leave
-   * the road everything else takes untested for the case that runs unattended.
+   * Settles through the same envelope, signature and inline callback as a
+   * webhook would, because a renewal that took a different road would leave the
+   * road everything else takes untested for the case that runs unattended.
    */
-  async chargeRecurring(request: RecurringChargeRequest): Promise<CheckoutSession> {
+  async chargeRecurring(request: RecurringChargeRequest): Promise<ChargeResult> {
     if (this.unavailable) {
       throw new Error('Fake acquirer is unavailable');
     }
@@ -158,8 +116,6 @@ export class FakePaymentProvider extends PaymentProvider {
       orderRef: request.orderRef,
       providerRef,
       amount: request.amount,
-      split: request.split,
-      recurrence: null,
     });
 
     const outcome = this.outcome;
@@ -168,9 +124,6 @@ export class FakePaymentProvider extends PaymentProvider {
       providerRef,
       // The mandate is unchanged by charging it.
       recurrenceRef: request.recurrenceRef,
-      // Nobody is present, so there is no page to send anyone to.
-      redirectUrl: null,
-      status: outcome,
       inlineCallback:
         outcome === 'PENDING'
           ? null
@@ -218,8 +171,8 @@ export class FakePaymentProvider extends PaymentProvider {
     return { body: { data, signature: sign(data, this.secret) }, headers: {} };
   }
 
-  /** The last checkout issued for an order, so a test can replay its callback. */
-  issuedFor(orderRef: string): IssuedCheckout | undefined {
+  /** The last charge issued for an order, so a test can replay its callback. */
+  issuedFor(orderRef: string): IssuedCharge | undefined {
     return [...this.issued.values()].find((checkout) => checkout.orderRef === orderRef);
   }
 

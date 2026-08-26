@@ -64,42 +64,23 @@ describe('the payment seam', () => {
   });
 
   it('carries a real acquirer through end to end when reached only as the abstraction', async () => {
-    // Typed as the abstract class on purpose: if this exercise passes, a
-    // LiqPay or Fondy adapter can take the same route with no caller changing.
+    // Typed as the abstract class on purpose: if this exercise passes, a LiqPay
+    // or Fondy adapter can take the same route with no caller changing.
     const provider: PaymentProvider = new FakePaymentProvider();
 
-    const session = await provider.createCheckout({
+    const session = await provider.chargeRecurring({
       orderRef: 'order-1',
-      amount: { amount: '1500.00', currency: 'UAH' },
-      description: 'Місячний супровід',
-      payerEmail: 'client@example.com',
-      returnUrl: 'https://example.invalid/return',
+      recurrenceRef: 'mandate-1',
+      amount: { amount: '500.00', currency: 'UAH' },
+      description: 'Gart PRO',
       callbackUrl: 'https://example.invalid/callback',
-      split: null,
-      recurrence: null,
-      metadata: { trainerId: 't', clientId: 'c', productId: 'p' },
+      metadata: { trainerId: 't' },
     });
 
-    // A hosted page to send the payer to, and a reference to reconcile against.
-    // Asserted as usable values rather than as "a string": '' is a string, and
-    // so is a constant that never varies between checkouts.
-    expect(session.redirectUrl).toContain(session.providerRef);
+    // A reference to reconcile against, and the mandate it charged.
     expect(session.providerRef.length).toBeGreaterThan(8);
+    expect(session.recurrenceRef).toBe('mandate-1');
     expect(session.inlineCallback).not.toBeNull();
-
-    const other = await provider.createCheckout({
-      orderRef: 'order-2',
-      amount: { amount: '10.00', currency: 'UAH' },
-      description: 'Інше',
-      payerEmail: null,
-      returnUrl: 'https://example.invalid/return',
-      callbackUrl: 'https://example.invalid/callback',
-      split: null,
-      recurrence: null,
-      metadata: { trainerId: 't', clientId: 'c', productId: 'p' },
-    });
-
-    expect(other.providerRef).not.toBe(session.providerRef);
 
     // A signed callback that verifies and arrives in OUR vocabulary, not the
     // provider's: the caller never sees `success`, only SUCCEEDED.
@@ -109,7 +90,7 @@ describe('the payment seam', () => {
       orderRef: 'order-1',
       status: 'SUCCEEDED',
       rawStatus: 'success',
-      amount: { amount: '1500.00', currency: 'UAH' },
+      amount: { amount: '500.00', currency: 'UAH' },
     });
 
     // And a reconciliation path for the callback that never arrives.

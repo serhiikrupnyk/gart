@@ -1,4 +1,4 @@
-import type { Currency, Money, PaymentStatus, SubscriptionPeriod } from '@gart/shared';
+import type { Currency, Money, PaymentStatus } from '@gart/shared';
 
 /**
  * How long after its own timestamp a callback is still believed.
@@ -23,101 +23,51 @@ export const CALLBACK_MAX_AGE_MS = 24 * 60 * 60_000;
 export const CALLBACK_MAX_SKEW_MS = 60_000;
 
 /**
- * Who and what a payment is for, sent so the acquirer's own dashboard and
- * reconciliation exports carry it.
+ * Who a payment is for, sent so the acquirer's own dashboard and reconciliation
+ * exports carry it.
  *
  * It deliberately does NOT come back: `ProviderCallback` has no metadata field,
- * because a callback names the order and the tenant is then read from the row
- * we stored. Metadata that returned would be attacker-echoed, and the only safe
+ * because a callback names the order and the payer is then read from the row we
+ * stored. Metadata that returned would be attacker-echoed, and the only safe
  * thing to do with it would be to ignore it.
  */
 export interface PaymentMetadata {
   trainerId: string;
-  clientId: string;
-  productId: string;
-}
-
-/**
- * How the money divides. Named for what each party gets rather than for any one
- * acquirer's field names: LiqPay expresses this as `split_rules`, Fondy as
- * settlement parameters, WayForPay as a separate settlement call.
- *
- * Step 24 populates it. The shape exists now so adding the split later changes
- * an argument's value, not the interface every caller is written against.
- */
-export interface SplitInstruction {
-  /** The acquirer-side account of the trainer who receives the balance. */
-  beneficiaryRef: string;
-  /** The platform's cut, taken from the total rather than added to it. */
-  platformFee: Money;
-}
-
-/**
- * A recurring charge. Every candidate acquirer wants this declared when the
- * first payment is created, not afterwards, which is why it belongs here.
- */
-export interface RecurrenceInstruction {
-  period: SubscriptionPeriod;
-  /** When the second charge is due. Null lets the provider decide from `period`. */
-  startsAt: Date | null;
 }
 
 /**
  * A charge against an established mandate, with no payer present.
  *
- * Deliberately not `createCheckout`: that returns a hosted page for somebody to
- * visit, and a renewal has nobody to visit it. Everything else is the same
- * shape, including the split — a renewal is commissioned exactly as the first
- * payment was, at whatever the rate is when it runs.
+ * The only kind of charge this system makes: a trainer's subscription renews
+ * itself. Establishing the mandate in the first place is the subscribe flow's
+ * job, and the verb for it arrives with that flow.
  */
 export interface RecurringChargeRequest {
   /** Our new Payment's id, and the order reference the provider dedupes on. */
   orderRef: string;
-  /** The mandate to charge, from the checkout that established it. */
+  /** The mandate to charge, from whatever established it. */
   recurrenceRef: string;
   amount: Money;
   description: string;
   callbackUrl: string;
-  split: SplitInstruction | null;
   metadata: PaymentMetadata;
 }
 
-export interface CheckoutRequest {
-  /**
-   * Our `Payment.id`. Every candidate acquirer requires a merchant-owned unique
-   * order reference, so the primary key serves as one and the provider ends up
-   * deduplicating on exactly the value we deduplicate on.
-   */
-  orderRef: string;
-  amount: Money;
-  /** Shown to the payer on the hosted page; Ukrainian. */
-  description: string;
-  payerEmail: string | null;
-  /** Where the browser returns after the hosted page is done. */
-  returnUrl: string;
-  /** Where the provider POSTs its signed result. */
-  callbackUrl: string;
-  split: SplitInstruction | null;
-  recurrence: RecurrenceInstruction | null;
-  metadata: PaymentMetadata;
-}
-
-export interface CheckoutSession {
+/**
+ * What the provider says about a charge it has just been asked to make.
+ *
+ * There is no hosted page and no payer present: the only charge this system
+ * makes is a subscription renewing itself.
+ */
+export interface ChargeResult {
   /** The provider's own identifier for this payment. */
   providerRef: string;
   /**
-   * The provider's handle on an established mandate, when this payment created
-   * one — a Fondy `rectoken`, a WayForPay `recToken`, a LiqPay subscription.
-   * Null when the payment set up no recurrence. Kept so a later charge has
-   * something to charge against.
+   * The provider's handle on the mandate this charge used — a Fondy
+   * `rectoken`, a WayForPay `recToken`. Kept so the next charge has something
+   * to charge against.
    */
   recurrenceRef: string | null;
-  /**
-   * The hosted page to send the payer to. Null when the provider settled
-   * without one — see `inlineCallback`.
-   */
-  redirectUrl: string | null;
-  status: PaymentStatus;
   /**
    * The result, when the provider settled synchronously instead of promising a
    * later callback.
@@ -126,8 +76,10 @@ export interface CheckoutSession {
    * stored token behaves, and modelling it here is what lets the fake confirm
    * immediately WITHOUT a second code path: the settlement is fed through the
    * same `applyCallback` the webhook endpoint calls, so signature checking,
-   * status mapping and the idempotent grant are exercised on the happy path
+   * status mapping and the idempotent settle are exercised on the happy path
    * rather than only in whichever test remembers to post a webhook.
+   *
+   * Null means the answer will arrive by webhook.
    */
   inlineCallback: RawCallback | null;
 }
@@ -175,7 +127,7 @@ export class InvalidCallbackError extends Error {}
  * abstract class, a real binding, an in-memory fake for tests and dev.
  *
  * The shape is drawn from what a Ukrainian acquirer actually requires — a
- * hosted checkout page to redirect to, a signed callback to verify, a
+ * signed callback to verify, a
  * merchant-owned order reference, and a status vocabulary of its own to map —
  * so LiqPay, Fondy or WayForPay can arrive later as a drop-in implementation
  * without a single caller changing.
@@ -186,8 +138,6 @@ export class InvalidCallbackError extends Error {}
 export abstract class PaymentProvider {
   /** Recorded on every Payment row, so reconciliation knows who to ask. */
   abstract readonly id: string;
-
-  abstract createCheckout(request: CheckoutRequest): Promise<CheckoutSession>;
 
   /**
    * Verifies the signature and translates the payload into our vocabulary.
@@ -206,7 +156,7 @@ export abstract class PaymentProvider {
    * no inline callback — the answer arrives later by webhook either way, and
    * nothing above this line has to know which model it is talking to.
    */
-  abstract chargeRecurring(request: RecurringChargeRequest): Promise<CheckoutSession>;
+  abstract chargeRecurring(request: RecurringChargeRequest): Promise<ChargeResult>;
 
   /**
    * What the provider believes about a payment right now.

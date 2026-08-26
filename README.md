@@ -491,8 +491,10 @@ reason `Session.context` is: one person can be both a trainer and someone's clie
 client-side notification must never surface in the trainer app. Reads are scoped by the hat the
 session wears — a trainer to their tenant, a client to their own row.
 
-**One method, four call sites.** Services call `NotificationService.notifyTrainer(...)` and know
-nothing about queues, VAPID or subscriptions. Emission is deliberately low-noise:
+**Two doors, and nothing else.** Services call `NotificationService.notifyTrainer(...)`
+for «client X did Y», or `notifyTrainerDirect(...)` for the trainer's own affairs — which
+carry no client, so they say their own title rather than borrowing a client's name. Both
+know nothing about queues, VAPID or subscriptions. Emission is deliberately low-noise:
 
 | Trigger                                       | Reaches    | Notification                                             |
 | --------------------------------------------- | ---------- | -------------------------------------------------------- |
@@ -501,6 +503,8 @@ nothing about queues, VAPID or subscriptions. Emission is deliberately low-noise
 | A client's own measurement (Step 16)          | trainer    | «Новий замір: Вага 83 кг»                                |
 | A habit streak milestone — 7/30/100 (Step 17) | trainer    | «Серія звички: Вода — 7 днів поспіль»                    |
 | A program assigned (Step 12)                  | **client** | «Нова програма»                                          |
+| A subscription charge first fails             | trainer    | «Оплата не пройшла» — with the date access runs to       |
+| Its retries run out                           | trainer    | «Підписку призупинено»                                   |
 
 Habits fire every day, so only milestones travel: five habits across twenty clients would
 otherwise be a hundred notifications a day, and the signals worth acting on would drown.
@@ -649,418 +653,178 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
-## The subscription lifecycle
+## The trainer's subscription to Gart
 
-Renewals, failed charges, dunning and cancellation — and the step where Step 22's
-`RecurrenceInstruction`, declared and never exercised, finally does something.
+Gart does not sit in the money flow between a client and their trainer. They settle
+between themselves, by whatever means, and the system knows nothing about it — no
+commission, no split, no fiscal accounting. **The only monetisation is the trainer's
+subscription to Gart**, and a client has access simply by being an active client of
+their trainer.
 
 ### An entity, and why not a derivation
 
-A `Subscription` row per (client, product), for two reasons that a derived view
-cannot answer well. **«Which subscriptions are due today» is the renewal job's
-entire purpose** — derived, that is a group-by over a growing ledger on every run;
-as a column with `@@index([status, nextChargeAt])` it is a range scan. And a
-subscription holds state **no entitlement can express**: cancelled-but-still-running,
-past-due-with-two-retries-left, a next charge date.
+«Which subscriptions are due today» is the renewal job's entire purpose — derived, that
+is a group-by over a growing ledger on every run; as a column with
+`@@index([status, nextChargeAt])` it is a range scan. And a subscription holds state no
+payment can express: cancelled-but-still-running, past-due-with-two-retries-left, a next
+charge date.
 
-The division of labour, stated once because everything else follows from it:
+> A **Payment** is the audit ledger — one immutable row per charge, never rewritten.
+> A **Subscription** is the current-state head: where things stand now and what happens
+> next.
 
-> An **Entitlement** is the audit ledger — one immutable row per payment, recording
-> what that payment bought, never rewritten. A **Subscription** is the current-state
-> head: where things stand now and what happens next.
-
-Every period a subscription ever had survives as its own Payment and Entitlement, so
-advancing it rewrites no history. A renewal's period **starts where the last one
-ended**, not when its callback happened — otherwise a charge settling two hours late
-would move the anniversary two hours later for ever.
+A renewal's period starts where the last one ended, not when its callback landed, or a
+charge settling late would move the anniversary later for ever. The billing day is stored
+as an **anchor**: 31 January clamps to 28 February, and computing the next period from
+the 28th would give 28 March, ratcheting downward for the rest of the subscription's
+life.
 
 ### The attempt is claimed before the money is touched
 
-This ordering is the design, and it came out of review finding two ways to wedge a
-subscription **permanently**. The attempt number and the next attempt date are written
-first, in a compare-and-set only one caller passes. So a crash, a provider timeout, a
-lost webhook or a second worker cannot leave a row un-chargeable — the schedule has
-already moved on, and recording the outcome afterwards only ever corrects it.
+The attempt number and the next attempt date are written first, in a compare-and-set
+only one caller passes. So a crash, a provider timeout, a lost webhook or a second worker
+cannot leave a row un-chargeable — the schedule has already moved on, and recording the
+outcome afterwards only ever corrects it.
 
-The version that recorded the attempt _after_ the charge had the counter advance only
-via `recordFailure`, so every path that skipped it — a throw, or a provider that
-answers asynchronously — froze the attempt number for ever. The next run recomputed the
-same number, collided with its own half-finished payment, and did nothing. Silently,
-hourly, until someone read the logs. And because the batch is ordered by due date,
-wedged rows sort to the front: enough of them and no healthy subscription renews either.
-
-A renewal is refused outright when the client has been archived (they cannot sign in,
-so they could never reach the screen that would let them cancel), when the product has
-been retired, or when its cadence has changed — the price comes from the live product
-while the term stays frozen, which is how a monthly subscriber would end up paying an
-annual price twelve times a year.
-
-### One charge per attempt, enforced by Postgres
-
-`@@unique([subscriptionId, periodStart, periodAttempt])`. The attempt is in the key
-and that detail is load-bearing: keying on the period alone made the guard refuse the
-dunning retries it sits beside — a retry is a legitimate _second_ charge for the same
-period. A test caught that, which is what tests are for.
-
-So a job re-run inside one attempt is refused by the database rather than by a check
-in the service, two workers racing the same due subscription cannot both win, and the
-Step 22 guards still stop a replayed callback and a double grant.
-
-Every renewal is an ordinary Payment settling through the same `applyCallback` as
-everything else. There is no second settlement path — a renewal running unattended is
-precisely the charge that must not be the one nobody has exercised.
-
-The interface gained one verb. `createCheckout` returns a hosted page and a renewal
-has nobody to visit it, so `chargeRecurring` charges an established mandate instead.
-Fondy and WayForPay work exactly that way; LiqPay charges on its own schedule, which
-an adapter expresses by returning PENDING with no inline callback. Nothing above the
-seam has to know which model it is talking to.
+`@@unique([subscriptionId, periodStart, periodAttempt])` is what makes a job re-run a
+no-op rather than a second charge, and it is the **database** that says so. The attempt
+is in the key because a dunning retry is a legitimate _second_ charge for the same
+period.
 
 ### Dunning, as policy
 
 **Four attempts over five days, two notifications, and access lapses only at the end.**
+Charge on the due date; on failure retry on days 1, 3 and 5 after the period ended, with
+access held open throughout. The trainer hears on the first failure and on the last, and
+on neither in between — a message per attempt is nagging, and the two that matter are
+«something went wrong, you have time» and «it has stopped».
 
-| day  | what happens                                                     | who hears  |
-| ---- | ---------------------------------------------------------------- | ---------- |
-| 0    | charge; on failure → PAST_DUE, access extended to periodEnd + 5d | both       |
-| 1, 3 | retry                                                            | **nobody** |
-| 5    | final retry; on failure → ENDED, access lapses                   | both       |
+Grace runs from whichever is later, the period end or the moment the trainer is actually
+told, so a scheduler that had been down does not announce a deadline already passed and
+fire all four attempts in four hours. It is granted **once**, not per attempt.
 
-The silence in the middle is deliberate: a message per attempt is nagging, and the
-two that matter are «something went wrong, you have time» and «it has stopped». A card
-expiring should not cost somebody their training programme the same morning.
-
-Grace runs from whichever is later — the period end or the moment the client is
-actually told. A scheduler that never installed would otherwise announce a deadline that
-had already passed, and fire all four attempts in four hours; the window exists so
-somebody can fix a card, so it starts when they hear about it.
-
-Grace is granted **once**, on the first failure — not per attempt, or every retry
-would buy another five days and it would never end. Any success clears the count,
-restores ACTIVE, and access returns to exactly the paid period.
-
-A failed renewal deliberately does **not** also emit the payment-level failure
-notification: dunning says the same thing and adds the date the client can act on, and
-two messages for one event is how a feed becomes noise nobody reads.
-
-### Grace is not an entitlement
-
-`Subscription.accessUntil` is the authority for subscription access, including grace —
-and that is a second authority, so it needed a reason. **An entitlement records what a
-payment bought. Grace was not bought.** Extending one would make the ledger claim a
-payment covered days nobody paid for.
-
-The charge is attempted an hour **before** the period ends. Access is end-exclusive and
-the job runs hourly, so charging exactly at the boundary left a paid-up client reading
-«неактивна» for up to an hour every month while their own renewal was being taken.
-
-The billing day is stored as an **anchor**, not re-derived from the previous period. 31
-January clamps to 28 February, and computing the next period from the 28th gives 28
-March — the anniversary ratchets downward and never recovers. Every real billing system
-retains the anchor for exactly this reason.
-
-Both authorities answer through **one function**, `isAccessLive` — so «active» cannot
-come to mean two different things in two files. A test asserts that for a paid period
-the subscription's window and its entitlement's are identical to the millisecond, and
-that they diverge only by the grace that was never purchased, with the ledger
-untouched.
+The charge is attempted an hour **before** the period ends: access is end-exclusive and
+the job runs hourly, so charging at the boundary would lock a paid-up trainer out while
+their own renewal was being taken.
 
 ### Cancelling
 
-**Either party can.** The client, because it is their money and their recurring charge
-— a subscription you cannot stop yourself is the definition of a dark pattern. The
-trainer, because they own the relationship. `cancelledBy` records which, so the history
-can answer «who ended this» when the two sides remember it differently.
+The trainer can stop it themselves — a subscription you cannot stop yourself is the
+definition of a dark pattern. Cancelling stops future charges and keeps access to the end
+of the paid period. Never a refund; that is a separate path, and conflating them would
+let a cancel button take money back by accident. While the period runs it can be resumed;
+once it has lapsed, starting again is a purchase.
 
-Cancelling stops future charges and **keeps access to the end of the paid period**. It
-is never a refund; that is Step 22's separate path, and conflating them would let a
-cancel button take money back by accident. While the period runs, it can be resumed;
-once it has lapsed, starting again is a purchase rather than a toggle.
+### Access is one rule
 
-The confirmation says what will happen — the date access runs to, that no money comes
-back, and that there is a way back — and then stops. No retention offer, no second
-«are you sure», and the route to it is no harder to find than the one that started it.
+`isAccessLive` answers «is this subscription live right now», grace included — and it is
+the only place the comparison is written, so «active» cannot come to mean two things in
+two files. Its boundary semantics are pinned directly, because a test comparing two
+callers cannot detect a change that moves both.
 
-## Checkout and the platform split
-
-The moat mechanic, and the step where the Step 22 seam stops being a promise: the
-trainer opens a checkout for a client and a product, the client pays, access is
-granted, and the money divides.
-
-### The split
-
-A single global rate, `PLATFORM_COMMISSION_PERCENT`, **snapshotted on every payment
-at checkout**. Not per-product — commission is a platform↔trainer commercial term,
-not a property of what is being sold, and putting it on `Product` would let the
-trainer set their own. Not per-trainer either, yet: that column would have no writer
-until Step 27 introduces plans, and a column nothing can write is dead. The snapshot
-is what makes a later per-plan rate purely additive — past payments already record
-what was actually charged, so nothing migrates.
-
-**The default of 5 is provisional and not a decided commercial number.** The product
-docs call split commission an additional potential stream beside the trainer's own
-subscription and name no rate. An acquirer takes roughly 2.5% of its own, so this is
-not the whole cost to the trainer, and it wants revisiting before a real acquirer
-goes live.
-
-### Two rounding rules, each doing one job
-
-```
-fee    = round_down(amount × percent / 100, 2)
-payout = amount − fee
-```
-
-**The platform never rounds its own commission up** — a fraction of a kopiyka always
-goes to the trainer, which is a rule that needs no explaining to the person on the
-other side of it. And the payout is **derived by subtraction, never rounded a second
-time**, which is what makes `fee + payout = amount` true by construction rather than
-by luck. Rounding both halves independently is the classic way for them to stop
-summing to what the client actually paid.
-
-Decimal throughout, and not theoretically: **₴23.00 at 5% is exactly 1.15**, but 1.15
-has no exact binary form, so a float lands on `1.1499999999999999` and the floor takes
-a whole kopiyka off the platform — on a round number. That case is in the tests
-verbatim, alongside the float result it must not equal.
-
-### `SplitInstruction` was the whole point of the seam
-
-Step 22 declared the shape and passed `null`. Step 24 passes a real instruction, and
-**nothing about the interface changed** — which is the claim that seam was making.
-The fake records what it received, so the tests assert the split reached the provider
-rather than that a variable was set.
-
-`beneficiaryRef` is documented as the acquirer-side account of the trainer, and until
-an acquirer exists no such account does. The platform's own reference is sent, and the
-adapter that lands with a real provider maps it to that provider's account id —
-precisely the translation an adapter exists to do. A `Trainer.payoutRef` column would
-be dead today: there is nothing to connect to.
-
-### The client can never influence a charge, because there is no door
-
-A checkout is the trainer's act. There is **no client-facing write anywhere in this
-flow** — the client cannot name a product, an amount or a fee because no route accepts
-one from them. That is a stronger guarantee than validation: not a check that could be
-got wrong, but the absence of the thing to check.
-
-What the client receives is a URL. `Payment.checkoutUrl` is stored rather than returned
-once and forgotten, so the same row serves both ways of reaching the payer — a link the
-trainer copies, and «Оплатити» in the client's own app. The link opens in the **same
-tab**, because the acquirer returns the payer through the `returnUrl` the checkout was
-opened with, and a new tab would strand that return.
-
-A checkout is refused for an **archived** client: they cannot sign in, so the hosted
-page would be unreachable, the entitlement unusable and the notification unreadable —
-while the trainer's list showed a sale. And `checkoutUrl` is **cleared when the payment
-settles**, so «is this payable» is one fact in the row rather than a rule every screen
-has to remember about a spent page.
-
-**The client is never shown the commission.** Not hidden — absent: `ClientPayment` is a
-separate type from `PublicPayment` with nowhere to put a fee, so the omission is
-enforced by the compiler rather than by remembering. A test asserts the string
-`platformFee` appears nowhere in the client's payload at all.
-
-### Both parties hear about it, once
-
-Settlement announces through the existing `NotificationService` — `notifyTrainer` and
-`notifyClient`, no parallel path. Only a delivery that actually **changed** the payment
-announces: a duplicate returns null from `settle` and an out-of-order delivery returns
-the row unchanged, so a retrying acquirer cannot notify twice. A pending checkout
-announces nothing, because «still waiting» is not news.
-
-A **refund** announces too. Step 22 made a reversal revoke the entitlement; leaving that
-silent would mean a client opening the app to find the programme they bought simply gone.
-The telling of it is not Step 26's receipt — it is the explanation for a change that has
-already happened.
-
-## The product catalogue
-
-What a trainer sells: one-time blocks and subscriptions, priced in hryvnia. The `Product` model
-arrived in Step 22 because a payment's amount has to come from stored data rather than from the
-request; this step gives it CRUD, rules and a screen — and, in doing so, makes a product **mutable**
-for the first time, which is what the rest of this section is about.
-
-Coherence lives in one table rather than scattered across decorators, the same shape as the program
-section rules and `resolveHabitShape`:
-
-```
-                  period          accessDays
-  ONE_TIME        forbidden       optional (null = access never lapses)
-  SUBSCRIPTION    required        forbidden (the period IS the duration)
-```
-
-A decorator can only ever see one field, so it cannot express a relationship between two. `PATCH`
-resolves the shape against the **merged** product rather than the patch, or a coherent row could be
-made incoherent one field at a time — sending `kind: SUBSCRIPTION` alone would leave the stored
-`accessDays` in place.
-
-### Editing a catalogue that has already sold
-
-Deleting is allowed only for a product that was never sold. `Payment.productId` and
-`Entitlement.productId` are `onDelete: Restrict`, so Postgres refuses and the refusal becomes a
-clean **409** telling the trainer to deactivate instead — the Step 7 delete contract, extended to
-money. Deactivating is the ordinary retirement: `createCheckout` already refuses an inactive
-product, so it disappears from new sales while history keeps referring to it.
-
-**Editing never rewrites a past sale**, and that took one addition. Step 22 read the grant terms
-from the live `Product`, which was safe only because nothing could edit one. Now a trainer who
-shortens a product's access between a client's checkout and the acquirer's callback would change
-what that client receives _after they have paid_ — so `Payment` snapshots `periodSnapshot` and
-`accessDaysSnapshot` at checkout, exactly as it already snapshots `amount`. What was bought includes
-how long it lasts.
-
-### ₴ never passes through a float
-
-Prices are `Decimal(12,2)` on the way in, decimal strings on the wire, and formatted for display
-**from the string**. `Intl.NumberFormat('uk-UA', …)` produces byte-identical output — the tests
-assert exactly that — but only by taking a number first, and the rule Step 22 set is that money
-never becomes a float _anywhere_, which has to include the screen or it is not a rule. The price
-field is `inputMode="decimal"` on a text input for the same reason: a number input hands back a
-float.
-
-Both separators in «1 500,00 ₴» are U+00A0, so a price never wraps between its thousands nor away
-from its symbol. The symbol itself needed the font: ₴ is U+20B4, which Google serves in
-`cyrillic-ext` rather than `cyrillic`, so the subset list grew — without it every price would have
-rendered in a fallback face beside Manrope's digits.
-
-**Zero is not a price.** A free offer, if it ever makes sense, is a different concept that must
-never touch the payment path: no acquirer can settle nothing, `parseAmount` refuses a non-positive
-amount, and such a product could only ever produce a payment stuck pending for ever. The floor of
-₴1 and ceiling of ₴1 000 000 catch a misplaced decimal point in either direction.
-
-### The badge tones were measured against the wrong ground
-
-Adding a status badge to this table turned up a design-system fault, not a page
-one. The `-text` steps were derived in Step 22 against the plain background, where
-they pass — but a `Badge` renders its label on a **10 % tint of its own fill**, which
-is lighter than any page ground. On their real backdrop success, warning and danger
-measured 3.92–4.50 and every semantic badge in light theme was under AA, everywhere
-it appeared. Re-derived against the tint over the darkest ground they can sit on:
-4.56–4.60 on tint, 4.98–5.16 as plain text. Dark theme already cleared it and is
-unchanged, and white-on-accent still fails at 3.09 — the documented rule holding.
-
-The lesson is the Step 22 one again, one layer down: a pairing that was measured is
-not the same as the pairing that ships.
-
-«Платежі» stops saying СКОРО and lands on the catalogue. The form shows a period or an access
-window depending on the kind — the other is **absent, not disabled**, because the rules table says
-it is meaningless, and a disabled field invites the trainer to wonder what filling it would do.
+**A client's access is not this.** A client has access by being an active client of their
+trainer, and nothing else: `ClientGuard` rejects an archived one, and there is no paid
+access, no entitlement and no gate beyond that.
 
 ## Payments, behind a seam
 
-The moat is Ukrainian acquiring with **split payments** — the trainer receives, the platform takes
-a commission — and Step 22 builds the machinery for it **without an acquirer**. `PaymentProvider`
-is a third abstract class in the same idiom as `StorageService` and `NotificationQueue`: bound to a
-real implementation, faked in tests. **No test run needs a bank**, and the whole of Phase 3 can be
-built and tested end to end before a merchant account exists.
+`PaymentProvider` is an abstract class in the same idiom as `StorageService` and
+`NotificationQueue`: bound to a real implementation, faked in tests. **No test run needs
+a bank**, and the billing machinery can be built and exercised before a merchant account
+exists.
 
-The interface is drawn from what LiqPay, Fondy and WayForPay actually require, so a real adapter
-arrives later as a **drop-in implementation and nothing else changes**: a merchant-owned order
-reference (`Payment.id` serves as one), a hosted page to redirect to, a signed callback to verify,
-a status vocabulary of the provider's own to map, and — declared now so adding them is a change of
-argument rather than of shape — `split` for Step 24's commission and `recurrence` for Step 25's
-subscriptions.
+The shape is drawn from what a Ukrainian acquirer actually requires, so a real adapter
+arrives later as a **drop-in implementation**: a merchant-owned order reference
+(`Payment.id` serves as one), a signed callback to verify, a status vocabulary of the
+provider's own to map, and a way to charge an established mandate with no payer present.
 
-`FakePaymentProvider` is deliberately not a stub that returns `SUCCEEDED`. It mints a payload in
-the envelope a real acquirer uses — a base64 `data` blob with a detached HMAC, which is LiqPay's
-actual shape — and returns it as an **inline callback**. The settlement then travels the same road
-a webhook will: verified, mapped, applied once. A stub that short-circuited would have left the
-only code that matters untested.
+`chargeRecurring` is the only charge this system makes — a trainer's subscription
+renewing itself. Fondy and WayForPay charge a stored token exactly that way; LiqPay
+charges on its own schedule, which an adapter expresses by returning PENDING with no
+inline callback. Nothing above the seam has to know which model it is talking to.
+
+`FakePaymentProvider` is deliberately not a stub that returns `SUCCEEDED`. It mints a
+payload in the envelope a real acquirer uses — a base64 `data` blob with a detached HMAC,
+which is LiqPay's actual shape — and returns it as an **inline callback**. The settlement
+then travels the same road a webhook will: verified, mapped, applied once. A stub that
+short-circuited would have left the only code that matters untested.
 
 ### Money is Decimal, and never a float
 
-Elsewhere in this codebase `Number(decimal)` is how a Decimal reaches the wire, and for a habit
-target at `8,2` that is fine — a chart is the only consumer. Money is the exception. It is stored
-`Decimal(12,2)`, computed with `Prisma.Decimal`, and serialised as a **string**; it becomes a
-JavaScript number at no point on the way. `0.1 + 0.2` is the oldest bug in billing and a float that
-has been through JSON has already lost the argument.
+Elsewhere in this codebase `Number(decimal)` is how a Decimal reaches the wire, and for a
+habit target at `8,2` that is fine. Money is the exception. It is stored `Decimal(12,2)`,
+serialised as a **string**, and formatted for display from that string — `Intl` would
+give byte-identical output, but only by taking a number first, and «never a float» has to
+include the screen or it is not a rule.
 
-The amount comes from the **stored product** and from nowhere else — which is why `Product` lands
-here rather than in Step 23, whose job is the catalogue, its CRUD and its UI. A request cannot
-propose what it would like to pay: there is no `amount` field on the DTO, the global pipe runs
-`forbidNonWhitelisted` so one that arrives is a 400, and no code path would read it. A callback
-claiming an amount we never charged grants nothing.
+Plan prices are the server's, computed from a table in `@gart/shared` and never sent in.
+They are **provisional**: the product docs say prices are settled against what a Ukrainian
+trainer can actually pay, and name no figures.
 
-### Granting access exactly once
+### Settling exactly once
 
-Two **independent database constraints**, not service-level checks — a check-then-write would be
-correct only until two callbacks arrived at once, which is precisely what a retrying provider
+Two database constraints, not service-level checks — a check-then-write would be correct
+only until two callbacks arrived at once, which is precisely what a retrying provider
 produces:
 
 - `PaymentEvent(paymentId, externalId)` is unique, so a **replayed delivery is refused by
-  Postgres**. An adapter for a provider that supplies no delivery id returns an empty one and gets a
-  digest of the canonical payload instead, so a byte-identical retry still collides with its own
-  first attempt. The `P2002` that results is matched narrowly: `Payment(provider, providerRef)` can
-  also collide, and calling _that_ a duplicate would answer 204 to a genuine first delivery.
-- `Entitlement.paymentId` is unique, so **access can be granted at most once per payment** — even
-  for two deliveries that somehow carry different ids. This is the stronger of the two, and the
-  reason both exist.
+  Postgres**. An adapter for a provider that supplies no delivery id returns an empty one
+  and gets a digest of the canonical payload instead, so a byte-identical retry still
+  collides with its own first attempt. The `P2002` is matched narrowly: `Payment(provider,
+providerRef)` can also collide, and calling _that_ a duplicate would answer 204 to a
+  genuine first delivery.
+- `Payment(subscriptionId, periodStart, periodAttempt)` is unique, so a **job re-run is a
+  no-op rather than a second charge**.
 
-Both are asserted by tests that bypass the service entirely and insert straight through Prisma.
-A duplicate callback answers 204 rather than an error: a provider that receives an error retries,
-and retrying a duplicate for ever is worse than accepting it.
-
-An `Entitlement` is one row per payment, never mutated in place. Step 25's renewals will add rows
-and access becomes the union of the periods they cover — which keeps every grant individually
-auditable and is what lets `paymentId` stay unique. Subscription periods are counted in **months,
-not days**: thirty days is not a month, and a monthly subscription billed every thirty days drifts
-forward until the charge lands in the wrong calendar month.
-
-Access starts on **our** clock, not the provider's. A signed `occurredAt` is kept on `paidAt` for
-reconciliation, but it never decides how long access lasts: a settlement minutes either side of a
-month boundary would otherwise anchor `addMonths` to the wrong month and cost the client three days
-of a monthly plan.
+A duplicate callback answers 204 rather than an error: a provider that receives an error
+retries, and retrying a duplicate for ever is worse than accepting it.
 
 ### Which way a payment may move
 
-Acquirers do not promise ordered delivery, and they retry — so applying whatever status last
-arrived is wrong. A small transition table decides, and it is enforced as a **compare-and-set**
-(the permitted prior status is part of the `WHERE` clause), so two deliveries racing cannot both
-win:
+Acquirers do not promise ordered delivery, and they retry — so applying whatever status
+last arrived is wrong. A small transition table decides, enforced as a
+**compare-and-set** (the permitted prior status is part of the `WHERE` clause), so two
+deliveries racing cannot both win. A late `processing` cannot walk a paid payment back;
+`FAILED → SUCCEEDED` **is** allowed, because a payer reaching for a second card is
+charged against the same order; and a refund ends the subscription rather than leaving a
+period live that the money has left.
 
-- A late `processing` cannot walk a paid payment back to PENDING, and a late `failure` cannot
-  contradict one that succeeded.
-- `FAILED → SUCCEEDED` **is** allowed, and this is the case that matters: the order reference given
-  to the acquirer is the payment's own id, so a payer whose first card is declined and who reaches
-  for a second on the same hosted page produces a success for the _same_ order. Treating FAILED as
-  terminal would take their money and grant nothing.
-- A refund **revokes** — `revokedAt` is written, and the entitlement stops counting as active. It
-  is accepted from PENDING as well as SUCCEEDED, so a reversal that overtakes the success delivery
-  it followed cannot later be undone by that success arriving late.
+### Endpoints
 
-Every delivery is recorded either way. Refusing to act on one is not the same as pretending it
-never arrived.
+| Method | Path                               | Guard            |
+| ------ | ---------------------------------- | ---------------- |
+| GET    | `/billing/subscription`            | TrainerGuard     |
+| POST   | `/billing/subscription/cancel`     | TrainerGuard     |
+| POST   | `/billing/subscription/reactivate` | TrainerGuard     |
+| GET    | `/billing/payments`                | TrainerGuard     |
+| POST   | `/payments/callback/:provider`     | none — see below |
+
+Deliberately **not** under `/me`: that prefix is the client's, behind `ClientGuard`, and a
+trainer's own billing has no business borrowing it.
 
 ### The callback endpoint
 
-`POST /payments/callback/:provider` is **unauthenticated**, because an acquirer's servers hold no
-session and never will. The signature is the credential, the provider adapter is the only thing
-that ever sees one, and the comparison is constant-time — `a === b` on strings returns at the first
-differing byte, and that timing is measurable by someone replaying a payload a byte at a time.
+`POST /payments/callback/:provider` is **unauthenticated**, because an acquirer's servers
+hold no session and never will. The signature is the credential, the provider adapter is
+the only thing that ever sees one, and the comparison is constant-time — `a === b` on
+strings returns at the first differing byte, and that timing is measurable by someone
+replaying a payload a byte at a time.
 
-Idempotency already makes a replay harmless; a **freshness window** refuses it anyway, so a payload
-captured today is not still accepted next month merely because its signature verifies. A provider
-that signs no timestamp is exempt, because a timestamp outside the signature is one an attacker can
-set.
-
-The window is a **day**, not the few minutes that first suggest themselves, and the reason is worth
-recording: what every acquirer signs is the _event_ time, not the delivery time — LiqPay's
-`create_date`, Fondy's `order_time`, WayForPay's `processingDate`. A retry carries the same
-timestamp as the attempt that failed, which is exactly what makes it a retry, and those chains run
-for hours. A five-minute window would have fallen almost entirely on legitimate retries of payments
-we had simply not received yet — and since a refused delivery is answered 204, the acquirer would
-have recorded it as accepted and never tried again. Money taken, nothing granted.
-
-For the same reason the route's rate limit is the loosest in the app: every acquirer retries,
-several burst after an outage of their own, and a webhook throttled into dropping deliveries is
-paid access that silently never arrives.
+A **freshness window** refuses a payload captured today and replayed next month. It is a
+day rather than minutes, because what every acquirer signs is the _event_ time, not the
+delivery time: a retry carries the same timestamp as the attempt that failed, and those
+chains run for hours. The route's rate limit is the loosest in the app for the same
+reason — a webhook throttled into dropping deliveries is a charge that silently never
+settles.
 
 ### The fake refuses to run in production
 
-Every other seam here is safe to fake by accident — a fake bucket loses an upload, a fake queue
-drops a notification. A fake **acquirer** hands out paid access, takes no money, looks exactly like
-success, and is discovered from the bank statement. So `resolvePaymentProvider` throws at boot when
-`NODE_ENV=production` would get the fake, unless `ALLOW_FAKE_PAYMENTS=true` says so deliberately,
-and a typo in `PAYMENT_PROVIDER` stops the boot rather than falling back. Tests assert the throw.
+Every other seam here is safe to fake by accident — a fake bucket loses an upload, a fake
+queue drops a notification. A fake **acquirer** hands out paid access, takes no money,
+looks exactly like success, and is discovered from the bank statement. So
+`resolvePaymentProvider` throws at boot unless `NODE_ENV` says development or test —
+`ALLOW_FAKE_PAYMENTS=true` is the one deliberate override — and a typo in
+`PAYMENT_PROVIDER` stops the boot rather than falling back. Tests assert the throw.
 
 ## The landing redesign
 
@@ -1232,10 +996,9 @@ progress chart, composed from the same tokens the real app uses — so it cannot
 the product, weighs nothing, and needs no asset pipeline. One ember glow sits behind it.
 Everything animated is behind `motion-safe:` and moves only `transform`/`opacity`.
 
-Copy comes from `gart-presentation.md` and stays honest: payments carry a «Скоро» badge in
-both places they appear, nutrition lives only in the roadmap strip, and the social-proof
+Copy comes from `gart-presentation.md` and stays honest: nutrition lives only in the roadmap strip, and the social-proof
 section is an explicit placeholder rather than an invented testimonial. There is no pricing
-section, because there are no final prices and no billing.
+section, because there are no final prices to show.
 
 An adversarial review pass (three lenses — accessibility, token fidelity, Ukrainian copy —
 each finding then attacked by a separate verifier) caught nine real defects, including two

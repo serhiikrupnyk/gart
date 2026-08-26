@@ -78,10 +78,8 @@ export function Th({ children, numeric = false }: { children: ReactNode; numeric
  * `numeric` right-aligns as well as setting tabular figures.
  *
  * Tabular figures line digits up WITHIN a row; they do nothing across rows of
- * different magnitude. Left-aligned, «23,00 ₴» above «1 500,00 ₴» puts the
- * hryvnia in different places, so a column cannot be scanned for size — which
- * on a payments table means the amount − commission = payout relationship the
- * screen exists to show cannot be read off it.
+ * different magnitude. Left-aligned, «7» above «120» puts the units in
+ * different places, so a column cannot be scanned for size at a glance.
  */
 export function Td({ children, numeric = false }: { children: ReactNode; numeric?: boolean }) {
   return (

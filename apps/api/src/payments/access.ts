@@ -1,15 +1,14 @@
 /**
- * A window during which access is live, whatever granted it.
+ * A window during which access is live.
  *
- * Two things decide access in this system, and they decide different halves of
- * it: an Entitlement records what a PAYMENT BOUGHT, and a Subscription records
- * how long access actually RUNS — which during dunning grace is longer, because
- * grace was not bought. Both are windows, so both answer the question the same
- * way, through here.
+ * A subscription's window is longer than the period it paid for whenever
+ * dunning grace is running — grace was not bought, so it is the subscription
+ * that says how long access actually RUNS, and this is the one place the
+ * comparison is written.
  */
 export interface AccessWindow {
   startsAt: Date;
-  /** Null means it never lapses — a perpetual one-time purchase. */
+  /** Null means it never lapses. */
   endsAt: Date | null;
   /** Set when access was withdrawn before its end, e.g. by a refund. */
   revokedAt: Date | null;
@@ -18,9 +17,8 @@ export interface AccessWindow {
 /**
  * Is this window live at `now`?
  *
- * The single rule. Both authorities call it rather than each writing the
- * comparison out, so they cannot drift into disagreeing about what «active»
- * means — which is the risk that comes with having two of them at all.
+ * The single rule, called rather than reimplemented, so «active» cannot come
+ * to mean two different things in two files.
  *
  * The end is exclusive: a window ending at noon is over at noon, not at noon
  * and one millisecond. The start is inclusive for the same reason in reverse.
