@@ -7,6 +7,7 @@ import type { MuscleGroup } from '@gart/shared';
 import { ARGON2_OPTIONS } from '../src/auth/argon2-options';
 import { requireEnv } from '../src/env';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { startTrial } from '../src/payments/trial.js';
 import { toPublicTrainer } from '../src/trainers/trainer.mapper.js';
 import { toPublicUser } from '../src/users/user.mapper.js';
 
@@ -86,6 +87,13 @@ async function seed(): Promise<void> {
       update: { displayName: DEMO_NAME },
       create: { userId: user.id, displayName: DEMO_NAME },
     });
+
+    // The same free trial a real registration starts, so the billing screens
+    // have something true to show in development. Left alone if one already
+    // exists: re-seeding must not reset a trial somebody is working against.
+    if ((await prisma.subscription.findUnique({ where: { trainerId: trainer.id } })) === null) {
+      await startTrial(prisma, trainer.id, new Date());
+    }
 
     await seedGlobalLibrary(prisma);
 

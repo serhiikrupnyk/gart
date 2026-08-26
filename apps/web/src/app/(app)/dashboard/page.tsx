@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { Activity, UserCheck, UserPlus, UsersRound } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { ClientListItem, ClientWithInvite } from '@gart/shared';
+import type { ClientListItem, ClientWithInvite, PublicSubscription } from '@gart/shared';
 
+import { AllowanceNotice } from '@/components/billing/allowance-notice';
 import { AddClientModal } from '@/components/clients/add-client-modal';
 import { ClientRow } from '@/components/clients/client-row';
 import { ClientsEmpty } from '@/components/clients/clients-empty';
@@ -13,6 +15,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import {
   Badge,
   Button,
+  buttonClasses,
   EmptyState,
   Skeleton,
   Table,
@@ -24,7 +27,9 @@ import {
   useToast,
 } from '@/components/ui';
 import { ApiError } from '@/lib/api';
+import { getSubscription } from '@/lib/billing';
 import { listClients } from '@/lib/clients';
+import { cx } from '@/lib/cx';
 import { pluralUk } from '@/lib/workout-format';
 
 /**
@@ -73,6 +78,7 @@ export default function DashboardPage() {
   const { notify } = useToast();
 
   const [clients, setClients] = useState<ClientListItem[] | undefined>();
+  const [subscription, setSubscription] = useState<PublicSubscription | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [created, setCreated] = useState<ClientWithInvite | undefined>();
   const [filter, setFilter] = useState<ClientFilter>('ALL');
@@ -103,10 +109,26 @@ export default function DashboardPage() {
         );
       });
 
+    // The allowance, so the screen can say what the server would say anyway —
+    // BEFORE the trainer fills in a form. A failure here is deliberately silent:
+    // it costs a banner, not the roster, and the API still refuses over the
+    // limit regardless of what this screen managed to load.
+    getSubscription()
+      .then((loaded) => {
+        if (active) setSubscription(loaded);
+      })
+      .catch(() => undefined);
+
     return () => {
       active = false;
     };
   }, [reloadKey, notify]);
+
+  // Only ever true on the trial today: every paid plan is unlimited.
+  const allowanceFull =
+    subscription !== null &&
+    subscription.maxClients !== null &&
+    subscription.clientCount >= subscription.maxClients;
 
   function handleCreated(result: ClientWithInvite): void {
     setCreated(result);
@@ -152,12 +174,25 @@ export default function DashboardPage() {
           ) : undefined
         }
         actions={
-          <Button variant="primary" onClick={openModal}>
-            <UserPlus className="size-4" aria-hidden="true" />
-            Додати клієнта
-          </Button>
+          allowanceFull ? (
+            // Not a disabled button: a control that does nothing explains
+            // nothing. This one goes where the limit is actually lifted.
+            <Link
+              href="/dashboard/billing"
+              className={cx(buttonClasses('primary', 'md'), 'justify-center')}
+            >
+              Оформити підписку
+            </Link>
+          ) : (
+            <Button variant="primary" onClick={openModal}>
+              <UserPlus className="size-4" aria-hidden="true" />
+              Додати клієнта
+            </Button>
+          )
         }
       />
+
+      {allowanceFull && subscription !== null && <AllowanceNotice subscription={subscription} />}
 
       {created !== undefined && (
         <div className="mb-6">

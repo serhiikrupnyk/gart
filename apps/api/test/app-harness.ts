@@ -1,4 +1,4 @@
-import type { INestApplication } from '@nestjs/common';
+import type { INestApplication, ModuleMetadata } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { ClientWithInvite, PublicClient } from '@gart/shared';
 import request from 'supertest';
@@ -34,8 +34,18 @@ export interface Harness {
  * Each spec file gets its own instance so the throttler's in-memory counters
  * never leak between suites.
  */
-export async function createHarness(): Promise<Harness> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+export async function createHarness(
+  /**
+   * Extra modules mounted beside the real application.
+   *
+   * Exists for one test: proving that a trainer-side write route added with no
+   * billing annotation of any kind is still refused for a lapsed trainer. That
+   * property is about routes that do NOT exist yet, so the only honest way to
+   * assert it is to add one.
+   */
+  extraImports: NonNullable<ModuleMetadata['imports']> = [],
+): Promise<Harness> {
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule, ...extraImports] })
     .overrideProvider(StorageService)
     .useValue(new FakeStorage())
     .overrideProvider(NotificationQueue)
@@ -187,10 +197,12 @@ export function sessionCookie(headers: ResponseHeaders): string {
 /**
  * Puts a trainer on a plan, as a completed subscribe flow would.
  *
- * There is no route for this yet — Step 27 builds the purchase — so the row is
- * written directly, with a mandate the fake will happily charge. Everything the
- * renewal machinery does afterwards is exercised exactly as it will be in
- * production.
+ * Registration already leaves a TRIALING row behind, so this UPDATES rather
+ * than inserts: `Subscription.trainerId` is unique, and a trainer has exactly
+ * one arrangement over their whole life.
+ *
+ * Used where a test needs a paid subscription without walking a checkout —
+ * dunning, renewal, cancellation. The purchase path has its own spec.
  */
 export async function subscribeTrainer(
   harness: Harness,
@@ -206,20 +218,27 @@ export async function subscribeTrainer(
   const period = overrides.period ?? 'MONTHLY';
   const periodEnd = periodFrom(periodStart, period, periodStart.getUTCDate());
 
-  const subscription = await harness.prisma.subscription.create({
-    data: {
-      trainerId,
-      plan: overrides.plan ?? 'PRO',
-      period,
-      status: 'ACTIVE',
-      anchorDay: periodStart.getUTCDate(),
-      currentPeriodStart: periodStart,
-      currentPeriodEnd: periodEnd,
-      accessUntil: periodEnd,
-      nextChargeAt: chargeAt(periodEnd),
-      recurrenceRef:
-        overrides.recurrenceRef === undefined ? 'fake_mandate_test' : overrides.recurrenceRef,
-    },
+  const data = {
+    plan: overrides.plan ?? ('PRO' as const),
+    period,
+    status: 'ACTIVE' as const,
+    anchorDay: periodStart.getUTCDate(),
+    currentPeriodStart: periodStart,
+    currentPeriodEnd: periodEnd,
+    accessUntil: periodEnd,
+    nextChargeAt: chargeAt(periodEnd),
+    failedAttempts: 0,
+    pendingPeriod: null,
+    cancelledAt: null,
+    endedAt: null,
+    recurrenceRef:
+      overrides.recurrenceRef === undefined ? 'fake_mandate_test' : overrides.recurrenceRef,
+  };
+
+  const subscription = await harness.prisma.subscription.upsert({
+    where: { trainerId },
+    update: data,
+    create: { trainerId, ...data },
   });
 
   return {

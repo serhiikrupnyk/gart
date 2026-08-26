@@ -5,11 +5,13 @@ import type { Money, PaymentStatus } from '@gart/shared';
 
 import {
   type ChargeResult,
+  type CheckoutSession,
   InvalidCallbackError,
   PaymentProvider,
   type ProviderCallback,
   type RawCallback,
   type RecurringChargeRequest,
+  type SubscriptionCheckoutRequest,
   toCurrency,
 } from './payment-provider';
 import { sign, signaturesMatch } from './signature';
@@ -40,6 +42,8 @@ interface IssuedCharge {
   orderRef: string;
   providerRef: string;
   amount: Money;
+  /** The mandate this charge establishes, for a checkout that opens one. */
+  recurrenceRef: string | null;
 }
 
 /**
@@ -99,6 +103,47 @@ export class FakePaymentProvider extends PaymentProvider {
   }
 
   /**
+   * A hosted checkout that also establishes a mandate.
+   *
+   * The redirect URL is a real, distinguishable URL rather than a placeholder,
+   * because the API hands it straight to the browser and a test that asserts
+   * «we got somewhere to send the trainer» should be asserting something.
+   *
+   * The mandate is minted here but returned on the CALLBACK, exactly as an
+   * acquirer does it — the payer has not entered a card at redirect time, so a
+   * fake that returned a token immediately would let a bug survive where the
+   * real integration has none.
+   */
+  async openSubscription(request: SubscriptionCheckoutRequest): Promise<CheckoutSession> {
+    if (this.unavailable) {
+      throw new Error('Fake acquirer is unavailable');
+    }
+
+    const providerRef = `fake_${randomUUID()}`;
+    const recurrenceRef = `fake_mandate_${randomUUID()}`;
+
+    this.issued.set(providerRef, {
+      orderRef: request.orderRef,
+      providerRef,
+      amount: request.amount,
+      recurrenceRef,
+    });
+
+    const outcome = this.outcome;
+
+    return {
+      providerRef,
+      redirectUrl: `https://fake-acquirer.local/checkout/${providerRef}`,
+      inlineCallback:
+        outcome === 'PENDING'
+          ? null
+          : this.buildCallback(providerRef, outcome, request.amount, request.orderRef, {
+              recurrenceRef,
+            }),
+    };
+  }
+
+  /**
    * A renewal: charged, not visited.
    *
    * Settles through the same envelope, signature and inline callback as a
@@ -116,6 +161,7 @@ export class FakePaymentProvider extends PaymentProvider {
       orderRef: request.orderRef,
       providerRef,
       amount: request.amount,
+      recurrenceRef: request.recurrenceRef,
     });
 
     const outcome = this.outcome;
@@ -138,7 +184,9 @@ export class FakePaymentProvider extends PaymentProvider {
       throw new InvalidCallbackError('Unknown provider reference');
     }
 
-    const callback = this.buildCallback(providerRef, this.outcome, issued.amount, issued.orderRef);
+    const callback = this.buildCallback(providerRef, this.outcome, issued.amount, issued.orderRef, {
+      recurrenceRef: issued.recurrenceRef ?? undefined,
+    });
 
     return this.parseCallback(callback);
   }
@@ -154,7 +202,12 @@ export class FakePaymentProvider extends PaymentProvider {
     outcome: PaymentStatus,
     amount: Money,
     orderRef: string,
-    overrides: Partial<{ deliveryId: string; createdAt: Date; amount: string }> = {},
+    overrides: Partial<{
+      deliveryId: string;
+      createdAt: Date;
+      amount: string;
+      recurrenceRef: string;
+    }> = {},
   ): RawCallback {
     const payload = {
       order_id: orderRef,
@@ -164,6 +217,9 @@ export class FakePaymentProvider extends PaymentProvider {
       currency: amount.currency,
       delivery_id: overrides.deliveryId ?? randomUUID(),
       created_at: (overrides.createdAt ?? new Date()).toISOString(),
+      // Absent unless this callback establishes a mandate, which is how a real
+      // acquirer's payload reads for an ordinary charge.
+      ...(overrides.recurrenceRef === undefined ? {} : { recurrence_ref: overrides.recurrenceRef }),
     };
 
     const data = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
@@ -191,6 +247,7 @@ export class FakePaymentProvider extends PaymentProvider {
     const currency = payload.currency;
     const deliveryId = payload.delivery_id;
     const createdAt = payload.created_at;
+    const recurrenceRef = payload.recurrence_ref;
 
     if (
       typeof orderRef !== 'string' ||
@@ -208,6 +265,10 @@ export class FakePaymentProvider extends PaymentProvider {
     const parsedCurrency = toCurrency(currency);
     const occurredAt = new Date(createdAt);
 
+    if (recurrenceRef !== undefined && typeof recurrenceRef !== 'string') {
+      throw new InvalidCallbackError('Callback payload was missing fields');
+    }
+
     if (status === undefined || parsedCurrency === null || Number.isNaN(occurredAt.getTime())) {
       throw new InvalidCallbackError('Callback payload was not understood');
     }
@@ -220,6 +281,7 @@ export class FakePaymentProvider extends PaymentProvider {
       externalId: deliveryId,
       amount: { amount, currency: parsedCurrency },
       occurredAt,
+      recurrenceRef: recurrenceRef ?? null,
     };
   }
 }

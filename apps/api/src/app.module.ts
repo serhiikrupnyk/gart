@@ -15,6 +15,7 @@ import { InvitesModule } from './invites/invites.module';
 import { MeModule } from './me/me.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { LapsedSubscriptionGuard } from './payments/lapsed.guard';
 import { PaymentsModule } from './payments/payments.module';
 import { ProgramsModule } from './programs/programs.module';
 import { ProgressModule } from './progress/progress.module';
@@ -38,6 +39,12 @@ import { ProgressModule } from './progress/progress.module';
     PaymentsModule,
   ],
   controllers: [HealthController],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Registered globally, deliberately: a lapse rule that had to be remembered
+    // per route would be enforced only where somebody remembered it. Here, a
+    // trainer-side write route added later is covered before it is written.
+    { provide: APP_GUARD, useClass: LapsedSubscriptionGuard },
+  ],
 })
 export class AppModule {}

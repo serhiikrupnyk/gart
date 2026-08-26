@@ -35,7 +35,12 @@ export class AuthenticatedGuard implements CanActivate {
       throw new UnauthorizedException();
     }
 
-    const session = await this.sessions.findValid(token);
+    // The global lapse guard runs first and resolves the same session from the
+    // same cookie. Reusing what it found spares a second lookup per write; the
+    // token is compared rather than assumed, so a cached principal can only
+    // ever answer for the cookie actually presented.
+    const cached = request.principal;
+    const session = cached?.token === token ? cached.session : await this.sessions.findValid(token);
 
     if (session === null) {
       throw new UnauthorizedException();

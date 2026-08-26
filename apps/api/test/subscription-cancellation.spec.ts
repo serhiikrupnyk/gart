@@ -1,3 +1,4 @@
+import type { PublicSubscription } from '@gart/shared';
 import request from 'supertest';
 
 import { isAccessLive } from '../src/payments/access';
@@ -172,19 +173,23 @@ describe('tenant isolation', () => {
     ).toBe('ACTIVE');
   });
 
-  it('answers 404 for a trainer who has never subscribed', async () => {
+  it('refuses to cancel a trial, and says why rather than 404-ing', async () => {
+    // A brand-new trainer is TRIALING, not subscription-less: registration
+    // starts the trial. There is nothing to stop, because no card was taken,
+    // and saying that plainly is the whole point of not having taken one.
     const cookie = await registerTrainer(harness);
 
-    const none = await request(harness.app.getHttpServer())
+    const trial = await request(harness.app.getHttpServer())
       .get('/billing/subscription')
       .set('Cookie', cookie)
       .expect(200);
-    expect(none.body).toEqual({});
+    expect((trial.body as PublicSubscription).status).toBe('TRIALING');
 
-    await request(harness.app.getHttpServer())
+    const refused = await request(harness.app.getHttpServer())
       .post('/billing/subscription/cancel')
       .set('Cookie', cookie)
-      .expect(404);
+      .expect(400);
+    expect((refused.body as { message: string }).message).toContain('нічого не спишеться');
   });
 
   it('is closed to a client session and to no session at all', async () => {
@@ -226,7 +231,6 @@ describe('access', () => {
           {
             startsAt: subscription.currentPeriodStart,
             endsAt: subscription.accessUntil,
-            revokedAt: null,
           },
           at,
         ),

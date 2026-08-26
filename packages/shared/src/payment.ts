@@ -49,6 +49,41 @@ export const SUBSCRIPTION_PLANS = ['PRO', 'GROW', 'SCALE'] as const;
 export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
 
 /**
+ * What a plan actually unlocks, and whether it can be bought yet.
+ *
+ * ONLY PRO IS SELLABLE TODAY, and that is a deliberate product decision rather
+ * than an unfinished implementation. The product docs define GROW by nutrition,
+ * Food Log, group chats, team members and group sessions, and SCALE by a bigger
+ * team and an extended agenda — every one of which is unbuilt. Selling either
+ * one now would be selling a promise, so both appear in the UI as «скоро» with
+ * no way to pay for them, and the server refuses to open a subscription for
+ * them at all.
+ *
+ * `maxClients` is null for «no limit», which is what the docs promise of PRO:
+ * «безлім клієнтів». The only real cap in the system belongs to the trial (see
+ * `TRIAL_MAX_CLIENTS`) — capping a paid plan on client count would contradict
+ * what we say we sell.
+ *
+ * When a Phase 4 feature lands, it gains a field here and the check that reads
+ * it, so the gate arrives with the feature instead of being retrofitted.
+ */
+export interface PlanCapabilities {
+  /** Whether a trainer can subscribe to this plan right now. */
+  sellable: boolean;
+  /** Null means unlimited. */
+  maxClients: number | null;
+}
+
+export const PLAN_CAPABILITIES: Record<SubscriptionPlan, PlanCapabilities> = {
+  PRO: { sellable: true, maxClients: null },
+  GROW: { sellable: false, maxClients: null },
+  SCALE: { sellable: false, maxClients: null },
+};
+
+/** The plans a trainer can actually pay for today. */
+export const SELLABLE_PLANS = SUBSCRIPTION_PLANS.filter((plan) => PLAN_CAPABILITIES[plan].sellable);
+
+/**
  * Monthly price per plan, in hryvnia.
  *
  * PROVISIONAL — NOT DECIDED COMMERCIAL NUMBERS. The product docs say prices are
@@ -106,8 +141,54 @@ export function planPrice(plan: SubscriptionPlan, period: SubscriptionPeriod): M
 export const PAYMENT_STATUSES = ['PENDING', 'SUCCEEDED', 'FAILED', 'REFUNDED'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
-export const SUBSCRIPTION_STATUSES = ['ACTIVE', 'PAST_DUE', 'CANCELLED', 'ENDED'] as const;
+export const SUBSCRIPTION_STATUSES = [
+  'TRIALING',
+  'ACTIVE',
+  'PAST_DUE',
+  'CANCELLED',
+  'ENDED',
+] as const;
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+/**
+ * The trial: fourteen days, no card, and NOTHING IS EVER CHARGED at the end.
+ *
+ * A trial that takes a card up front and quietly bills on day fifteen is the
+ * pattern people resent, and our own docs argue against it («без фідлеїзації»).
+ * So the trial takes no payment method at all: when it runs out the workspace
+ * simply lapses into the same read-only state as any unpaid subscription, with
+ * every client, programme and message still intact.
+ *
+ * Fourteen days spans two full training weeks, which is the shortest honest
+ * window for judging software whose whole subject is weekly programming.
+ */
+export const TRIAL_DAYS = 14;
+
+/**
+ * The one limit the trial carries, and the only client cap in the product.
+ *
+ * Three is enough to run a real week with real people rather than a toy, and
+ * small enough that a working roster is a reason to subscribe. It applies ONLY
+ * while trialing: every paid plan is unlimited, because that is what «безлім
+ * клієнтів» means.
+ *
+ * Reaching it never destroys anything. Existing clients keep working in full;
+ * the only refusal is adding one more.
+ */
+export const TRIAL_MAX_CLIENTS = 3;
+
+/** The plan a trial runs on: the built product is PRO, so a trial is a PRO trial. */
+export const TRIAL_PLAN: SubscriptionPlan = 'PRO';
+
+/**
+ * How many clients a subscription in this state may have, null for unlimited.
+ *
+ * The single authority both the API guard and the UI read, so a screen can
+ * never promise a capacity the server will refuse.
+ */
+export function clientAllowance(plan: SubscriptionPlan, status: SubscriptionStatus): number | null {
+  return status === 'TRIALING' ? TRIAL_MAX_CLIENTS : PLAN_CAPABILITIES[plan].maxClients;
+}
 
 /**
  * The dunning policy, in one place because it is a POLICY and not a detail.
@@ -153,6 +234,13 @@ export interface PublicSubscription {
   period: SubscriptionPeriod;
   price: Money;
   status: SubscriptionStatus;
+  /**
+   * A cadence change taking effect at the next renewal, or null.
+   *
+   * Changes land on the boundary: the period already paid for runs on the
+   * terms it was bought under, so no money moves and nothing is prorated.
+   */
+  pendingPeriod: SubscriptionPeriod | null;
   currentPeriodEnd: string;
   /** How long access actually runs, dunning grace included. */
   accessUntil: string;
@@ -163,4 +251,8 @@ export interface PublicSubscription {
   isActive: boolean;
   /** Whether reactivating is still possible, or it has lapsed for good. */
   canReactivate: boolean;
+  /** How many clients this subscription allows, null for unlimited. */
+  maxClients: number | null;
+  /** How many the trainer has, so a screen can warn before the API refuses. */
+  clientCount: number;
 }

@@ -1,12 +1,15 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
+  clientAllowance,
   DUNNING_GRACE_DAYS,
   DUNNING_MAX_ATTEMPTS,
   DUNNING_RETRY_DAYS,
+  PLAN_CAPABILITIES,
   planPrice,
   SUBSCRIPTION_PERIOD_MONTHS,
   type PublicSubscription,
   type SubscriptionPeriod,
+  type SubscriptionPlan,
 } from '@gart/shared';
 
 import { addDays } from '../common/calendar';
@@ -14,10 +17,35 @@ import { PrismaService } from '../database/prisma.service';
 import { Prisma } from '../generated/prisma/client.js';
 import { NotificationService } from '../notifications/notification.service';
 import type { SubscriptionModel } from '../generated/prisma/models.js';
-import { isAccessLive } from './access';
+import { isSubscriptionLive } from './access';
 
 const NOT_CANCELLABLE_MESSAGE = 'Цю підписку вже скасовано або завершено';
 const NOT_REACTIVATABLE_MESSAGE = 'Підписка вже завершилася — оформіть нову';
+const TRIAL_NOT_CANCELLABLE_MESSAGE =
+  'Пробний період не потребує скасування — з картки нічого не спишеться, він просто завершиться';
+const PLAN_NOT_SELLABLE_MESSAGE = 'Цей тариф ще недоступний';
+const ALREADY_SUBSCRIBED_MESSAGE = 'Підписка вже активна — змініть періодичність або скасуйте її';
+const REACTIVATE_INSTEAD_MESSAGE =
+  'Скасована підписка ще діє — відновіть її замість нової оплати, щоб не втратити решту оплаченого періоду';
+const NOT_CHANGEABLE_MESSAGE = 'Періодичність можна змінити лише для активної підписки';
+
+/**
+ * What a settled payment tells the subscription.
+ *
+ * The payment's own record of the arrangement it bought, rather than a handful
+ * of loose arguments, so a caller cannot pass the plan from one place and the
+ * cadence from another.
+ */
+export interface SettledPayment {
+  subscriptionId: string;
+  /** The period boundary a RENEWAL was raised against; ignored for an opening. */
+  periodStart: Date;
+  planSnapshot: SubscriptionPlan | null;
+  periodSnapshot: SubscriptionPeriod | null;
+  recurrenceRef: string | null;
+  /** True when this payment STARTS an arrangement rather than continuing one. */
+  opening: boolean;
+}
 
 /** How many subscriptions one renewal run will attempt, so a backlog cannot stall a worker. */
 const RENEWAL_BATCH = 200;
@@ -43,6 +71,67 @@ export class SubscriptionsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
   ) {}
+
+  /**
+   * Checks that this trainer may open a checkout for this plan.
+   *
+   * Reads only. What is being bought is recorded on the PAYMENT, never on the
+   * live subscription row: an abandoned checkout must not change the terms of
+   * an arrangement nobody paid for. Writing the intent here meant a trainer
+   * could open an annual checkout, close the tab, and have their next monthly
+   * renewal charged twelve months' money.
+   */
+  async assertCanOpenCheckout(
+    trainerId: string,
+    plan: SubscriptionPlan,
+  ): Promise<SubscriptionModel> {
+    if (!PLAN_CAPABILITIES[plan].sellable) {
+      throw new BadRequestException(PLAN_NOT_SELLABLE_MESSAGE);
+    }
+
+    const subscription = await this.requireOwned(trainerId);
+
+    // A live paid arrangement is changed, not bought again — otherwise the
+    // obvious way to switch cadence would be to pay for a second period on top
+    // of one already paid for.
+    if (subscription.status === 'ACTIVE' || subscription.status === 'PAST_DUE') {
+      throw new BadRequestException(ALREADY_SUBSCRIBED_MESSAGE);
+    }
+
+    // A cancelled subscription that has not run out yet is RESUMED, not rebought.
+    // Buying would start a fresh period from today and silently forfeit the days
+    // already paid for — the trainer would lose money by pressing the more
+    // obvious of two buttons.
+    if (subscription.status === 'CANCELLED' && this.isLive(subscription, new Date())) {
+      throw new BadRequestException(REACTIVATE_INSTEAD_MESSAGE);
+    }
+
+    return subscription;
+  }
+
+  /**
+   * Changes the billing cadence, taking effect at the next renewal.
+   *
+   * Nothing is charged, refunded or prorated: the period already paid for runs
+   * to its end on the terms it was bought under, and the new cadence applies to
+   * the period after it. That is the whole rule, and it is the reason there is
+   * no proration arithmetic anywhere in this service to get wrong.
+   *
+   * Choosing the current cadence again simply clears a pending change, which is
+   * what «never mind» has to mean for it to be undoable.
+   */
+  async changePeriod(trainerId: string, period: SubscriptionPeriod): Promise<SubscriptionModel> {
+    const subscription = await this.requireOwned(trainerId);
+
+    if (subscription.status !== 'ACTIVE') {
+      throw new BadRequestException(NOT_CHANGEABLE_MESSAGE);
+    }
+
+    return this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { pendingPeriod: period === subscription.period ? null : period },
+    });
+  }
 
   /** Everything due at or before `now` — the renewal job's whole query. */
   async due(now: Date): Promise<SubscriptionModel[]> {
@@ -101,36 +190,100 @@ export class SubscriptionsService {
    * payment that already reads SUCCEEDED can never be re-driven: a replayed
    * delivery collides on PaymentEvent, and a fresh one fails the transition
    * table. The next run would then spend a second attempt and charge the same
-   * period twice. The transaction is also what holds the row lock that stops a
-   * concurrent `claim` being erased by this read-modify-write.
+   * period twice.
    *
-   * Guarded as well as atomic: a settlement for a period the row has already
-   * moved past — a webhook that took the long way round — must not roll the
+   * Guarded as well as atomic: the subscription row is locked FOR UPDATE, a
+   * settlement for a period the row has already moved past must not roll the
    * arrangement backwards, and a cancellation this charge raced is not undone.
    */
   async recordSuccess(
     tx: Prisma.TransactionClient,
-    subscriptionId: string,
-    periodStart: Date,
-    recurrenceRef: string | null,
+    payment: SettledPayment,
+    observedAt: Date,
   ): Promise<void> {
-    const existing = await tx.subscription.findUnique({ where: { id: subscriptionId } });
+    // An explicit row lock, because a plain SELECT under READ COMMITTED takes
+    // none: a `claim` committing between this read and the UPDATE below would
+    // otherwise be silently overwritten, and the next run would charge a period
+    // that has just been paid for.
+    await tx.$queryRaw`SELECT 1 FROM "Subscription" WHERE "id" = ${payment.subscriptionId} FOR UPDATE`;
 
-    if (existing === null || existing.currentPeriodStart.getTime() > periodStart.getTime()) {
+    const existing = await tx.subscription.findUnique({ where: { id: payment.subscriptionId } });
+
+    if (existing === null) {
       return;
     }
 
-    const periodEnd = periodFrom(periodStart, existing.period, existing.anchorDay);
-    const cancelled = existing.status === 'CANCELLED';
+    const opening = payment.opening;
+    const live = this.isLive(existing, observedAt);
+
+    // Where the period this payment bought begins.
+    //
+    // A RENEWAL starts where the payment says: it was raised against a known
+    // period boundary, and a webhook that took the long way round must not roll
+    // the arrangement backwards.
+    //
+    // An OPENING payment starts when it actually settled, not when the checkout
+    // was opened — a trainer who pays an hour later has bought a period from
+    // then, not a period already partly spent. And if a period is somehow
+    // already running (two tabs, two completed checkouts), it starts where that
+    // one ends: both charges were taken, so both periods are granted. Anything
+    // else takes money and hands back nothing.
+    let periodStart: Date;
+
+    if (!opening) {
+      if (existing.currentPeriodStart.getTime() > payment.periodStart.getTime()) {
+        return;
+      }
+
+      periodStart = payment.periodStart;
+    } else {
+      periodStart =
+        existing.status === 'ACTIVE' && existing.currentPeriodEnd.getTime() > observedAt.getTime()
+          ? existing.currentPeriodEnd
+          : observedAt;
+    }
+
+    // Read off the PAYMENT, never off the row. The row can move between a
+    // charge being raised and its callback arriving — a cadence change landing
+    // mid-run, an abandoned checkout for other terms — and re-deriving here
+    // would let the money taken and the access granted describe different
+    // arrangements.
+    const plan = payment.planSnapshot ?? existing.plan;
+    const period = payment.periodSnapshot ?? existing.period;
+
+    // The billing anniversary is the day the arrangement actually started
+    // paying. A trial's anchor is the day somebody signed up, which is not the
+    // day they bought anything, and carrying it over would bill them on a date
+    // that never meant anything to them.
+    const anchorDay = opening ? periodStart.getUTCDate() : existing.anchorDay;
+    const periodEnd = periodFrom(periodStart, period, anchorDay);
+
+    // A cancellation this charge raced is NOT undone: the money moved, so the
+    // period is granted — but «stop charging me» was said and stands.
+    //
+    // An opening payment only overrides that once the old arrangement has
+    // actually run out, which is the one case where paying again can only mean
+    // starting a new one. While a cancelled subscription is still running, a
+    // checkout is refused outright, so an opening payment settling against a
+    // LIVE cancelled row can only be a stale one from an abandoned tab — and
+    // reviving a cancellation from that would undo the single thing cancelling
+    // is supposed to guarantee.
+    const cancelled = existing.status === 'CANCELLED' && (!opening || live);
 
     await tx.subscription.update({
-      where: { id: subscriptionId },
+      where: { id: payment.subscriptionId },
       data: {
-        // A cancellation this charge raced is NOT undone. The money moved, so
-        // the period is granted — but «stop charging me» was said and stands.
         ...(cancelled
           ? { status: 'CANCELLED' as const, nextChargeAt: null }
           : { status: 'ACTIVE' as const, nextChargeAt: chargeAt(periodEnd), cancelledAt: null }),
+        plan,
+        period,
+        // Cleared only when this settlement is the one that APPLIED it. A
+        // charge raised before the trainer asked was priced on the old cadence,
+        // so it grants the old cadence — and the request must survive to be
+        // honoured by the renewal that is actually priced for it.
+        ...(period === existing.pendingPeriod ? { pendingPeriod: null } : {}),
+        anchorDay,
         currentPeriodStart: periodStart,
         currentPeriodEnd: periodEnd,
         accessUntil: periodEnd,
@@ -138,7 +291,7 @@ export class SubscriptionsService {
         endedAt: null,
         // A renewal charges the mandate it already has; only a fresh checkout
         // brings a new one, and null must not erase a working one.
-        ...(recurrenceRef === null ? {} : { recurrenceRef }),
+        ...(payment.recurrenceRef === null ? {} : { recurrenceRef: payment.recurrenceRef }),
       },
     });
   }
@@ -209,15 +362,25 @@ export class SubscriptionsService {
     return count;
   }
 
-  /** Ends an arrangement whose current period was refunded. */
-  async endAfterRefund(subscriptionId: string): Promise<void> {
+  /**
+   * Ends an arrangement whose CURRENT period was refunded.
+   *
+   * Scoped to the period the money actually came back for. Refunding a charge
+   * from eleven months ago is a routine support action, and revoking today's
+   * fully-paid period over it would take access away with no money returned.
+   */
+  async endAfterRefund(subscriptionId: string, periodStart: Date | null): Promise<void> {
     const now = new Date();
 
     await this.prisma.subscription.updateMany({
       // CANCELLED too: a cancelled subscription keeps access to the end of the
       // period it paid for, which is exactly the access a refund takes back.
       // Excluding it left a trainer with their money AND their workspace.
-      where: { id: subscriptionId, status: { in: ['ACTIVE', 'PAST_DUE', 'CANCELLED'] } },
+      where: {
+        id: subscriptionId,
+        status: { in: ['ACTIVE', 'PAST_DUE', 'CANCELLED'] },
+        ...(periodStart === null ? {} : { currentPeriodStart: periodStart }),
+      },
       data: { status: 'ENDED', nextChargeAt: null, accessUntil: now, endedAt: now },
     });
   }
@@ -243,6 +406,13 @@ export class SubscriptionsService {
    */
   async cancel(trainerId: string, now: Date): Promise<SubscriptionModel> {
     const subscription = await this.requireOwned(trainerId);
+
+    // Not an error worth a generic message: there is genuinely nothing to stop,
+    // because no card was ever taken. Saying so plainly is the whole point of
+    // not having taken one.
+    if (subscription.status === 'TRIALING') {
+      throw new BadRequestException(TRIAL_NOT_CANCELLABLE_MESSAGE);
+    }
 
     if (subscription.status !== 'ACTIVE' && subscription.status !== 'PAST_DUE') {
       throw new BadRequestException(NOT_CANCELLABLE_MESSAGE);
@@ -275,10 +445,13 @@ export class SubscriptionsService {
         // lead every other charge gets, so a resumed subscription does not
         // blink where a never-cancelled one never would.
         nextChargeAt: chargeAt(subscription.accessUntil),
-        // A clean ladder. Resuming mid-dunning otherwise re-entered at attempt
-        // two: no grace re-granted, no first-failure message, and fewer chances
-        // than the policy promises.
-        failedAttempts: 0,
+        // `failedAttempts` is deliberately NOT reset. Attempts already spent
+        // were spent, and rewinding the counter re-issues an attempt number
+        // whose Payment row already exists: the insert collides on
+        // `(subscriptionId, periodStart, periodAttempt)`, the charge is skipped
+        // as a duplicate run, and `claim` meanwhile re-grants first-failure
+        // grace. Cancel-and-resume then bought six more days for nothing, over
+        // and over, with no charge ever attempted again.
         cancelledAt: null,
       },
     });
@@ -288,22 +461,32 @@ export class SubscriptionsService {
   async forTrainer(trainerId: string, now: Date): Promise<PublicSubscription | null> {
     const subscription = await this.prisma.subscription.findUnique({ where: { trainerId } });
 
-    return subscription === null ? null : this.toPublic(subscription, now);
+    if (subscription === null) {
+      return null;
+    }
+
+    return this.toPublic(subscription, now, await this.countClients(trainerId));
+  }
+
+  /**
+   * How many clients count against the allowance.
+   *
+   * Archived clients do not. That is what makes the trial cap non-destructive:
+   * a trainer who has filled it can archive somebody they have stopped working
+   * with and carry on, instead of being told to delete a person's history.
+   */
+  async countClients(trainerId: string): Promise<number> {
+    return this.prisma.client.count({
+      where: { trainerId, status: { in: ['INVITED', 'ACTIVE'] } },
+    });
   }
 
   /** Whether the workspace is live, through the one shared rule. */
   isLive(subscription: SubscriptionModel, now: Date): boolean {
-    return isAccessLive(
-      {
-        startsAt: subscription.currentPeriodStart,
-        endsAt: subscription.accessUntil,
-        revokedAt: null,
-      },
-      now,
-    );
+    return isSubscriptionLive(subscription, now);
   }
 
-  toPublic(subscription: SubscriptionModel, now: Date): PublicSubscription {
+  toPublic(subscription: SubscriptionModel, now: Date, clientCount: number): PublicSubscription {
     const live = this.isLive(subscription, now);
 
     return {
@@ -312,12 +495,15 @@ export class SubscriptionsService {
       period: subscription.period,
       price: planPrice(subscription.plan, subscription.period),
       status: subscription.status,
+      pendingPeriod: subscription.pendingPeriod,
       currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
       accessUntil: subscription.accessUntil.toISOString(),
       nextChargeAt: subscription.nextChargeAt?.toISOString() ?? null,
       failedAttempts: subscription.failedAttempts,
       isActive: live,
       canReactivate: subscription.status === 'CANCELLED' && live,
+      maxClients: clientAllowance(subscription.plan, subscription.status),
+      clientCount,
     };
   }
 

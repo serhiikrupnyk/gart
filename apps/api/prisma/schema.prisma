@@ -994,7 +994,14 @@ model Payment {
   /// invariant that actually holds.
   periodAttempt Int?
 
-  /// The cadence this payment bought, frozen at the time of the charge.
+  /// What this payment bought, frozen at the time of the charge.
+  ///
+  /// The PAYMENT is the authority on the arrangement it paid for, not the
+  /// subscription row. The row can move between a charge being raised and its
+  /// callback arriving — a cadence change, an abandoned checkout for different
+  /// terms — and reading the arrangement back off it at settlement would let
+  /// the money taken and the access granted describe different things.
+  planSnapshot   SubscriptionPlan?
   periodSnapshot SubscriptionPeriod?
 
   paidAt   DateTime?
@@ -1044,6 +1051,10 @@ model PaymentEvent {
 /// Where a subscription stands. ACTIVE and PAST_DUE both still have access —
 /// PAST_DUE is a charge that failed and is being retried, not a closed door.
 enum SubscriptionStatus {
+  /// A free trial: live access, no card taken, and nothing will be charged when
+  /// it runs out. Distinct from ACTIVE because the UI has to be able to say
+  /// which one somebody is in, and when it ends.
+  TRIALING
   ACTIVE
   PAST_DUE
   CANCELLED
@@ -1070,6 +1081,13 @@ model Subscription {
   status SubscriptionStatus @default(ACTIVE)
 
   period SubscriptionPeriod
+
+  /// A cadence change the trainer has asked for, applied at the next renewal.
+  ///
+  /// Changes land on the boundary rather than immediately: the period already
+  /// paid for runs on the terms it was bought under, so no money moves and
+  /// there is no proration to get wrong or partial refund to argue about.
+  pendingPeriod SubscriptionPeriod?
 
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime

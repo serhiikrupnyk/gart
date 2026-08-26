@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ClientListItem } from '@gart/shared';
+import type { ClientListItem, PublicSubscription } from '@gart/shared';
 
 import DashboardPage from '@/app/(app)/dashboard/page';
 import { ToastProvider } from '@/components/ui';
@@ -17,6 +17,37 @@ jest.mock('@/lib/api', () => ({
   API_URL: 'http://api.test',
   ApiError: class ApiError extends Error {},
 }));
+
+const getSubscription = jest.fn();
+jest.mock('@/lib/billing', () => ({
+  getSubscription: () => getSubscription() as unknown,
+}));
+
+function subscription(overrides: Partial<PublicSubscription> = {}): PublicSubscription {
+  return {
+    id: 's1',
+    plan: 'PRO',
+    period: 'MONTHLY',
+    price: { amount: '500.00', currency: 'UAH' },
+    status: 'TRIALING',
+    pendingPeriod: null,
+    currentPeriodEnd: '2026-09-09T12:00:00.000Z',
+    accessUntil: '2026-09-09T12:00:00.000Z',
+    nextChargeAt: null,
+    failedAttempts: 0,
+    isActive: true,
+    canReactivate: false,
+    maxClients: 3,
+    clientCount: 1,
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  // Unlimited unless a test says otherwise: the allowance is a trial-only
+  // concern and must not colour every other assertion on this page.
+  getSubscription.mockResolvedValue(subscription({ status: 'ACTIVE', maxClients: null }));
+});
 
 function client(overrides: Partial<ClientListItem> = {}): ClientListItem {
   return {
@@ -169,6 +200,39 @@ describe('clients dashboard', () => {
 
     // The live region carries the outcome a sighted user reads off the table.
     expect(screen.getByText('Показано 1 клієнта із 4')).toBeInTheDocument();
+  });
+
+  it('offers the way out when the trial allowance is full, not a dead button', async () => {
+    listClients.mockResolvedValue(ROSTER.slice(0, 3));
+    getSubscription.mockResolvedValue(subscription({ maxClients: 3, clientCount: 3 }));
+    renderPage();
+
+    await screen.findByRole('link', { name: 'Олена Коваль' });
+
+    // A disabled «Додати клієнта» would explain nothing. This goes where the
+    // limit is actually lifted.
+    expect(await screen.findByText(/У пробному періоді — 3 клієнтів/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Додати клієнта/ })).not.toBeInTheDocument();
+
+    const links = screen.getAllByRole('link', { name: 'Оформити підписку' });
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      expect(link).toHaveAttribute('href', '/dashboard/billing');
+    }
+
+    // And nothing about the roster itself is taken away.
+    expect(screen.getByRole('link', { name: 'Олена Коваль' })).toBeInTheDocument();
+  });
+
+  it('leaves the roster alone while there is room', async () => {
+    listClients.mockResolvedValue(ROSTER.slice(0, 2));
+    getSubscription.mockResolvedValue(subscription({ maxClients: 3, clientCount: 2 }));
+    renderPage();
+
+    await screen.findByRole('link', { name: 'Олена Коваль' });
+
+    expect(screen.getByRole('button', { name: /Додати клієнта/ })).toBeInTheDocument();
+    expect(screen.queryByText(/У пробному періоді/)).not.toBeInTheDocument();
   });
 
   it('marks the active filter for assistive tech, not just visually', async () => {

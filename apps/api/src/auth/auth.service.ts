@@ -2,6 +2,7 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import type { AuthSession } from '@gart/shared';
 
 import { PrismaService } from '../database/prisma.service';
+import { startTrial } from '../payments/trial';
 import { toPublicTrainer } from '../trainers/trainer.mapper';
 import { toPublicUser } from '../users/user.mapper';
 import type { LoginDto } from './dto/login.dto';
@@ -44,8 +45,10 @@ export class AuthService {
 
     // An explicit transaction rather than a nested create: the OWNER membership
     // needs the ids of both the user and the trainer, neither of which exists
-    // until the other statement has run. All three rows commit together or none
-    // of them do.
+    // until the other statement has run. All four rows commit together or none
+    // of them do — the trial included, because a trainer without a subscription
+    // row is one the access rule cannot answer for, and a follow-up write that
+    // failed would lock somebody out of their own first screen.
     const { user, trainer } = await this.prisma
       .$transaction(async (tx) => {
         const createdUser = await tx.user.create({
@@ -60,6 +63,10 @@ export class AuthService {
         await tx.teamMember.create({
           data: { trainerId: createdTrainer.id, userId: createdUser.id, role: 'OWNER' },
         });
+
+        // The free trial. No card is taken and no charge is ever scheduled, so
+        // this cannot become a payment by accident later.
+        await startTrial(tx, createdTrainer.id, new Date());
 
         return { user: createdUser, trainer: createdTrainer };
       })

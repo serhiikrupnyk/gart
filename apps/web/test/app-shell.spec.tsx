@@ -156,12 +156,17 @@ describe('AppShell', () => {
     expect(workouts).toHaveAttribute('href', '/dashboard/programs');
     expect(workouts).not.toHaveAttribute('aria-current');
 
+    // Платежі is a built section since Step 27 — the trainer's own subscription
+    // to Gart has a screen, so the nav takes them to it.
+    expect(screen.getByRole('link', { name: /Платежі/ })).toHaveAttribute(
+      'href',
+      '/dashboard/billing',
+    );
+
     // Still-unbuilt sections are visible but are not links, so keyboard users
-    // never land on a control that does nothing. Платежі is one again: the
-    // trainer's own subscription to Gart has no screen until it is built.
+    // never land on a control that does nothing.
     expect(screen.queryByRole('link', { name: /Прогрес/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Платежі/ })).not.toBeInTheDocument();
-    expect(screen.getAllByText('скоро')).toHaveLength(2);
+    expect(screen.getAllByText('скоро')).toHaveLength(1);
   });
 
   it('sends an unauthenticated visitor to the login page', async () => {

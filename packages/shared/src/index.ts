@@ -114,21 +114,28 @@ export type {
   UnsubscribePushRequest,
 } from './notification';
 export {
+  clientAllowance,
   DUNNING_GRACE_DAYS,
   DUNNING_MAX_ATTEMPTS,
   DUNNING_RETRY_DAYS,
   formatMoney,
   PAYMENT_STATUSES,
+  PLAN_CAPABILITIES,
   planPrice,
+  SELLABLE_PLANS,
   SUBSCRIPTION_PERIOD_MONTHS,
   SUBSCRIPTION_PERIODS,
   SUBSCRIPTION_PLANS,
   SUBSCRIPTION_STATUSES,
+  TRIAL_DAYS,
+  TRIAL_MAX_CLIENTS,
+  TRIAL_PLAN,
 } from './payment';
 export type {
   Currency,
   Money,
   PaymentStatus,
+  PlanCapabilities,
   PublicPayment,
   PublicSubscription,
   SubscriptionPeriod,

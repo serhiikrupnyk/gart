@@ -36,11 +36,45 @@ export interface PaymentMetadata {
 }
 
 /**
+ * Opening a subscription: the one moment a payer is actually present.
+ *
+ * This is the mandate-establishing verb. The trainer is sent to the acquirer's
+ * hosted page, enters a card there, and the acquirer both takes the first
+ * period's money and stores a token for the ones after it. Nothing about the
+ * card ever reaches us, which is the entire reason this is a redirect rather
+ * than a form we host.
+ */
+export interface SubscriptionCheckoutRequest {
+  /** Our new Payment's id, and the order reference the provider dedupes on. */
+  orderRef: string;
+  amount: Money;
+  description: string;
+  callbackUrl: string;
+  /** Where the acquirer returns the trainer once they are finished. */
+  returnUrl: string;
+  metadata: PaymentMetadata;
+}
+
+/** A hosted payment page, waiting for the payer. */
+export interface CheckoutSession {
+  /** The provider's own identifier for this payment. */
+  providerRef: string;
+  /** Where to send the trainer. The only thing the API hands back to the UI. */
+  redirectUrl: string;
+  /**
+   * A settlement the provider volunteered without a round trip, or null when
+   * the answer will arrive by webhook. Real hosted pages always return null
+   * here — a payer has not paid yet — and the fake uses it to complete a
+   * checkout in a test without a browser, through the identical settle path.
+   */
+  inlineCallback: RawCallback | null;
+}
+
+/**
  * A charge against an established mandate, with no payer present.
  *
- * The only kind of charge this system makes: a trainer's subscription renews
- * itself. Establishing the mandate in the first place is the subscribe flow's
- * job, and the verb for it arrives with that flow.
+ * The second kind of charge this system makes: a trainer's subscription
+ * renewing itself against the mandate `openSubscription` established.
  */
 export interface RecurringChargeRequest {
   /** Our new Payment's id, and the order reference the provider dedupes on. */
@@ -116,6 +150,18 @@ export interface ProviderCallback {
    * Null exempts the provider from the freshness window.
    */
   occurredAt: Date | null;
+  /**
+   * The mandate the payer just established, when this callback is the one that
+   * establishes it.
+   *
+   * It belongs HERE rather than on `CheckoutSession` because that is where all
+   * three Ukrainian acquirers actually put it: a hosted page returns nothing
+   * useful at redirect time — the payer has not typed a card yet — and the
+   * token arrives with the settlement. LiqPay names it on the callback,
+   * Fondy returns `rectoken`, WayForPay `recToken`. Null on every callback
+   * that is not establishing a mandate, which is most of them.
+   */
+  recurrenceRef: string | null;
 }
 
 /** Raised when a payload fails verification. Never carries provider detail. */
@@ -145,6 +191,16 @@ export abstract class PaymentProvider {
    * never sees a signature, and never decides what a valid one looks like.
    */
   abstract parseCallback(raw: RawCallback): Promise<ProviderCallback>;
+
+  /**
+   * Opens a hosted page that takes the first period's money AND establishes the
+   * mandate for the ones after it.
+   *
+   * Both halves matter: an acquirer that charged without storing a token would
+   * leave every renewal needing the payer back at a form, which is not a
+   * subscription. The token itself arrives with the callback, not from here.
+   */
+  abstract openSubscription(request: SubscriptionCheckoutRequest): Promise<CheckoutSession>;
 
   /**
    * Charges an established recurrence — a renewal.

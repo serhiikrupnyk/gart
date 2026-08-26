@@ -1,5 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { formatMoney, planPrice, type PaymentStatus, type PublicPayment } from '@gart/shared';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  formatMoney,
+  planPrice,
+  type PaymentStatus,
+  type PublicPayment,
+  type SubscriptionPeriod,
+  type SubscriptionPlan,
+} from '@gart/shared';
 
 import { toMoney } from '../common/money';
 import { PrismaService } from '../database/prisma.service';
@@ -10,7 +17,6 @@ import { amountsEqual } from '../common/money';
 import {
   CALLBACK_MAX_AGE_MS,
   CALLBACK_MAX_SKEW_MS,
-  type ChargeResult,
   InvalidCallbackError,
   PaymentProvider,
   type ProviderCallback,
@@ -20,6 +26,21 @@ import { payloadDigest } from './signature';
 import { SubscriptionsService } from './subscriptions.service';
 
 const UNIQUE_CONSTRAINT_ERROR = 'P2002';
+
+/**
+ * The attempt number an OPENING checkout is recorded under.
+ *
+ * Zero, because it is not a dunning attempt: attempts 1..4 are the unattended
+ * retries the ladder makes against a stored mandate, and this is the one charge
+ * a payer is actually present for. It shares the
+ * `(subscriptionId, periodStart, periodAttempt)` key with them, so it gets the
+ * same database-level idempotency without a column of its own, and it is what
+ * tells a settlement that this payment STARTS an arrangement rather than
+ * continuing one.
+ */
+const OPENING_ATTEMPT = 0;
+
+const CHECKOUT_IN_FLIGHT_MESSAGE = 'Оплата вже відкривається — спробуйте ще раз за мить';
 
 /**
  * Which state a payment must already be in for an arriving status to apply.
@@ -57,11 +78,85 @@ export class PaymentsService {
    */
   private readonly apiOrigin = requireEnv('API_ORIGIN');
 
+  /** Where the acquirer sends the trainer back to. Read once, for the same reason. */
+  private readonly webOrigin = requireEnv('WEB_ORIGIN');
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly provider: PaymentProvider,
     private readonly subscriptions: SubscriptionsService,
   ) {}
+
+  /**
+   * Opens a checkout that both takes the first period's money and establishes
+   * the mandate every renewal after it will charge.
+   *
+   * Returns where to send the trainer. Nothing is granted here — access follows
+   * the settlement, through the same `applyCallback` a renewal and a webhook
+   * both go through, so there is exactly one place in this system where a
+   * payment turns into access.
+   */
+  async openSubscription(
+    trainerId: string,
+    plan: SubscriptionPlan,
+    period: SubscriptionPeriod,
+    now = new Date(),
+  ): Promise<{ redirectUrl: string }> {
+    const subscription = await this.subscriptions.assertCanOpenCheckout(trainerId, plan);
+    const price = planPrice(plan, period);
+
+    // What is being bought lives HERE and nowhere else. The subscription row is
+    // untouched until money settles, so a checkout the trainer abandons cannot
+    // change the terms of an arrangement nobody paid for.
+    const payment = await this.prisma.payment
+      .create({
+        data: {
+          trainerId,
+          subscriptionId: subscription.id,
+          periodStart: now,
+          periodAttempt: OPENING_ATTEMPT,
+          amount: new Prisma.Decimal(price.amount),
+          currency: price.currency,
+          status: 'PENDING',
+          provider: this.provider.id,
+          description: `Gart ${plan}`,
+          planSnapshot: plan,
+          periodSnapshot: period,
+        },
+        include: { subscription: true },
+      })
+      .catch((error: unknown) => {
+        // Two checkouts opened in the same millisecond collide on
+        // `(subscriptionId, periodStart, periodAttempt)`. Vanishingly unlikely,
+        // and a 500 would be the wrong answer to «you pressed it twice».
+        if (isUniqueConstraintError(error)) {
+          throw new BadRequestException(CHECKOUT_IN_FLIGHT_MESSAGE);
+        }
+
+        throw error;
+      });
+
+    const session = await this.provider.openSubscription({
+      orderRef: payment.id,
+      amount: price,
+      description: `Gart ${plan}`,
+      callbackUrl: `${this.apiOrigin}/payments/callback/${this.provider.id}`,
+      returnUrl: `${this.webOrigin}/dashboard/billing`,
+      metadata: { trainerId },
+    });
+
+    await this.recordSession(payment.id, session);
+
+    // A provider that settled without a round trip — the fake, and any acquirer
+    // that ever charges inline. Fed through the identical settle path rather
+    // than a shortcut, so the checkout's happy path exercises signature
+    // checking, status mapping and the idempotent settle like every other.
+    if (session.inlineCallback !== null) {
+      await this.applyCallback(session.inlineCallback);
+    }
+
+    return { redirectUrl: session.redirectUrl };
+  }
 
   /**
    * Charges everything that is due, and records what came of each.
@@ -121,8 +216,30 @@ export class PaymentsService {
     }
 
     const periodStart = subscription.currentPeriodEnd;
-    const price = planPrice(subscription.plan, subscription.period);
-    const payment = await this.createRenewalPayment(subscription, periodStart, attempt, price);
+    // A cadence change asked for during the current period applies to THIS
+    // renewal — the first period it was not too late to change. The price and
+    // the snapshot both follow it, so the charge and the access granted for it
+    // can never describe different arrangements.
+    const period = subscription.pendingPeriod ?? subscription.period;
+    const price = planPrice(subscription.plan, period);
+
+    // Checked BEFORE this attempt's row is opened, so an attempt that must not
+    // be made leaves nothing behind at all.
+    if (await this.periodChargeOutstanding(subscription.id, periodStart)) {
+      this.logger.warn(
+        `An unresolved charge already exists for subscription ${subscription.id}; not charging`,
+      );
+
+      return false;
+    }
+
+    const payment = await this.createRenewalPayment(
+      subscription,
+      periodStart,
+      attempt,
+      price,
+      period,
+    );
 
     if (payment === null) {
       // The claim was won but this attempt's row already exists, which can only
@@ -164,6 +281,16 @@ export class PaymentsService {
       }
     } catch (error: unknown) {
       this.logger.error(`Renewal charge failed for payment ${payment.id}: ${String(error)}`);
+
+      // Closed rather than left PENDING. An abandoned row would sit in the
+      // trainer's own history reading «в обробці» for ever, for a charge that
+      // never happened.
+      await this.prisma.payment
+        .updateMany({
+          where: { id: payment.id, status: 'PENDING' },
+          data: { status: 'FAILED', failedAt: new Date(), providerStatus: 'charge-errored' },
+        })
+        .catch(() => undefined);
     }
 
     // Reached only when the charge produced no settlement at all: a throw, or a
@@ -187,6 +314,7 @@ export class PaymentsService {
     periodStart: Date,
     attempt: number,
     price: { amount: string; currency: 'UAH' },
+    period: SubscriptionPeriod,
   ): Promise<PaymentWithSubscription | null> {
     try {
       return await this.prisma.payment.create({
@@ -200,7 +328,8 @@ export class PaymentsService {
           status: 'PENDING',
           provider: this.provider.id,
           description: `Gart ${subscription.plan}`,
-          periodSnapshot: subscription.period,
+          planSnapshot: subscription.plan,
+          periodSnapshot: period,
         },
         include: { subscription: true },
       });
@@ -217,17 +346,51 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * Whether an earlier charge for this period is paid, or acknowledged by the
+   * acquirer and still unresolved.
+   *
+   * The case this exists for is the expensive one: `chargeRecurring` times out
+   * AFTER the acquirer captured, or its webhook is lost. The schedule has
+   * already advanced, so the next rung comes round and — with nothing looking —
+   * charges the same period a second time. When the first answer finally lands,
+   * both settle, and the trainer has paid twice for one month with no path to a
+   * refund inside this system.
+   *
+   * A PENDING row only counts once a `providerRef` exists: that is the moment
+   * the acquirer took the order and its outcome became unknown to us. A
+   * genuinely DECLINED attempt is FAILED and does not block anything, so the
+   * dunning ladder runs exactly as the policy describes.
+   */
+  private async periodChargeOutstanding(
+    subscriptionId: string,
+    periodStart: Date,
+  ): Promise<boolean> {
+    const outstanding = await this.prisma.payment.findFirst({
+      where: {
+        subscriptionId,
+        periodStart,
+        OR: [{ status: 'SUCCEEDED' }, { status: 'PENDING', providerRef: { not: null } }],
+      },
+      select: { id: true },
+    });
+
+    return outstanding !== null;
+  }
+
   /** Binds the issued session to the payment, failing it closed if it cannot. */
   private async recordSession(
     paymentId: string,
-    session: ChargeResult,
+    session: { providerRef: string; recurrenceRef?: string | null },
   ): Promise<PaymentWithSubscription> {
     try {
       return await this.prisma.payment.update({
         where: { id: paymentId },
         data: {
           providerRef: session.providerRef,
-          recurrenceRef: session.recurrenceRef,
+          // A hosted checkout has no mandate yet — the payer has not entered a
+          // card. It arrives with the callback, and must not be nulled here.
+          ...(session.recurrenceRef === undefined ? {} : { recurrenceRef: session.recurrenceRef }),
         },
         include: { subscription: true },
       });
@@ -374,6 +537,10 @@ export class PaymentsService {
             // on a second card must not keep a failedAt contradicting its paidAt.
             ...(callback.status === 'SUCCEEDED' ? { paidAt: reportedAt, failedAt: null } : {}),
             ...(callback.status === 'FAILED' ? { failedAt: reportedAt, paidAt: null } : {}),
+            // The mandate a hosted checkout just established. Stored on the
+            // payment too, not only on the subscription, so the row that
+            // recorded the charge also records what it authorised.
+            ...(callback.recurrenceRef === null ? {} : { recurrenceRef: callback.recurrenceRef }),
           },
         });
 
@@ -388,9 +555,17 @@ export class PaymentsService {
         if (callback.status === 'SUCCEEDED' && payment.subscriptionId !== null) {
           await this.subscriptions.recordSuccess(
             tx,
-            payment.subscriptionId,
-            payment.periodStart ?? observedAt,
-            payment.recurrenceRef,
+            {
+              subscriptionId: payment.subscriptionId,
+              periodStart: payment.periodStart ?? observedAt,
+              planSnapshot: payment.planSnapshot,
+              periodSnapshot: payment.periodSnapshot,
+              // The callback first: a hosted checkout's mandate arrives with
+              // the settlement, and only a renewal already had one on the row.
+              recurrenceRef: callback.recurrenceRef ?? payment.recurrenceRef,
+              opening: payment.periodAttempt === OPENING_ATTEMPT,
+            },
+            observedAt,
           );
         }
 
@@ -422,7 +597,15 @@ export class PaymentsService {
       return;
     }
 
-    if (payment.status === 'FAILED' && payment.periodAttempt !== null) {
+    // Only a dunning attempt can fail its way down the ladder. A checkout the
+    // trainer abandoned or a card they mistyped is not attempt one of anything:
+    // there is no mandate yet, nothing is scheduled, and announcing «оплата не
+    // пройшла — доступ до…» for it would threaten a trial that is in no danger.
+    if (
+      payment.status === 'FAILED' &&
+      payment.periodAttempt !== null &&
+      payment.periodAttempt !== OPENING_ATTEMPT
+    ) {
       await this.subscriptions.recordFailure(payment.subscriptionId, payment.periodAttempt);
 
       return;
@@ -431,7 +614,7 @@ export class PaymentsService {
     if (payment.status === 'REFUNDED') {
       // The money for this period went back, so the access it bought goes with
       // it, and nothing further is charged.
-      await this.subscriptions.endAfterRefund(payment.subscriptionId);
+      await this.subscriptions.endAfterRefund(payment.subscriptionId, payment.periodStart);
     }
   }
 

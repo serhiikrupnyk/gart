@@ -10,6 +10,7 @@ import { PrismaService } from '../database/prisma.service';
 import type { ClientModel } from '../generated/prisma/models.js';
 import { InvitesService } from '../invites/invites.service';
 import { ClientActivityService } from '../monitoring/client-activity.service';
+import { assertCanAddClient, reclaimsAPlace } from '../payments/plan-limits';
 import { toPublicClient } from './client.mapper';
 import type { CreateClientDto } from './dto/create-client.dto';
 import type { ListClientsQuery } from './dto/list-clients.query';
@@ -48,6 +49,12 @@ export class ClientsService {
 
     const { client, inviteUrl } = await this.prisma
       .$transaction(async (tx) => {
+        // Inside the transaction that does the writing, so a concurrent create
+        // cannot slip past a count taken before it. The screen also hides the
+        // button when the allowance is full, but the button is not the gate:
+        // this holds for a trainer calling the API directly.
+        await assertCanAddClient(tx, trainerId);
+
         const created = await tx.client.create({
           data: { trainerId, fullName: dto.fullName, email: dto.email, status: 'INVITED' },
         });
@@ -119,12 +126,21 @@ export class ClientsService {
       throw new BadRequestException(CANNOT_ACTIVATE_MESSAGE);
     }
 
-    const updated = await this.prisma.client.update({
-      where: { id: client.id },
-      data: {
-        ...(dto.fullName === undefined ? {} : { fullName: dto.fullName }),
-        ...(dto.status === undefined ? {} : { status: dto.status }),
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Un-archiving takes a place back, so it is an ADDITION to the count and
+      // has to pass the same gate creating does. Without this, archive-then-
+      // restore was an unbounded way around the trial allowance.
+      if (reclaimsAPlace(client.status, dto.status)) {
+        await assertCanAddClient(tx, trainerId);
+      }
+
+      return tx.client.update({
+        where: { id: client.id },
+        data: {
+          ...(dto.fullName === undefined ? {} : { fullName: dto.fullName }),
+          ...(dto.status === undefined ? {} : { status: dto.status }),
+        },
+      });
     });
 
     return toPublicClient(updated);
