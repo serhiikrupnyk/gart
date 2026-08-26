@@ -109,7 +109,7 @@ describe('the GROW gate', () => {
     await request(server()).get('/nutrition/foods').expect(401);
   });
 
-  it('keeps a lapsed GROW trainer reading but not writing', async () => {
+  it('keeps nutrition open for a PAST_DUE GROW trainer inside their grace', async () => {
     const cookie = await registerTrainer(harness);
     const trainerId = await trainerIdFor(harness, validRegistration.email);
     await subscribeToGrow(harness, trainerId);
@@ -120,21 +120,120 @@ describe('the GROW gate', () => {
       .send(NEW_FOOD)
       .expect(201);
 
-    const past = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // A card that failed, inside the dunning grace: still LIVE, and the trainer
+    // means to come back. Taking their work out of sight while they fix it
+    // would punish the wrong thing.
+    const graceEnd = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    await harness.prisma.subscription.update({
+      where: { trainerId },
+      data: { status: 'PAST_DUE', failedAttempts: 1, accessUntil: graceEnd },
+    });
+
+    const list = await request(server()).get('/nutrition/foods').set('Cookie', cookie).expect(200);
+    expect((list.body as { total: number }).total).toBeGreaterThan(0);
+
+    // Writes too. Grace is not a degraded state — access is LIVE throughout it,
+    // which is the whole point of granting it: a trainer chasing their bank
+    // keeps working normally. Read-only begins when access actually lapses.
+    await request(server())
+      .post('/nutrition/foods')
+      .set('Cookie', cookie)
+      .send({ ...NEW_FOOD, name: 'Ще один' })
+      .expect(201);
+  });
+
+  it("closes nutrition once a PAST_DUE trainer's grace has run out", async () => {
+    const cookie = await registerTrainer(harness);
+    const trainerId = await trainerIdFor(harness, validRegistration.email);
+    await subscribeToGrow(harness, trainerId);
+
+    // Same status word, opposite answer — because the distinction that matters
+    // is whether access is live, not what the state machine last wrote down.
+    const past = new Date(Date.now() - 1000);
+    await harness.prisma.subscription.update({
+      where: { trainerId },
+      data: { status: 'PAST_DUE', failedAttempts: 4, accessUntil: past, nextChargeAt: null },
+    });
+
+    await request(server()).get('/nutrition/foods').set('Cookie', cookie).expect(402);
+  });
+
+  it('closes nutrition once a GROW subscription has ENDED', async () => {
+    const cookie = await registerTrainer(harness);
+    const trainerId = await trainerIdFor(harness, validRegistration.email);
+    await subscribeToGrow(harness, trainerId);
+
+    const created = await request(server())
+      .post('/nutrition/foods')
+      .set('Cookie', cookie)
+      .send({ ...NEW_FOOD, portions: [{ label: 'порція', grams: '200.00' }] })
+      .expect(201);
+    const foodId = (created.body as { id: string }).id;
+
+    // ENDED is settled: nobody is paying and nobody intends to. Leaving a
+    // higher tier open here would let GROW be bought once and kept for ever by
+    // simply letting it lapse.
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
     await harness.prisma.subscription.update({
       where: { trainerId },
       data: { status: 'ENDED', accessUntil: past, endedAt: past, nextChargeAt: null },
     });
 
-    // The Step 27 discipline, unchanged: read-only, nothing destroyed.
-    const list = await request(server()).get('/nutrition/foods').set('Cookie', cookie).expect(200);
-    expect((list.body as { total: number }).total).toBeGreaterThan(0);
+    await request(server()).get('/nutrition/foods').set('Cookie', cookie).expect(402);
+    await request(server()).get(`/nutrition/foods/${foodId}`).set('Cookie', cookie).expect(402);
 
-    await request(server())
-      .post('/nutrition/foods')
+    // Closed, not deleted. The row and its portions are exactly where they were.
+    expect(await harness.prisma.food.count({ where: { trainerId } })).toBe(1);
+    expect(await harness.prisma.foodPortion.count({ where: { foodId } })).toBe(1);
+
+    // And the count still answers, with the way back.
+    const status = await request(server())
+      .get('/nutrition/status')
       .set('Cookie', cookie)
-      .send({ ...NEW_FOOD, name: 'Ще один' })
-      .expect(402);
+      .expect(200);
+    expect(status.body).toEqual({ available: false, customFoodCount: 1, requiredPlan: 'GROW' });
+
+    // Re-upgrading brings it all back, through the API and not just the table.
+    await subscribeToGrow(harness, trainerId);
+
+    const back = await request(server())
+      .get(`/nutrition/foods/${foodId}`)
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(back.body).toMatchObject({
+      name: 'Домашній сир',
+      portions: [{ label: 'порція', grams: '200.00' }],
+    });
+  });
+
+  it('closes nutrition once a CANCELLED subscription has run out', async () => {
+    const cookie = await registerTrainer(harness);
+    const trainerId = await trainerIdFor(harness, validRegistration.email);
+    await subscribeToGrow(harness, trainerId);
+
+    // Cancelled but still inside the period already paid for: they paid, so
+    // they keep it.
+    const future = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    await harness.prisma.subscription.update({
+      where: { trainerId },
+      data: { status: 'CANCELLED', accessUntil: future, nextChargeAt: null },
+    });
+    await request(server()).get('/nutrition/foods').set('Cookie', cookie).expect(200);
+
+    // Once it runs out, it is over. `endLapsed` only ever moves PAST_DUE rows
+    // to ENDED, so this row stays CANCELLED for ever — gating on the status
+    // word would have left cancelling open as a way to buy GROW once and keep
+    // it. Liveness is what actually closes it.
+    const past = new Date(Date.now() - 1000);
+    await harness.prisma.subscription.update({
+      where: { trainerId },
+      data: { accessUntil: past },
+    });
+
+    const row = await harness.prisma.subscription.findUniqueOrThrow({ where: { trainerId } });
+    expect(row.status).toBe('CANCELLED');
+
+    await request(server()).get('/nutrition/foods').set('Cookie', cookie).expect(402);
   });
 });
 

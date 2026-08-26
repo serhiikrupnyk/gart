@@ -101,13 +101,38 @@ export const NUTRITION_PLAN = 'GROW' satisfies SubscriptionPlan;
 /**
  * Whether this subscription may reach nutrition.
  *
- * A TRIAL runs on PRO, so it does not include nutrition. That is deliberate
- * rather than an oversight: a trial exists to show what the built product does
- * for the plan somebody is most likely to buy, and quietly handing out a
- * higher tier for fourteen days would make the tier boundary meaningless at
- * exactly the moment it is being learned.
+ * Two conditions, and the first is LIVE ACCESS rather than a list of statuses.
+ *
+ * A tier feature is available while the tier is being paid for, and not after.
+ * Keying on liveness rather than on `status !== 'ENDED'` is what makes that
+ * true in every case rather than most of them: a PAST_DUE trainer inside their
+ * dunning grace is still live, so a failed card does not take their work out of
+ * sight while they fix it — but a CANCELLED subscription that has run out is
+ * NOT live, and `endLapsed` only ever moves PAST_DUE rows to ENDED, so it would
+ * have sat CANCELLED for ever. Gating on the status word would have left
+ * cancelling open as a way to buy GROW once and keep it.
+ *
+ * That is a softer version of the reactivate hole from Step 27, and it is
+ * closed the same way: by asking what is actually true now rather than what
+ * some state machine last wrote down.
+ *
+ * Nothing is destroyed by any of this. The data stays, `NutritionStatus` keeps
+ * answering with the count on every plan, and it all returns on re-upgrade.
+ *
+ * A TRIAL runs on PRO and so excludes nutrition, deliberately: a trial exists
+ * to show what the built product does for the plan somebody is most likely to
+ * buy, and quietly handing out a higher tier for fourteen days would make the
+ * tier boundary meaningless at exactly the moment it is being learned.
  */
-export function hasNutrition(plan: SubscriptionPlan, status: SubscriptionStatus): boolean {
+export function hasNutrition(
+  plan: SubscriptionPlan,
+  status: SubscriptionStatus,
+  accessIsLive: boolean,
+): boolean {
+  if (!accessIsLive) {
+    return false;
+  }
+
   return status === 'TRIALING'
     ? PLAN_CAPABILITIES[TRIAL_PLAN].nutrition
     : PLAN_CAPABILITIES[plan].nutrition;

@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { FoodPage, NutritionStatus, PublicFood } from '@gart/shared';
-import { hasNutrition, NUTRITION_PLAN } from '@gart/shared';
+import { NUTRITION_PLAN } from '@gart/shared';
 
 import { PrismaService } from '../database/prisma.service';
 import { Prisma } from '../generated/prisma/client.js';
 import type { CreateFoodDto, FoodPortionDto, ListFoodsQuery, UpdateFoodDto } from './dto/food.dto';
 import { type FoodWithPortions, toPublicFood } from './food.mapper';
+import { subscriptionHasNutrition } from './nutrition-access';
 import { validateNutrients, validatePortions } from './nutrients.validation';
 
 /** Global rows and this trainer's own, never anybody else's. */
@@ -157,9 +158,9 @@ export class FoodsService {
     ]);
 
     return {
-      // A trainer with no subscription row predates billing, and both gates
-      // read that the same way.
-      available: subscription === null || hasNutrition(subscription.plan, subscription.status),
+      // The same adapter the guard uses, so this can never say «available»
+      // over an API that would answer 402.
+      available: subscriptionHasNutrition(subscription, new Date()),
       customFoodCount,
       requiredPlan: NUTRITION_PLAN,
     };

@@ -5,10 +5,11 @@ import {
   HttpStatus,
   Injectable,
 } from '@nestjs/common';
-import { hasNutrition, NUTRITION_PLAN } from '@gart/shared';
+import { NUTRITION_PLAN } from '@gart/shared';
 
 import type { AuthenticatedRequest } from '../auth/auth-context';
 import { PrismaService } from '../database/prisma.service';
+import { subscriptionHasNutrition } from './nutrition-access';
 
 const UPGRADE_MESSAGE =
   `Харчування доступне на тарифі ${NUTRITION_PLAN}. ` +
@@ -48,13 +49,7 @@ export class NutritionGuard implements CanActivate {
       where: { trainerId: auth.trainer.id },
     });
 
-    // No subscription row at all is a trainer who predates billing — the same
-    // reading the lapse guard takes, so the two cannot disagree about them.
-    if (subscription === null) {
-      return true;
-    }
-
-    if (!hasNutrition(subscription.plan, subscription.status)) {
+    if (!subscriptionHasNutrition(subscription, new Date())) {
       throw new HttpException(UPGRADE_MESSAGE, HttpStatus.PAYMENT_REQUIRED);
     }
 
