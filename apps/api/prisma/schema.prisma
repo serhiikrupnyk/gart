@@ -123,6 +123,7 @@ model Trainer {
   products          Product[]
   payments          Payment[]
   entitlements      Entitlement[]
+  subscriptions     Subscription[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -276,6 +277,7 @@ model Client {
   chatThreads       ChatThread[]
   payments          Payment[]
   entitlements      Entitlement[]
+  subscriptions     Subscription[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.
@@ -749,6 +751,8 @@ enum NotificationType {
   PAYMENT_SUCCEEDED
   PAYMENT_FAILED
   PAYMENT_REFUNDED
+  SUBSCRIPTION_PAST_DUE
+  SUBSCRIPTION_ENDED
 }
 
 /// One thing that happened and somebody may care about.
@@ -966,8 +970,9 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  payments     Payment[]
-  entitlements Entitlement[]
+  payments      Payment[]
+  entitlements  Entitlement[]
+  subscriptions Subscription[]
 
   @@index([trainerId])
 }
@@ -1024,6 +1029,31 @@ model Payment {
   /// What the payer was shown on the hosted page, snapshotted.
   description String
 
+  /// The subscription period this payment is for, when it is a renewal.
+  ///
+  /// The triple below is unique, which is what makes a re-run of the renewal
+  /// job a no-op rather than a second charge: two workers racing over the same
+  /// due subscription both try to insert the same (subscription, period,
+  /// attempt), and Postgres lets exactly one of them win. Null on a one-time
+  /// purchase, and nulls never collide, so those are unaffected.
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  periodStart    DateTime?
+  /// Which attempt at this period this payment is — 1 for the first charge, 2
+  /// for the first dunning retry, and so on.
+  ///
+  /// Part of the key because a RETRY is a legitimate second charge for the same
+  /// period, and keying on the period alone would have made the guard refuse
+  /// the dunning schedule it exists alongside. One charge per attempt is the
+  /// invariant that actually holds.
+  periodAttempt Int?
+
+  /// The provider's handle on the mandate this payment established, when it
+  /// established one. Carried here because the provider returns it with the
+  /// session — before the callback that settles it — and the subscription needs
+  /// it to charge against later.
+  recurrenceRef String?
+
   /// The hosted page this payment is collected on.
   ///
   /// Stored rather than returned once and forgotten, because the same row has
@@ -1044,6 +1074,7 @@ model Payment {
   /// Null refs never collide in Postgres, so many PENDING rows coexist while a
   /// settled reference stays unique to one payment.
   @@unique([provider, providerRef])
+  @@unique([subscriptionId, periodStart, periodAttempt])
   @@index([trainerId, clientId])
   @@index([trainerId, status])
 }
@@ -1110,4 +1141,94 @@ model Entitlement {
   @@index([trainerId, clientId])
   /// "Is this client's access live right now?" — the query Steps 23-28 lean on.
   @@index([clientId, endsAt])
+}
+
+/// Where a subscription stands. ACTIVE and PAST_DUE both still have access —
+/// PAST_DUE is a charge that failed and is being retried, not a closed door.
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  ENDED
+}
+
+/// Recorded so the history can answer «who ended this», which matters when the
+/// two sides remember it differently.
+enum CancelledBy {
+  CLIENT
+  TRAINER
+}
+
+/// The current state of a recurring arrangement.
+///
+/// The division of labour this model rests on: an ENTITLEMENT is the audit
+/// ledger — one immutable row per payment, recording what that payment bought
+/// and never rewritten. A SUBSCRIPTION is the current-state head: where things
+/// stand now, and what happens next. Every period this subscription ever had
+/// survives as its own Payment and Entitlement, so advancing it rewrites no
+/// history.
+model Subscription {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  status SubscriptionStatus @default(ACTIVE)
+
+  /// Snapshotted from the product, like every other term: a catalogue edit
+  /// changes what the NEXT subscription buys, never this one's cadence.
+  period SubscriptionPeriod
+
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+
+  /// The day of the month this subscription bills on, kept so the clamp is
+  /// applied to the ANCHOR rather than to the previous clamped date.
+  ///
+  /// Without it the anniversary can only ratchet downward: 31 January clamps to
+  /// 28 February, and computing the next period from the 28th gives 28 March
+  /// instead of the 31st, for ever. Every real billing system retains the
+  /// anchor for exactly this reason.
+  anchorDay Int
+
+  /// The authority for subscription access, and deliberately not an Entitlement.
+  ///
+  /// An entitlement records what a PAYMENT BOUGHT. Dunning grace was not
+  /// bought, so it cannot honestly be one — extending an entitlement would make
+  /// the ledger claim a payment covered days nobody paid for. This column says
+  /// how long access actually runs, including grace.
+  accessUntil DateTime
+
+  /// When the next charge is attempted. Null once nothing further is due —
+  /// cancelled, or ended.
+  nextChargeAt DateTime?
+
+  /// Consecutive failures for the CURRENT period. Cleared by any success.
+  failedAttempts Int @default(0)
+
+  /// The provider's handle on the mandate, for charges with no payer present.
+  recurrenceRef String?
+
+  cancelledAt DateTime?
+  cancelledBy CancelledBy?
+  endedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments Payment[]
+
+  /// One live arrangement per client and product. A client who resubscribes
+  /// after theirs ended reuses this row; the history of what they paid lives in
+  /// the Payments that reference it.
+  @@unique([clientId, productId])
+  /// The renewal job's whole query: what is due, and when.
+  @@index([status, nextChargeAt])
+  @@index([trainerId, status])
 }

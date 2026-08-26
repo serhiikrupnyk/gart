@@ -649,6 +649,138 @@ should be able to reply. The client's own conversation is `/client/chat` in thei
 one `Conversation`: an `aria-live="polite"` log so incoming messages are announced without stealing
 focus, Enter to send and Shift+Enter for a newline.
 
+## The subscription lifecycle
+
+Renewals, failed charges, dunning and cancellation — and the step where Step 22's
+`RecurrenceInstruction`, declared and never exercised, finally does something.
+
+### An entity, and why not a derivation
+
+A `Subscription` row per (client, product), for two reasons that a derived view
+cannot answer well. **«Which subscriptions are due today» is the renewal job's
+entire purpose** — derived, that is a group-by over a growing ledger on every run;
+as a column with `@@index([status, nextChargeAt])` it is a range scan. And a
+subscription holds state **no entitlement can express**: cancelled-but-still-running,
+past-due-with-two-retries-left, a next charge date.
+
+The division of labour, stated once because everything else follows from it:
+
+> An **Entitlement** is the audit ledger — one immutable row per payment, recording
+> what that payment bought, never rewritten. A **Subscription** is the current-state
+> head: where things stand now and what happens next.
+
+Every period a subscription ever had survives as its own Payment and Entitlement, so
+advancing it rewrites no history. A renewal's period **starts where the last one
+ended**, not when its callback happened — otherwise a charge settling two hours late
+would move the anniversary two hours later for ever.
+
+### The attempt is claimed before the money is touched
+
+This ordering is the design, and it came out of review finding two ways to wedge a
+subscription **permanently**. The attempt number and the next attempt date are written
+first, in a compare-and-set only one caller passes. So a crash, a provider timeout, a
+lost webhook or a second worker cannot leave a row un-chargeable — the schedule has
+already moved on, and recording the outcome afterwards only ever corrects it.
+
+The version that recorded the attempt _after_ the charge had the counter advance only
+via `recordFailure`, so every path that skipped it — a throw, or a provider that
+answers asynchronously — froze the attempt number for ever. The next run recomputed the
+same number, collided with its own half-finished payment, and did nothing. Silently,
+hourly, until someone read the logs. And because the batch is ordered by due date,
+wedged rows sort to the front: enough of them and no healthy subscription renews either.
+
+A renewal is refused outright when the client has been archived (they cannot sign in,
+so they could never reach the screen that would let them cancel), when the product has
+been retired, or when its cadence has changed — the price comes from the live product
+while the term stays frozen, which is how a monthly subscriber would end up paying an
+annual price twelve times a year.
+
+### One charge per attempt, enforced by Postgres
+
+`@@unique([subscriptionId, periodStart, periodAttempt])`. The attempt is in the key
+and that detail is load-bearing: keying on the period alone made the guard refuse the
+dunning retries it sits beside — a retry is a legitimate _second_ charge for the same
+period. A test caught that, which is what tests are for.
+
+So a job re-run inside one attempt is refused by the database rather than by a check
+in the service, two workers racing the same due subscription cannot both win, and the
+Step 22 guards still stop a replayed callback and a double grant.
+
+Every renewal is an ordinary Payment settling through the same `applyCallback` as
+everything else. There is no second settlement path — a renewal running unattended is
+precisely the charge that must not be the one nobody has exercised.
+
+The interface gained one verb. `createCheckout` returns a hosted page and a renewal
+has nobody to visit it, so `chargeRecurring` charges an established mandate instead.
+Fondy and WayForPay work exactly that way; LiqPay charges on its own schedule, which
+an adapter expresses by returning PENDING with no inline callback. Nothing above the
+seam has to know which model it is talking to.
+
+### Dunning, as policy
+
+**Four attempts over five days, two notifications, and access lapses only at the end.**
+
+| day  | what happens                                                     | who hears  |
+| ---- | ---------------------------------------------------------------- | ---------- |
+| 0    | charge; on failure → PAST_DUE, access extended to periodEnd + 5d | both       |
+| 1, 3 | retry                                                            | **nobody** |
+| 5    | final retry; on failure → ENDED, access lapses                   | both       |
+
+The silence in the middle is deliberate: a message per attempt is nagging, and the
+two that matter are «something went wrong, you have time» and «it has stopped». A card
+expiring should not cost somebody their training programme the same morning.
+
+Grace runs from whichever is later — the period end or the moment the client is
+actually told. A scheduler that never installed would otherwise announce a deadline that
+had already passed, and fire all four attempts in four hours; the window exists so
+somebody can fix a card, so it starts when they hear about it.
+
+Grace is granted **once**, on the first failure — not per attempt, or every retry
+would buy another five days and it would never end. Any success clears the count,
+restores ACTIVE, and access returns to exactly the paid period.
+
+A failed renewal deliberately does **not** also emit the payment-level failure
+notification: dunning says the same thing and adds the date the client can act on, and
+two messages for one event is how a feed becomes noise nobody reads.
+
+### Grace is not an entitlement
+
+`Subscription.accessUntil` is the authority for subscription access, including grace —
+and that is a second authority, so it needed a reason. **An entitlement records what a
+payment bought. Grace was not bought.** Extending one would make the ledger claim a
+payment covered days nobody paid for.
+
+The charge is attempted an hour **before** the period ends. Access is end-exclusive and
+the job runs hourly, so charging exactly at the boundary left a paid-up client reading
+«неактивна» for up to an hour every month while their own renewal was being taken.
+
+The billing day is stored as an **anchor**, not re-derived from the previous period. 31
+January clamps to 28 February, and computing the next period from the 28th gives 28
+March — the anniversary ratchets downward and never recovers. Every real billing system
+retains the anchor for exactly this reason.
+
+Both authorities answer through **one function**, `isAccessLive` — so «active» cannot
+come to mean two different things in two files. A test asserts that for a paid period
+the subscription's window and its entitlement's are identical to the millisecond, and
+that they diverge only by the grace that was never purchased, with the ledger
+untouched.
+
+### Cancelling
+
+**Either party can.** The client, because it is their money and their recurring charge
+— a subscription you cannot stop yourself is the definition of a dark pattern. The
+trainer, because they own the relationship. `cancelledBy` records which, so the history
+can answer «who ended this» when the two sides remember it differently.
+
+Cancelling stops future charges and **keeps access to the end of the paid period**. It
+is never a refund; that is Step 22's separate path, and conflating them would let a
+cancel button take money back by accident. While the period runs, it can be resumed;
+once it has lapsed, starting again is a purchase rather than a toggle.
+
+The confirmation says what will happen — the date access runs to, that no money comes
+back, and that there is a way back — and then stops. No retention offer, no second
+«are you sure», and the route to it is no harder to find than the one that started it.
+
 ## Checkout and the platform split
 
 The moat mechanic, and the step where the Step 22 seam stops being a promise: the

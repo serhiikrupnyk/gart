@@ -11,6 +11,7 @@ import {
   type ProviderCallback,
   type RawCallback,
   type RecurrenceInstruction,
+  type RecurringChargeRequest,
   type SplitInstruction,
   toCurrency,
 } from './payment-provider';
@@ -100,6 +101,9 @@ export class FakePaymentProvider extends PaymentProvider {
 
     return {
       providerRef,
+      // A mandate exists only where one was asked for, so a one-time purchase
+      // gets null and nothing can later charge against it.
+      recurrenceRef: request.recurrence === null ? null : `fake_mandate_${randomUUID()}`,
       // A hosted page the payer would visit. Nothing serves it: the settlement
       // has already been decided, and the URL exists so callers handle a
       // redirect the same way they will when a real page is behind it.
@@ -134,6 +138,44 @@ export class FakePaymentProvider extends PaymentProvider {
     }
 
     return this.decode(data);
+  }
+
+  /**
+   * A renewal: charged, not visited.
+   *
+   * Settles the same way a checkout does — same envelope, same signature, same
+   * inline callback — because a renewal that took a different road would leave
+   * the road everything else takes untested for the case that runs unattended.
+   */
+  async chargeRecurring(request: RecurringChargeRequest): Promise<CheckoutSession> {
+    if (this.unavailable) {
+      throw new Error('Fake acquirer is unavailable');
+    }
+
+    const providerRef = `fake_${randomUUID()}`;
+
+    this.issued.set(providerRef, {
+      orderRef: request.orderRef,
+      providerRef,
+      amount: request.amount,
+      split: request.split,
+      recurrence: null,
+    });
+
+    const outcome = this.outcome;
+
+    return {
+      providerRef,
+      // The mandate is unchanged by charging it.
+      recurrenceRef: request.recurrenceRef,
+      // Nobody is present, so there is no page to send anyone to.
+      redirectUrl: null,
+      status: outcome,
+      inlineCallback:
+        outcome === 'PENDING'
+          ? null
+          : this.buildCallback(providerRef, outcome, request.amount, request.orderRef),
+    };
   }
 
   async fetchStatus(providerRef: string): Promise<ProviderCallback> {

@@ -21,6 +21,8 @@ export const TRAINER_EVENT_TEXT: Record<NotificationType, string> = {
   PAYMENT_SUCCEEDED: 'Оплата',
   PAYMENT_FAILED: 'Оплата не пройшла',
   PAYMENT_REFUNDED: 'Повернення коштів',
+  SUBSCRIPTION_PAST_DUE: 'Підписка: оплата не пройшла',
+  SUBSCRIPTION_ENDED: 'Підписку призупинено',
 };
 
 export function trainerBody(type: NotificationType, detail: string | null): string {

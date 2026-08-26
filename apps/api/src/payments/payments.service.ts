@@ -19,6 +19,7 @@ import type {
   EntitlementModel,
   PaymentModel,
   ProductModel,
+  SubscriptionModel,
 } from '../generated/prisma/models.js';
 import {
   CALLBACK_MAX_AGE_MS,
@@ -30,6 +31,9 @@ import {
   type ProviderCallback,
   type RawCallback,
 } from './payment-provider';
+import { Prisma } from '../generated/prisma/client.js';
+import { isAccessLive } from './access';
+import { SubscriptionsService } from './subscriptions.service';
 import { commissionPercent, splitAmount } from './commission';
 import { entitlementEnd } from './entitlement-window';
 import { amountsEqual, toMoney } from '../common/money';
@@ -71,6 +75,7 @@ const ALLOWED_FROM: Record<PaymentStatus, readonly PaymentStatus[]> = {
 };
 
 type PaymentWithParties = PaymentModel & { product: ProductModel; client: ClientModel };
+type SubscriptionForRenewal = SubscriptionModel & { product: ProductModel; client: ClientModel };
 
 /**
  * Taking money, and granting what it bought.
@@ -106,6 +111,7 @@ export class PaymentsService {
     private readonly clients: ClientsService,
     private readonly provider: PaymentProvider,
     private readonly notifications: NotificationService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   /**
@@ -227,7 +233,11 @@ export class PaymentsService {
     try {
       return await this.prisma.payment.update({
         where: { id: paymentId },
-        data: { providerRef: session.providerRef, checkoutUrl: session.redirectUrl },
+        data: {
+          providerRef: session.providerRef,
+          checkoutUrl: session.redirectUrl,
+          recurrenceRef: session.recurrenceRef,
+        },
         include: { product: true, client: true },
       });
     } catch (error: unknown) {
@@ -241,6 +251,34 @@ export class PaymentsService {
       this.logger.error(`Could not record the provider session for payment ${paymentId}`);
 
       throw error;
+    }
+  }
+
+  /**
+   * Lets a renewal's subscription hear how its charge went.
+   *
+   * The inline path already does this in renewOne, but a provider that answers
+   * by webhook settles here instead — and without this the dunning ladder would
+   * be unreachable for every such provider: no retries, no grace, no ending,
+   * and a subscription whose access simply stopped with nobody told.
+   */
+  private async noteSubscriptionOutcome(payment: PaymentWithParties): Promise<void> {
+    if (payment.subscriptionId === null || payment.periodAttempt === null) {
+      return;
+    }
+
+    if (payment.status === 'FAILED') {
+      await this.subscriptions.recordFailure(payment.subscriptionId, payment.periodAttempt);
+
+      return;
+    }
+
+    if (payment.status === 'REFUNDED') {
+      // The money for this period went back, so the access it bought goes with
+      // it — and nothing further is charged. Leaving the arrangement live would
+      // hand the client a period they were refunded for and then bill them
+      // again at the end of it.
+      await this.subscriptions.endAfterRefund(payment.subscriptionId);
     }
   }
 
@@ -275,6 +313,14 @@ export class PaymentsService {
     }
 
     if (payment.status === 'FAILED') {
+      // A renewal that failed is the subscription's news, not the payment's:
+      // dunning says the same thing AND the date access runs to, which is the
+      // half that lets anyone act. Two messages for one event is how a feed
+      // becomes noise nobody reads.
+      if (payment.subscriptionId !== null) {
+        return;
+      }
+
       await Promise.all([
         this.notifications.notifyTrainer({
           trainerId: payment.trainerId,
@@ -347,6 +393,210 @@ export class PaymentsService {
   }
 
   /**
+   * Charges everything that is due, and records what came of each.
+   *
+   * The whole of the renewal job, and deliberately a plain method: the worker
+   * only calls it, so the rule is testable without Redis and `now` is an
+   * argument rather than a fact about the machine.
+   *
+   * Each renewal is an ordinary Payment settling through applyCallback — there
+   * is no second settlement path, which is what keeps a renewal from being the
+   * one kind of charge nobody has exercised.
+   *
+   * Returns how many were charged successfully, which is what the worker logs.
+   */
+  async renewDue(now = new Date()): Promise<number> {
+    const due = await this.subscriptions.due(now);
+    let renewed = 0;
+
+    for (const subscription of due) {
+      try {
+        const charged = await this.renewOne(subscription, now);
+
+        if (charged) {
+          renewed += 1;
+        }
+      } catch (error: unknown) {
+        // One subscription's bad day must not stop the rest of the run. The
+        // attempt was claimed before any of this, so the schedule has already
+        // advanced and the next run takes the NEXT attempt rather than
+        // re-treading one it can no longer charge.
+        this.logger.error(`Renewal failed for subscription ${subscription.id}: ${String(error)}`);
+      }
+    }
+
+    // Anything whose retries are spent and whose access has run out is closed
+    // here — the safety net for an attempt that was claimed and never reported
+    // back, which would otherwise sit PAST_DUE for ever.
+    await this.subscriptions.endLapsed(now);
+
+    return renewed;
+  }
+
+  private async renewOne(subscription: SubscriptionForRenewal, now: Date): Promise<boolean> {
+    const product = subscription.product;
+
+    // The same doors a first sale goes through, plus one. A client who was
+    // archived cannot sign in, so they cannot reach the screen that would let
+    // them cancel — charging them monthly with no way to stop it is the worst
+    // version of this feature. A product that was retired, or whose cadence the
+    // trainer has since changed, is no longer the thing anybody subscribed to:
+    // the price would come from the live product while the term stayed frozen,
+    // which is how a monthly subscriber ends up paying an annual price twelve
+    // times a year.
+    const withdrawn =
+      subscription.client.status === 'ARCHIVED' ||
+      !product.isActive ||
+      product.period !== subscription.period ||
+      subscription.recurrenceRef === null;
+
+    if (withdrawn) {
+      await this.subscriptions.withdraw(subscription, now);
+
+      return false;
+    }
+
+    // Claimed BEFORE the money is touched. The attempt number and the next
+    // attempt date are written first, in a compare-and-set only one caller
+    // passes — so a crash, a provider timeout, a lost webhook or a second
+    // worker cannot leave this row un-chargeable. Losing the claim means
+    // somebody else has it, or a cancellation landed between the batch read
+    // and here.
+    // Narrowed here rather than inferred from `withdrawn`, which folds several
+    // conditions together and tells the compiler nothing about this one.
+    const mandate = subscription.recurrenceRef;
+
+    if (mandate === null) {
+      return false;
+    }
+
+    const attempt = await this.subscriptions.claim(subscription, now);
+
+    if (attempt === null) {
+      return false;
+    }
+
+    const periodStart = subscription.currentPeriodEnd;
+
+    // Priced and commissioned at THIS renewal's time: a catalogue or rate
+    // change applies to the period being bought now, and to no period already
+    // bought. The cadence is the frozen one, because it is what was subscribed
+    // to — and a product whose cadence has since changed never reaches here.
+    const amount = toMoney(product.priceAmount, product.currency);
+    const { fee } = splitAmount(product.priceAmount, this.commission);
+
+    const payment = await this.createRenewalPayment(subscription, periodStart, attempt, fee);
+
+    if (payment === null) {
+      // The claim was won but this attempt's row already exists, which can only
+      // be a duplicate run that got here first. Nothing further to do.
+      return false;
+    }
+
+    try {
+      const session = await this.provider.chargeRecurring({
+        orderRef: payment.id,
+        recurrenceRef: mandate,
+        amount,
+        description: product.name,
+        callbackUrl: `${this.apiOrigin}/payments/callback/${this.provider.id}`,
+        split: {
+          beneficiaryRef: subscription.trainerId,
+          platformFee: toMoney(fee, product.currency),
+        },
+        metadata: {
+          trainerId: subscription.trainerId,
+          clientId: subscription.clientId,
+          productId: product.id,
+        },
+      });
+
+      await this.recordSession(payment.id, session);
+
+      if (session.inlineCallback === null) {
+        // The provider will answer by webhook. The claim already moved the
+        // schedule on, so a lost answer costs one attempt instead of wedging
+        // the subscription — the next attempt comes round on its own, and the
+        // FAILED webhook records itself through settle().
+        return false;
+      }
+
+      const settled = await this.applyCallback(session.inlineCallback);
+
+      if (settled?.status === 'SUCCEEDED') {
+        return true;
+      }
+
+      if (settled?.status === 'FAILED') {
+        // Settling it already recorded the outcome against the subscription —
+        // the same road a webhook takes. Recording it again here would dun the
+        // client twice for one attempt.
+        return false;
+      }
+    } catch (error: unknown) {
+      // The charge did not complete. The attempt is spent either way, and the
+      // schedule has already advanced past it.
+      this.logger.error(`Renewal charge failed for payment ${payment.id}: ${String(error)}`);
+    }
+
+    // Reached only when the charge produced no settlement at all: a throw, or a
+    // callback the verification refused. The attempt is spent either way, so
+    // the outcome is recorded here instead.
+    await this.subscriptions.recordFailure(subscription.id, attempt);
+
+    return false;
+  }
+
+  /**
+   * Opens this period's payment, or reports that it already exists.
+   *
+   * `@@unique([subscriptionId, periodStart, periodAttempt])` is what makes a
+   * re-run of the job a no-op rather than a second charge — and it is the
+   * DATABASE that says so, so two workers racing over the same due subscription
+   * cannot both win. The attempt is in the key because a dunning RETRY is a
+   * legitimate second charge for the same period; keying on the period alone
+   * would have made the guard refuse the very schedule it sits beside.
+   */
+  private async createRenewalPayment(
+    subscription: SubscriptionForRenewal,
+    periodStart: Date,
+    attempt: number,
+    fee: Prisma.Decimal,
+  ): Promise<PaymentWithParties | null> {
+    try {
+      return await this.prisma.payment.create({
+        data: {
+          trainerId: subscription.trainerId,
+          clientId: subscription.clientId,
+          productId: subscription.productId,
+          subscriptionId: subscription.id,
+          periodStart,
+          periodAttempt: attempt,
+          amount: subscription.product.priceAmount,
+          currency: subscription.product.currency,
+          platformFee: fee,
+          status: 'PENDING',
+          provider: this.provider.id,
+          description: subscription.product.name,
+          periodSnapshot: subscription.period,
+          accessDaysSnapshot: null,
+        },
+        include: { product: true, client: true },
+      });
+    } catch (error: unknown) {
+      if (isUniqueConstraintError(error)) {
+        this.logger.log(
+          `Attempt ${String(attempt)} already made for subscription ${subscription.id}`,
+        );
+
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
+  /**
    * Applies a provider callback: verify, record, and grant exactly once.
    *
    * Returns null when there is nothing to apply — an unknown order, a stale
@@ -412,6 +662,7 @@ export class PaymentsService {
     // status comparison below filters out.
     if (settled !== null && settled.status !== payment.status) {
       await this.announce(settled);
+      await this.noteSubscriptionOutcome(settled);
     }
 
     return settled;
@@ -576,14 +827,19 @@ export class PaymentsService {
           // Guard two, and the stronger one: Entitlement.paymentId is unique,
           // so access can be granted at most once per payment BECAUSE THE
           // DATABASE SAYS SO — even for two deliveries carrying different ids.
+          // A renewal's period starts where the last one ended, not when the
+          // callback happened: a charge that settles two hours late must not
+          // shift the anniversary two hours later for ever.
+          const startsAt = payment.periodStart ?? observedAt;
+
           await tx.entitlement.create({
             data: {
               trainerId: payment.trainerId,
               clientId: payment.clientId,
               productId: payment.productId,
               paymentId: payment.id,
-              startsAt: observedAt,
-              endsAt: entitlementEnd(observedAt, {
+              startsAt,
+              endsAt: entitlementEnd(startsAt, {
                 // The terms this payment was BOUGHT under, not the ones the
                 // catalogue carries now. Backfilled by the migration that added
                 // them, so every payment has a snapshot and nothing guesses.
@@ -592,6 +848,8 @@ export class PaymentsService {
               }),
             },
           });
+
+          await this.subscriptions.recordSuccess(tx, payment, startsAt, payment.recurrenceRef);
         }
 
         if (callback.status === 'REFUNDED') {
@@ -696,9 +954,6 @@ export function toPublicEntitlement(
   entitlement: EntitlementModel & { product: ProductModel; payment: PaymentModel },
   now: Date,
 ): PublicEntitlement {
-  const started = entitlement.startsAt.getTime() <= now.getTime();
-  const notEnded = entitlement.endsAt === null || entitlement.endsAt.getTime() > now.getTime();
-
   return {
     id: entitlement.id,
     productId: entitlement.productId,
@@ -707,7 +962,7 @@ export function toPublicEntitlement(
     productName: entitlement.payment.description,
     startsAt: entitlement.startsAt.toISOString(),
     endsAt: entitlement.endsAt === null ? null : entitlement.endsAt.toISOString(),
-    isActive: entitlement.revokedAt === null && started && notEnded,
+    isActive: isAccessLive(entitlement, now),
   };
 }
 
@@ -727,6 +982,16 @@ export function toPublicEntitlement(
  * `driverAdapterError.cause`, with the field names still carrying their SQL
  * quotes. `modelName` is the stable part, and it says what we actually mean.
  */
+/** A plain P2002, whatever the constraint — the renewal guard is only ever one. */
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === UNIQUE_CONSTRAINT_ERROR
+  );
+}
+
 function isIdempotencyCollision(error: unknown): boolean {
   if (
     typeof error !== 'object' ||

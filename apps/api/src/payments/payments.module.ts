@@ -13,6 +13,8 @@ import {
 } from './payments.controller';
 import { PaymentProviderModule } from './payment-provider.module';
 import { PaymentsService } from './payments.service';
+import { MeSubscriptionsController, SubscriptionsController } from './subscriptions.controller';
+import { SubscriptionsService } from './subscriptions.service';
 
 @Module({
   imports: [DatabaseModule, AuthModule, ClientsModule, NotificationsModule, PaymentProviderModule],
@@ -22,7 +24,9 @@ import { PaymentsService } from './payments.service';
     MePurchasesController,
     PaymentCallbackController,
     PaymentsController,
+    SubscriptionsController,
+    MeSubscriptionsController,
   ],
-  providers: [PaymentsService],
+  providers: [PaymentsService, SubscriptionsService],
 })
 export class PaymentsModule {}

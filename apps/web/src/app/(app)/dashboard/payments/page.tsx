@@ -142,7 +142,9 @@ export default function PaymentsPage() {
       <p aria-live="polite" className="sr-only">
         {payments === undefined
           ? 'Завантаження оплат'
-          : `Показано оплат: ${String(payments.length)}`}
+          : failed
+            ? 'Не вдалося завантажити оплати'
+            : `Показано оплат: ${String(payments.length)}`}
       </p>
 
       {payments === undefined ? (

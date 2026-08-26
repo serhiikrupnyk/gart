@@ -3,6 +3,7 @@ import { ModuleRef } from '@nestjs/core';
 import { Queue, Worker } from 'bullmq';
 import IORedis, { type Redis } from 'ioredis';
 
+import { PaymentsService } from '../payments/payments.service';
 import { InactivityService } from './inactivity.service';
 import { NotificationQueue, type PushJob } from './notification-queue';
 import { PushDeliveryService } from './push-delivery.service';
@@ -13,6 +14,16 @@ const QUEUE_NAME = 'notifications-push';
 const PUSH_JOB = 'push';
 const SWEEP_JOB = 'inactivity-sweep';
 const DEFAULT_SWEEP_CRON = '0 9 * * *';
+const RENEWAL_JOB = 'subscription-renewals';
+/**
+ * Hourly, not daily.
+ *
+ * A renewal is money: a run that is missed because the process was restarting
+ * at nine costs a charge until tomorrow, and the whole schedule drifts. Hourly
+ * makes a missed run cost an hour, and the work is idempotent — the unique on
+ * (subscription, period) means an extra run charges nothing twice.
+ */
+const DEFAULT_RENEWAL_CRON = '5 * * * *';
 
 /**
  * The only file in the codebase that knows Redis exists.
@@ -66,6 +77,19 @@ export class BullMqNotificationQueue
     this.worker = new Worker<PushJob>(
       QUEUE_NAME,
       async (job) => {
+        if (job.name === RENEWAL_JOB) {
+          // Resolved at job time for the same reason the sweep is: reaching
+          // into PaymentsService from the constructor is a dependency cycle
+          // Nest hangs on rather than reports.
+          const renewed = await this.moduleRef.get(PaymentsService, { strict: false }).renewDue();
+
+          if (renewed > 0) {
+            this.logger.log(`Renewed ${String(renewed)} subscriptions`);
+          }
+
+          return;
+        }
+
         if (job.name === SWEEP_JOB) {
           // Resolved when a job runs, never in the constructor: InactivityService
           // reaches back through NotificationService to this very queue, and
@@ -93,6 +117,20 @@ export class BullMqNotificationQueue
       )
       .catch((error: Error) => {
         this.logger.warn(`Inactivity sweep not scheduled: ${error.message}`);
+      });
+
+    // The renewal schedule, declared the same way and just as idempotently: a
+    // restart re-declares rather than duplicates it.
+    void this.queue
+      .upsertJobScheduler(
+        RENEWAL_JOB,
+        { pattern: process.env.SUBSCRIPTION_RENEWAL_CRON ?? DEFAULT_RENEWAL_CRON },
+        { name: RENEWAL_JOB },
+      )
+      .catch((error: Error) => {
+        // Louder than the sweep's warning: a sweep that does not run costs an
+        // alert, a renewal that does not run costs a charge.
+        this.logger.error(`Subscription renewals not scheduled: ${error.message}`);
       });
 
     this.worker.on('error', (error: Error) => {

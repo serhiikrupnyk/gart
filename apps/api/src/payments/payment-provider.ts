@@ -62,6 +62,26 @@ export interface RecurrenceInstruction {
   startsAt: Date | null;
 }
 
+/**
+ * A charge against an established mandate, with no payer present.
+ *
+ * Deliberately not `createCheckout`: that returns a hosted page for somebody to
+ * visit, and a renewal has nobody to visit it. Everything else is the same
+ * shape, including the split — a renewal is commissioned exactly as the first
+ * payment was, at whatever the rate is when it runs.
+ */
+export interface RecurringChargeRequest {
+  /** Our new Payment's id, and the order reference the provider dedupes on. */
+  orderRef: string;
+  /** The mandate to charge, from the checkout that established it. */
+  recurrenceRef: string;
+  amount: Money;
+  description: string;
+  callbackUrl: string;
+  split: SplitInstruction | null;
+  metadata: PaymentMetadata;
+}
+
 export interface CheckoutRequest {
   /**
    * Our `Payment.id`. Every candidate acquirer requires a merchant-owned unique
@@ -85,6 +105,13 @@ export interface CheckoutRequest {
 export interface CheckoutSession {
   /** The provider's own identifier for this payment. */
   providerRef: string;
+  /**
+   * The provider's handle on an established mandate, when this payment created
+   * one — a Fondy `rectoken`, a WayForPay `recToken`, a LiqPay subscription.
+   * Null when the payment set up no recurrence. Kept so a later charge has
+   * something to charge against.
+   */
+  recurrenceRef: string | null;
   /**
    * The hosted page to send the payer to. Null when the provider settled
    * without one — see `inlineCallback`.
@@ -168,6 +195,18 @@ export abstract class PaymentProvider {
    * never sees a signature, and never decides what a valid one looks like.
    */
   abstract parseCallback(raw: RawCallback): Promise<ProviderCallback>;
+
+  /**
+   * Charges an established recurrence — a renewal.
+   *
+   * Returns the same session shape, so a renewal settles through the identical
+   * road as everything else: verified, mapped, applied once. Fondy and
+   * WayForPay charge a stored token exactly like this. LiqPay charges on its
+   * own schedule instead, which an adapter expresses by returning PENDING with
+   * no inline callback — the answer arrives later by webhook either way, and
+   * nothing above this line has to know which model it is talking to.
+   */
+  abstract chargeRecurring(request: RecurringChargeRequest): Promise<CheckoutSession>;
 
   /**
    * What the provider believes about a payment right now.

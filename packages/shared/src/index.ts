@@ -114,7 +114,13 @@ export type {
   UnsubscribePushRequest,
 } from './notification';
 export {
+  DUNNING_GRACE_DAYS,
+  DUNNING_MAX_ATTEMPTS,
+  DUNNING_RETRY_DAYS,
   formatMoney,
+  SUBSCRIPTION_STATUS_FILTERS,
+  SUBSCRIPTION_STATUS_LABELS,
+  SUBSCRIPTION_STATUSES,
   PAYMENT_STATUS_FILTERS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUSES,
@@ -142,10 +148,14 @@ export type {
   PaymentStatusFilter,
   ProductKind,
   ProductStatusFilter,
+  ClientSubscription,
   PublicEntitlement,
   PublicPayment,
+  PublicSubscription,
   PublicProduct,
   SubscriptionPeriod,
+  SubscriptionStatus,
+  SubscriptionStatusFilter,
   UpdateProductRequest,
 } from './payment';
 export {

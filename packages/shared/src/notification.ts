@@ -10,6 +10,8 @@ export const NOTIFICATION_TYPES = [
   'PAYMENT_SUCCEEDED',
   'PAYMENT_FAILED',
   'PAYMENT_REFUNDED',
+  'SUBSCRIPTION_PAST_DUE',
+  'SUBSCRIPTION_ENDED',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

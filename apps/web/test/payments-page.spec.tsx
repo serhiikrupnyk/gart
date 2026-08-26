@@ -276,6 +276,7 @@ describe('the client purchases screen', () => {
 
   it('puts what is owed first, with a way to pay it', async () => {
     apiFetch.mockResolvedValueOnce(purchases());
+    apiFetch.mockResolvedValueOnce([]);
 
     renderClient();
 
@@ -307,6 +308,8 @@ describe('the client purchases screen', () => {
         ],
       }),
     );
+
+    apiFetch.mockResolvedValueOnce([]);
 
     renderClient();
 
@@ -343,6 +346,8 @@ describe('the client purchases screen', () => {
       }),
     );
 
+    apiFetch.mockResolvedValueOnce([]);
+
     renderClient();
 
     expect(await screen.findByText('Ваш доступ')).toBeInTheDocument();
@@ -352,6 +357,7 @@ describe('the client purchases screen', () => {
 
   it('says nothing is owed rather than showing an empty frame', async () => {
     apiFetch.mockResolvedValueOnce({ payments: [], entitlements: [] });
+    apiFetch.mockResolvedValueOnce([]);
 
     renderClient();
 

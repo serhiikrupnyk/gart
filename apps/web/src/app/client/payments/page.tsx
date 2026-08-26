@@ -7,6 +7,7 @@ import {
   type ClientPayment,
   type ClientPurchases,
   type PaymentStatus,
+  type ClientSubscription,
   type PublicEntitlement,
 } from '@gart/shared';
 
@@ -21,6 +22,8 @@ import {
 } from '@/components/ui';
 import { formatRecordDate } from '@/lib/dates';
 import { myPurchases } from '@/lib/payments';
+import { mySubscriptions } from '@/lib/subscriptions';
+import { ClientSubscriptions } from '@/components/payments/client-subscriptions';
 
 const STATUS_TONES: Record<PaymentStatus, BadgeTone> = {
   PENDING: 'warning',
@@ -48,6 +51,7 @@ function accessLabel(entitlement: PublicEntitlement): string {
 
 export default function ClientPaymentsPage() {
   const [data, setData] = useState<ClientPurchases | undefined>();
+  const [subscriptions, setSubscriptions] = useState<ClientSubscription[]>([]);
   const [failed, setFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -67,6 +71,9 @@ export default function ClientPaymentsPage() {
   useEffect(() => {
     let active = true;
 
+    // Two independent loads, purchases first. A subscriptions outage must not
+    // take the payable invoice down with it — the client came here to pay, and
+    // /me/purchases answered perfectly well.
     myPurchases()
       .then((loaded) => {
         if (!active) return;
@@ -77,6 +84,15 @@ export default function ClientPaymentsPage() {
         if (!active) return;
         setData({ payments: [], entitlements: [] });
         setFailed(true);
+      });
+
+    mySubscriptions()
+      .then((loaded) => {
+        if (active) setSubscriptions(loaded);
+      })
+      .catch(() => {
+        // Its own failure, kept to itself.
+        if (active) setSubscriptions([]);
       });
 
     return () => {
@@ -119,7 +135,7 @@ export default function ClientPaymentsPage() {
   const open = data.payments.filter(isOpen);
   const history = data.payments.filter((payment) => !isOpen(payment));
 
-  if (data.payments.length === 0 && data.entitlements.length === 0) {
+  if (data.payments.length === 0 && data.entitlements.length === 0 && subscriptions.length === 0) {
     return (
       <>
         {heading}
@@ -131,98 +147,105 @@ export default function ClientPaymentsPage() {
     );
   }
 
+  // A Fragment like the other branches, so the h1 reconciles instead of being
+  // torn down — focus is placed on it after a cancel, and a changed root
+  // element type would destroy the node that focus had just landed on.
   return (
-    <div className="space-y-8">
+    <>
       {heading}
-      {open.length > 0 && (
-        <section aria-labelledby="to-pay">
-          <h2 id="to-pay" className="mb-3 text-sm font-bold text-text">
-            До оплати
-          </h2>
-          <ul className="space-y-3">
-            {open.map((payment) => (
-              <li key={payment.id}>
-                <Card>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-text">{payment.productName}</p>
-                      <p className="mt-0.5 text-lg font-bold tabular-nums text-text">
-                        {formatMoney(payment.amount)}
-                      </p>
-                    </div>
-                    <a
-                      href={payment.checkoutUrl}
-                      className={buttonClasses('primary', 'md')}
-                      aria-label={`Оплатити ${payment.productName}, ${formatMoney(payment.amount)}`}
-                    >
-                      Оплатити
-                    </a>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <div className="space-y-8">
+        <ClientSubscriptions subscriptions={subscriptions} onChanged={retry} />
 
-      {data.entitlements.length > 0 && (
-        <section aria-labelledby="access">
-          <h2 id="access" className="mb-3 text-sm font-bold text-text">
-            Ваш доступ
-          </h2>
-          <ul className="space-y-3">
-            {data.entitlements.map((entitlement) => (
-              <li key={entitlement.id}>
-                <Card>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-text">{entitlement.productName}</p>
-                      <p className="mt-0.5 text-xs text-text-secondary">
-                        {accessLabel(entitlement)}
-                      </p>
+        {open.length > 0 && (
+          <section aria-labelledby="to-pay">
+            <h2 id="to-pay" className="mb-3 text-sm font-bold text-text">
+              До оплати
+            </h2>
+            <ul className="space-y-3">
+              {open.map((payment) => (
+                <li key={payment.id}>
+                  <Card>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-text">{payment.productName}</p>
+                        <p className="mt-0.5 text-lg font-bold tabular-nums text-text">
+                          {formatMoney(payment.amount)}
+                        </p>
+                      </div>
+                      <a
+                        href={payment.checkoutUrl}
+                        className={buttonClasses('primary', 'md')}
+                        aria-label={`Оплатити ${payment.productName}, ${formatMoney(payment.amount)}`}
+                      >
+                        Оплатити
+                      </a>
                     </div>
-                    <Badge tone={entitlement.isActive ? 'success' : 'neutral'}>
-                      {entitlement.isActive ? 'Активний' : 'Завершено'}
-                    </Badge>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
-      {history.length > 0 && (
-        <section aria-labelledby="history">
-          <h2 id="history" className="mb-3 text-sm font-bold text-text">
-            Історія
-          </h2>
-          <ul className="space-y-3">
-            {history.map((payment) => (
-              <li key={payment.id}>
-                <Card>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-text">{payment.productName}</p>
-                      <p className="mt-0.5 text-xs text-text-secondary">
-                        {formatRecordDate(payment.paidAt ?? payment.createdAt)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold tabular-nums text-text">
-                        {formatMoney(payment.amount)}
-                      </p>
-                      <Badge tone={STATUS_TONES[payment.status]}>
-                        {PAYMENT_STATUS_LABELS[payment.status]}
+        {data.entitlements.length > 0 && (
+          <section aria-labelledby="access">
+            <h2 id="access" className="mb-3 text-sm font-bold text-text">
+              Ваш доступ
+            </h2>
+            <ul className="space-y-3">
+              {data.entitlements.map((entitlement) => (
+                <li key={entitlement.id}>
+                  <Card>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-text">{entitlement.productName}</p>
+                        <p className="mt-0.5 text-xs text-text-secondary">
+                          {accessLabel(entitlement)}
+                        </p>
+                      </div>
+                      <Badge tone={entitlement.isActive ? 'success' : 'neutral'}>
+                        {entitlement.isActive ? 'Активний' : 'Завершено'}
                       </Badge>
                     </div>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {history.length > 0 && (
+          <section aria-labelledby="history">
+            <h2 id="history" className="mb-3 text-sm font-bold text-text">
+              Історія
+            </h2>
+            <ul className="space-y-3">
+              {history.map((payment) => (
+                <li key={payment.id}>
+                  <Card>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-text">{payment.productName}</p>
+                        <p className="mt-0.5 text-xs text-text-secondary">
+                          {formatRecordDate(payment.paidAt ?? payment.createdAt)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold tabular-nums text-text">
+                          {formatMoney(payment.amount)}
+                        </p>
+                        <Badge tone={STATUS_TONES[payment.status]}>
+                          {PAYMENT_STATUS_LABELS[payment.status]}
+                        </Badge>
+                      </div>
+                    </div>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </>
   );
 }

@@ -1,5 +1,10 @@
 import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
-import { PAYMENT_STATUS_FILTERS, type PaymentStatusFilter } from '@gart/shared';
+import {
+  PAYMENT_STATUS_FILTERS,
+  SUBSCRIPTION_STATUS_FILTERS,
+  type PaymentStatusFilter,
+  type SubscriptionStatusFilter,
+} from '@gart/shared';
 
 const PRODUCT_MESSAGE = 'Некоректний продукт';
 
@@ -23,4 +28,10 @@ export class PaymentListQuery {
   @IsOptional()
   @IsIn(PAYMENT_STATUS_FILTERS, { message: 'Некоректний фільтр' })
   status?: PaymentStatusFilter;
+}
+
+export class SubscriptionListQuery {
+  @IsOptional()
+  @IsIn(SUBSCRIPTION_STATUS_FILTERS, { message: 'Некоректний фільтр' })
+  status?: SubscriptionStatusFilter;
 }

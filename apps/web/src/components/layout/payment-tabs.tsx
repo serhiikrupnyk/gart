@@ -4,6 +4,7 @@ import { ProgressLink } from './navigation-progress';
 const TABS = [
   { href: '/dashboard/products', label: 'Продукти' },
   { href: '/dashboard/payments', label: 'Оплати' },
+  { href: '/dashboard/subscriptions', label: 'Підписки' },
 ] as const;
 
 /**

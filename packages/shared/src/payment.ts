@@ -202,3 +202,86 @@ export interface PublicEntitlement {
   /** Whether it covers this moment: granted, not revoked, not yet expired. */
   isActive: boolean;
 }
+
+export const SUBSCRIPTION_STATUSES = ['ACTIVE', 'PAST_DUE', 'CANCELLED', 'ENDED'] as const;
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  ACTIVE: 'Активна',
+  PAST_DUE: 'Оплата не пройшла',
+  CANCELLED: 'Скасована',
+  ENDED: 'Завершена',
+};
+
+export const SUBSCRIPTION_STATUS_FILTERS = ['all', ...SUBSCRIPTION_STATUSES] as const;
+export type SubscriptionStatusFilter = (typeof SUBSCRIPTION_STATUS_FILTERS)[number];
+
+/**
+ * The dunning policy, in one place because it is a POLICY and not a detail.
+ *
+ * A charge is attempted on the due date. If it fails, three more attempts
+ * follow — on days 1, 3 and 5 after the period ended — and access continues
+ * throughout. Only when the fourth attempt fails does access lapse.
+ *
+ * A card expiring should not cost somebody their training programme the same
+ * morning. Five days is long enough to notice an email and fix a card, and
+ * short enough that it is not a month of unpaid coaching.
+ */
+export const DUNNING_RETRY_DAYS = [1, 3, 5] as const;
+
+/** The first attempt plus the retries above. */
+export const DUNNING_MAX_ATTEMPTS = DUNNING_RETRY_DAYS.length + 1;
+
+/**
+ * How far past the period end access survives while the retries run.
+ *
+ * One day LONGER than the last retry, not the same day. A job can only run at
+ * or after its due time, so grace expiring on the instant the final attempt is
+ * scheduled would mean access had already lapsed before that attempt got its
+ * chance — and a client whose fourth charge succeeds would have been locked out
+ * waiting for it.
+ */
+export const DUNNING_GRACE_DAYS = 6;
+
+/** A subscription as the TRAINER sees it. */
+export interface PublicSubscription {
+  id: string;
+  clientId: string;
+  clientName: string;
+  productId: string;
+  productName: string;
+  price: Money;
+  period: SubscriptionPeriod;
+  status: SubscriptionStatus;
+  currentPeriodEnd: string;
+  /** How long access actually runs, grace included. */
+  accessUntil: string;
+  nextChargeAt: string | null;
+  /** 0 while healthy; 1..4 once charges are failing. */
+  failedAttempts: number;
+  cancelledBy: 'CLIENT' | 'TRAINER' | null;
+  /** Whether access is live right now, by the one shared rule. */
+  isActive: boolean;
+}
+
+/**
+ * The same subscription as the CLIENT sees it.
+ *
+ * Their own cost and dates, and nothing about the trainer's commission — the
+ * same separation PublicPayment and ClientPayment keep, for the same reason.
+ */
+export interface ClientSubscription {
+  id: string;
+  productName: string;
+  price: Money;
+  period: SubscriptionPeriod;
+  status: SubscriptionStatus;
+  /** When the next charge happens, if one is coming. */
+  nextChargeAt: string | null;
+  /** The date access runs to — what a cancellation preserves. */
+  accessUntil: string;
+  failedAttempts: number;
+  isActive: boolean;
+  /** Whether reactivating is still possible, or it has lapsed for good. */
+  canReactivate: boolean;
+}
