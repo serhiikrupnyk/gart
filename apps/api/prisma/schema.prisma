@@ -148,6 +148,7 @@ model Trainer {
   chatThreads       ChatThread[]
   payments          Payment[]
   subscription      Subscription?
+  foods             Food[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -247,6 +248,95 @@ model Category {
 
   // Doubles as the trainerId index: its leading column is trainerId.
   @@unique([trainerId, name])
+}
+
+/// What a food is, coarsely. A closed set trainers do not extend, so an enum
+/// rather than a table — the same call MuscleGroup makes: no joins, no seed
+/// prerequisite, filterable. Ukrainian labels live in @gart/shared.
+enum FoodGroup {
+  GRAINS
+  MEAT
+  FISH
+  DAIRY
+  EGGS
+  VEGETABLES
+  FRUIT
+  NUTS_SEEDS
+  LEGUMES
+  FATS_OILS
+  BAKERY
+  SWEETS
+  BEVERAGES
+  SAUCES
+  OTHER
+}
+
+/// One entry in the food library.
+///
+/// Ownership is the exercise library's, unchanged: a NULL trainerId is a global
+/// row every trainer can read, and writes go through `{ id, trainerId }`, which
+/// a NULL can never match. Globals are immutable by construction, with no
+/// "if global" branch anywhere to forget.
+///
+/// Every value is PER 100 GRAMS, always, so nothing downstream has to ask «per
+/// what?» — portions convert, they do not redefine the basis.
+model Food {
+  id String @id @default(cuid())
+
+  trainerId String?
+  trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  name  String
+  brand String?
+  group FoodGroup
+
+  /// Decimal, never float. These are multiplied by portion weights and summed
+  /// across a day's meals, so an error at 100 g compounds — the same argument
+  /// that keeps money out of floating point.
+  kcal    Decimal @db.Decimal(7, 2)
+  protein Decimal @db.Decimal(6, 2)
+  fat     Decimal @db.Decimal(6, 2)
+  carbs   Decimal @db.Decimal(6, 2)
+
+  /// NULL means NOT MEASURED, which is not the same as zero.
+  fibre        Decimal? @db.Decimal(6, 2)
+  sugars       Decimal? @db.Decimal(6, 2)
+  saturatedFat Decimal? @db.Decimal(6, 2)
+  /// Two places like every other nutrient, so the arithmetic has one scale.
+  /// EU labels quote salt to two decimals, and 0.01 g is 10 mg — finer than
+  /// anybody plans a meal to.
+  salt         Decimal? @db.Decimal(6, 2)
+
+  /// Where these numbers came from. A food catalogue without provenance is a
+  /// set of assertions; global rows name their database, a trainer's own say
+  /// so plainly rather than borrowing an authority.
+  source String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  portions FoodPortion[]
+
+  @@index([trainerId])
+}
+
+/// A named measure of a food, and what it actually weighs.
+///
+/// Ownership is NOT duplicated here: a portion belongs to its food, and every
+/// path to it goes through that food's own visibleTo/requireOwned gates —
+/// exactly as ExerciseMedia belongs to its exercise.
+model FoodPortion {
+  id String @id @default(cuid())
+
+  foodId String
+  food   Food   @relation(fields: [foodId], references: [id], onDelete: Cascade)
+
+  label String
+  grams Decimal @db.Decimal(7, 2)
+
+  createdAt DateTime @default(now())
+
+  @@unique([foodId, label])
 }
 
 /// A user acting inside a trainer's account. The OWNER row is created alongside

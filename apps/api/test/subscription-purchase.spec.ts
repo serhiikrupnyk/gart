@@ -1,4 +1,11 @@
-import { planPrice, TRIAL_DAYS, type PublicPayment, type PublicSubscription } from '@gart/shared';
+import {
+  PLAN_CAPABILITIES,
+  planPrice,
+  SUBSCRIPTION_PLANS,
+  TRIAL_DAYS,
+  type PublicPayment,
+  type PublicSubscription,
+} from '@gart/shared';
 import request from 'supertest';
 
 import { amountsEqual } from '../src/common/money';
@@ -237,7 +244,15 @@ describe('opening a subscription', () => {
   it('refuses a plan that is not on sale, and says so', async () => {
     const cookie = await registerTrainer(harness);
 
-    for (const plan of ['GROW', 'SCALE']) {
+    // GROW became sellable in Step 29, when nutrition shipped behind it. SCALE
+    // is still defined by a bigger team and an extended agenda, neither built,
+    // so the registry keeps refusing it — read from PLAN_CAPABILITIES rather
+    // than hard-coded, so this test follows the product decision instead of
+    // having to be remembered alongside it.
+    const unsellable = SUBSCRIPTION_PLANS.filter((plan) => !PLAN_CAPABILITIES[plan].sellable);
+    expect(unsellable).toEqual(['SCALE']);
+
+    for (const plan of unsellable) {
       const refused = await request(harness.app.getHttpServer())
         .post('/billing/subscription/checkout')
         .set('Cookie', cookie)

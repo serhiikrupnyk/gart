@@ -51,13 +51,19 @@ export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
 /**
  * What a plan actually unlocks, and whether it can be bought yet.
  *
- * ONLY PRO IS SELLABLE TODAY, and that is a deliberate product decision rather
- * than an unfinished implementation. The product docs define GROW by nutrition,
- * Food Log, group chats, team members and group sessions, and SCALE by a bigger
- * team and an extended agenda — every one of which is unbuilt. Selling either
- * one now would be selling a promise, so both appear in the UI as «скоро» with
- * no way to pay for them, and the server refuses to open a subscription for
- * them at all.
+ * PRO AND GROW ARE SELLABLE; SCALE IS NOT, and that is a deliberate product
+ * decision rather than an unfinished implementation. A plan becomes sellable
+ * when something real stands behind it: GROW earned it in Step 29, which built
+ * the nutrition library the trainer's own docs name as its differentiator.
+ * SCALE is defined by a bigger team and an extended agenda, neither of which
+ * exists, so it stays «скоро» with no way to pay for it and the server refuses
+ * to open a subscription for it at all.
+ *
+ * GROW's other promised features — meals and plans, the food log, group chats,
+ * group sessions and team — are still unbuilt. The plan chooser therefore lists
+ * what ships TODAY as features and names every one of those separately as
+ * «незабаром», so what is being paid for now and what is coming are visibly
+ * different things.
  *
  * `maxClients` is null for «no limit», which is what the docs promise of PRO:
  * «безлім клієнтів». The only real cap in the system belongs to the trial (see
@@ -72,16 +78,40 @@ export interface PlanCapabilities {
   sellable: boolean;
   /** Null means unlimited. */
   maxClients: number | null;
+  /**
+   * The food library, meals and the food log.
+   *
+   * The first capability that is genuinely a FEATURE rather than a limit, and
+   * the reason this registry exists: the server reads it, the plan chooser
+   * reads it, and the upsell reads it, so «what GROW gives you» is one fact in
+   * one place rather than three that can drift.
+   */
+  nutrition: boolean;
 }
 
 export const PLAN_CAPABILITIES: Record<SubscriptionPlan, PlanCapabilities> = {
-  PRO: { sellable: true, maxClients: null },
-  GROW: { sellable: false, maxClients: null },
-  SCALE: { sellable: false, maxClients: null },
+  PRO: { sellable: true, maxClients: null, nutrition: false },
+  GROW: { sellable: true, maxClients: null, nutrition: true },
+  SCALE: { sellable: false, maxClients: null, nutrition: true },
 };
 
-/** The plans a trainer can actually pay for today. */
-export const SELLABLE_PLANS = SUBSCRIPTION_PLANS.filter((plan) => PLAN_CAPABILITIES[plan].sellable);
+/** The plan a trainer must be on for nutrition — named once, read everywhere. */
+export const NUTRITION_PLAN = 'GROW' satisfies SubscriptionPlan;
+
+/**
+ * Whether this subscription may reach nutrition.
+ *
+ * A TRIAL runs on PRO, so it does not include nutrition. That is deliberate
+ * rather than an oversight: a trial exists to show what the built product does
+ * for the plan somebody is most likely to buy, and quietly handing out a
+ * higher tier for fourteen days would make the tier boundary meaningless at
+ * exactly the moment it is being learned.
+ */
+export function hasNutrition(plan: SubscriptionPlan, status: SubscriptionStatus): boolean {
+  return status === 'TRIALING'
+    ? PLAN_CAPABILITIES[TRIAL_PLAN].nutrition
+    : PLAN_CAPABILITIES[plan].nutrition;
+}
 
 /**
  * Monthly price per plan, in hryvnia.

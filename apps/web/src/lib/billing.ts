@@ -58,17 +58,25 @@ export const PLAN_LABELS: Record<SubscriptionPlan, string> = {
 /**
  * What each plan is FOR, in the trainer's terms.
  *
- * Grow and Scale describe what they will do, not what they do — neither is on
- * sale, and both are marked «скоро» wherever they appear. Naming them anyway is
- * more honest than a silent gap: a trainer choosing a tool deserves to know
- * where it is going.
+ * Pro and Grow describe what they DO — both are on sale, and both have shipped
+ * what they charge for. Scale describes what it will do and is marked «скоро»
+ * wherever it appears. Naming it anyway is more honest than a silent gap: a
+ * trainer choosing a tool deserves to know where it is going.
  */
 export const PLAN_SUMMARIES: Record<SubscriptionPlan, string> = {
   PRO: 'Клієнти без обмежень, програми, прогрес, звички та чат 1:1.',
-  GROW: 'Усе з Pro, а також харчування, Food Log, групові чати та команда.',
+  GROW: 'Усе з Pro, а також харчування: база продуктів із калорійністю та БЖВ.',
   SCALE: 'Усе з Grow, більша команда та розширена агенда.',
 };
 
+/**
+ * What each plan gives TODAY.
+ *
+ * The Step 27 rule, still binding: a card lists what ships, and what is coming
+ * is named separately below. GROW became sellable when nutrition shipped —
+ * everything else its docs promise is still ahead of it, and listing those here
+ * would be selling a promise again.
+ */
 export const PLAN_FEATURES: Record<SubscriptionPlan, readonly string[]> = {
   PRO: [
     'Клієнти без обмежень',
@@ -77,7 +85,23 @@ export const PLAN_FEATURES: Record<SubscriptionPlan, readonly string[]> = {
     'Звички',
     'Чат 1:1 із клієнтом',
   ],
-  GROW: ['Харчування та Food Log', 'Групові чати', 'Групові заняття', 'Команда'],
+  GROW: [
+    'База продуктів із калорійністю та БЖВ',
+    'Власні продукти та порції',
+    'Пошук українською та фільтри',
+  ],
+  SCALE: [],
+};
+
+/**
+ * Named, but visibly NOT part of what is being paid for now.
+ *
+ * A plan that hides its roadmap reads as complete; a plan that lists its
+ * roadmap as features is selling a promise. This is the third option.
+ */
+export const PLAN_UPCOMING: Record<SubscriptionPlan, readonly string[]> = {
+  PRO: [],
+  GROW: ['Страви та плани харчування', 'Журнал їжі', 'Групові чати', 'Групові заняття', 'Команда'],
   SCALE: ['Більша команда', 'Розширена агенда'],
 };
 

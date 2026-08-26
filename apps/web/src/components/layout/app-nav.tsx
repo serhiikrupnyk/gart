@@ -6,6 +6,7 @@ import {
   Dumbbell,
   LayoutDashboard,
   Palette,
+  Utensils,
   WalletCards,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ const ITEMS: NavItem[] = [
     icon: Dumbbell,
   },
   { label: 'Прогрес', icon: ChartNoAxesCombined },
+  { label: 'Харчування', href: '/dashboard/nutrition', icon: Utensils },
   { label: 'Платежі', href: '/dashboard/billing', icon: WalletCards },
   { label: 'Бренд', href: '/dashboard/brand', icon: Palette },
 ];

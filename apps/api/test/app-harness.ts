@@ -85,7 +85,7 @@ export async function createHarness(
 /** Clears every table between tests. CASCADE also removes dependent rows. */
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "PaymentEvent", "Payment", "Subscription", "ChatMessage", "ChatThread", "Notification", "PushSubscription", "HabitLog", "Habit", "ProgressEntry", "ProgressVariable", "ProgressPhoto", "WorkoutSetLog", "WorkoutLog", "AssignmentExercise", "AssignmentSection", "Assignment", "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
+    'TRUNCATE TABLE "FoodPortion", "Food", "PaymentEvent", "Payment", "Subscription", "ChatMessage", "ChatThread", "Notification", "PushSubscription", "HabitLog", "Habit", "ProgressEntry", "ProgressVariable", "ProgressPhoto", "WorkoutSetLog", "WorkoutLog", "AssignmentExercise", "AssignmentSection", "Assignment", "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
   );
 }
 
@@ -247,6 +247,28 @@ export async function subscribeTrainer(
     nextChargeAt: subscription.nextChargeAt ?? periodEnd,
   };
 }
+
+/**
+ * Puts a trainer on the plan that includes nutrition.
+ *
+ * `subscribeTrainer` defaults to PRO, which deliberately does NOT include it —
+ * so every nutrition test has to say which side of the gate it is testing.
+ */
+export async function subscribeToGrow(harness: Harness, trainerId: string): Promise<void> {
+  await subscribeTrainer(harness, trainerId, { plan: 'GROW' });
+}
+
+/** A valid nutrient profile, for tests that are about something else. */
+export const SAMPLE_NUTRIENTS = {
+  kcal: '155.00',
+  protein: '13.00',
+  fat: '11.00',
+  carbs: '1.10',
+  fibre: '0.00',
+  sugars: '1.10',
+  saturatedFat: '3.30',
+  salt: '0.14',
+};
 
 /** The trainer id behind a registration email. */
 export async function trainerIdFor(harness: Harness, email: string): Promise<string> {

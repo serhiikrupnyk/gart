@@ -15,6 +15,7 @@ import { InvitesModule } from './invites/invites.module';
 import { MeModule } from './me/me.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { NutritionModule } from './nutrition/nutrition.module';
 import { LapsedSubscriptionGuard } from './payments/lapsed.guard';
 import { PaymentsModule } from './payments/payments.module';
 import { ProgramsModule } from './programs/programs.module';
@@ -39,6 +40,7 @@ import { TrainersModule } from './trainers/trainers.module';
     ChatModule,
     PaymentsModule,
     TrainersModule,
+    NutritionModule,
   ],
   controllers: [HealthController],
   providers: [

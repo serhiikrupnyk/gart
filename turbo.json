@@ -22,6 +22,10 @@
       "dependsOn": ["^build", "db:generate"],
       "cache": false
     },
+    "db:seed": {
+      "dependsOn": ["^build", "db:generate"],
+      "cache": false
+    },
     "lint": {}
   }
 }

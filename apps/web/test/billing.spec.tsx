@@ -139,7 +139,7 @@ describe('the billing page', () => {
     expect(screen.getByText('1 з 3')).toBeInTheDocument();
   });
 
-  it('sells Pro and marks Grow and Scale «скоро» with no way to pay', async () => {
+  it('sells the plans that have something behind them, and marks the rest «скоро»', async () => {
     serve(subscription());
     renderBilling();
 
@@ -147,9 +147,11 @@ describe('the billing page', () => {
 
     const buttons = screen.getAllByRole('button', { name: /Оформити підписку/ });
 
-    // Exactly one plan can be bought, and it is the built one.
-    expect(buttons).toHaveLength(1);
-    expect(screen.getAllByText('Скоро')).toHaveLength(2);
+    // Pro and Grow can be bought — Grow since Step 29 put nutrition behind it.
+    // Scale is defined by a bigger team and an extended agenda, neither built,
+    // so it stays «скоро» with no way to pay.
+    expect(buttons).toHaveLength(2);
+    expect(screen.getAllByText('Скоро')).toHaveLength(1);
     expect(screen.getByText('Gart Grow')).toBeInTheDocument();
     expect(screen.getByText('Gart Scale')).toBeInTheDocument();
   });
@@ -161,8 +163,14 @@ describe('the billing page', () => {
 
     await screen.findByText(/Пробний період до/);
 
-    await user.selectOptions(screen.getByLabelText('Періодичність'), 'ANNUAL');
-    await user.click(screen.getByRole('button', { name: /Оформити підписку/ }));
+    // ONE cadence control for the whole chooser, above the grid — picked by its
+    // own label, and the plan by its own card.
+    await user.selectOptions(screen.getByLabelText('Періодичність нової підписки'), 'ANNUAL');
+
+    const proCard = screen.getByRole('heading', { name: 'Gart Pro' }).closest('div')
+      ?.parentElement as HTMLElement;
+
+    await user.click(within(proCard).getByRole('button', { name: /Оформити підписку/ }));
 
     await waitFor(() => {
       expect(apiFetch).toHaveBeenCalledWith('/billing/subscription/checkout', {
@@ -205,9 +213,10 @@ describe('the billing page', () => {
     await screen.findByText(/Скасовано — доступ до/);
 
     // Paying again would forfeit the rest of the period already paid for, so
-    // the buy button is replaced by the reason — not merely greyed out.
-    expect(screen.queryByRole('button', { name: /Оформити підписку/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/щоб не втратити решту оплаченого періоду/)).toBeInTheDocument();
+    // every buy button is replaced by the reason — not merely greyed out.
+    expect(screen.queryAllByRole('button', { name: /Оформити підписку/ })).toHaveLength(0);
+    // One reason per sellable card — Pro and Grow alike.
+    expect(screen.getAllByText(/щоб не втратити решту оплаченого періоду/)).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Відновити підписку' })).toBeInTheDocument();
   });
 
