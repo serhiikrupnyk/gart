@@ -85,7 +85,7 @@ export async function createHarness(
 /** Clears every table between tests. CASCADE also removes dependent rows. */
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "FoodPortion", "Food", "PaymentEvent", "Payment", "Subscription", "ChatMessage", "ChatThread", "Notification", "PushSubscription", "HabitLog", "Habit", "ProgressEntry", "ProgressVariable", "ProgressPhoto", "WorkoutSetLog", "WorkoutLog", "AssignmentExercise", "AssignmentSection", "Assignment", "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
+    'TRUNCATE TABLE "AssignedMealItem", "AssignedMeal", "MealPlanAssignment", "MealPlanSlot", "MealPlan", "MealItem", "Meal", "FoodPortion", "Food", "PaymentEvent", "Payment", "Subscription", "ChatMessage", "ChatThread", "Notification", "PushSubscription", "HabitLog", "Habit", "ProgressEntry", "ProgressVariable", "ProgressPhoto", "WorkoutSetLog", "WorkoutLog", "AssignmentExercise", "AssignmentSection", "Assignment", "ProgramExercise", "ProgramSection", "Program", "Exercise", "Category", "ClientInvite", "Client", "TeamMember", "Session", "Trainer", "User" CASCADE',
   );
 }
 
@@ -269,6 +269,37 @@ export const SAMPLE_NUTRIENTS = {
   saturatedFat: '3.30',
   salt: '0.14',
 };
+
+/** A global food with round numbers, so a total can be asserted exactly. */
+export async function createGlobalFood(
+  harness: Harness,
+  overrides: Partial<{
+    name: string;
+    kcal: string;
+    protein: string;
+    fat: string;
+    carbs: string;
+    fibre: string | null;
+  }> = {},
+): Promise<string> {
+  const food = await harness.prisma.food.create({
+    data: {
+      name: overrides.name ?? 'Тестовий продукт',
+      group: 'OTHER',
+      kcal: overrides.kcal ?? '100.00',
+      protein: overrides.protein ?? '10.00',
+      fat: overrides.fat ?? '5.00',
+      carbs: overrides.carbs ?? '5.00',
+      fibre: overrides.fibre === undefined ? '1.00' : overrides.fibre,
+      sugars: '1.00',
+      saturatedFat: '1.00',
+      salt: '0.10',
+      source: 'Тест',
+    },
+  });
+
+  return food.id;
+}
 
 /** The trainer id behind a registration email. */
 export async function trainerIdFor(harness: Harness, email: string): Promise<string> {

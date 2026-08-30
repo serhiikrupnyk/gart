@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { FoodPage, NutritionStatus, PublicFood } from '@gart/shared';
 import { NUTRITION_PLAN } from '@gart/shared';
 
@@ -7,10 +7,14 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { CreateFoodDto, FoodPortionDto, ListFoodsQuery, UpdateFoodDto } from './dto/food.dto';
 import { type FoodWithPortions, toPublicFood } from './food.mapper';
 import { subscriptionHasNutrition } from './nutrition-access';
+import { isForeignKeyError } from './prisma-errors';
 import { validateNutrients, validatePortions } from './nutrients.validation';
 
 /** Global rows and this trainer's own, never anybody else's. */
 const WITH_PORTIONS = { portions: true } as const;
+
+const FOOD_IN_USE_MESSAGE =
+  'Цей продукт використовується у стравах або в наданих планах — приберіть його звідти спершу';
 
 /**
  * The food library.
@@ -140,8 +144,19 @@ export class FoodsService {
   async remove(trainerId: string, foodId: string): Promise<void> {
     const food = await this.requireOwned(trainerId, foodId);
 
-    // Portions cascade with their food: they were never separately owned.
-    await this.prisma.food.delete({ where: { id: food.id } });
+    try {
+      // Portions cascade with their food: they were never separately owned.
+      await this.prisma.food.delete({ where: { id: food.id } });
+    } catch (error: unknown) {
+      // A meal or an assigned meal still holding this food keeps it with
+      // Restrict — the same contract exercises have with programs, and 409 is
+      // what «somebody else is relying on this» reads as at the boundary.
+      if (isForeignKeyError(error)) {
+        throw new ConflictException(FOOD_IN_USE_MESSAGE);
+      }
+
+      throw error;
+    }
   }
 
   /**

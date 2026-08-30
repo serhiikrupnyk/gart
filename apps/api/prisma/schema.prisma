@@ -149,6 +149,9 @@ model Trainer {
   payments          Payment[]
   subscription      Subscription?
   foods             Food[]
+  meals             Meal[]
+  mealPlans         MealPlan[]
+  mealPlanAssignments MealPlanAssignment[]
 }
 
 /// The anatomical vocabulary. A closed set trainers do not extend, so an enum
@@ -317,6 +320,9 @@ model Food {
 
   portions FoodPortion[]
 
+  mealItems         MealItem[]
+  assignedMealItems AssignedMealItem[]
+
   @@index([trainerId])
 }
 
@@ -337,6 +343,209 @@ model FoodPortion {
   createdAt DateTime @default(now())
 
   @@unique([foodId, label])
+}
+
+/// When in the day a meal sits. A closed vocabulary beside a free name, exactly
+/// as ProgramSection carries a WorkoutType beside its own optional name.
+enum MealSlot {
+  BREAKFAST
+  SNACK
+  LUNCH
+  DINNER
+}
+
+/// A composition of foods.
+///
+/// Trainer-owned, with NO global rows — deliberately unlike Food. A food is a
+/// fact: гречка has 343 kcal whoever you are. A meal is a professional
+/// judgement, and Gart shipping one would be prescribing nutrition rather than
+/// tooling it.
+///
+/// Nutrition totals are DERIVED on every read and never stored, so a food whose
+/// figures the trainer corrects cannot leave a meal quietly stale.
+model Meal {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  name  String
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items MealItem[]
+  slots MealPlanSlot[]
+
+  @@index([trainerId])
+}
+
+/// One food in a meal.
+///
+/// `grams` is canonical and is what every total is computed from. The portion
+/// fields record only how the amount was WRITTEN — snapshotted strings rather
+/// than a reference, so a trainer who later renames or deletes a portion cannot
+/// restate a meal that was already composed.
+model MealItem {
+  id String @id @default(cuid())
+
+  mealId String
+  meal   Meal   @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  /// Restrict settles the same contract exercises have: deleting a food a meal
+  /// still references is refused, and the endpoint maps it to a 409.
+  foodId String
+  food   Food   @relation(fields: [foodId], references: [id], onDelete: Restrict)
+
+  order Int
+
+  grams        Decimal  @db.Decimal(7, 2)
+  portionLabel String?
+  portionCount Decimal? @db.Decimal(5, 2)
+
+  @@unique([mealId, order])
+  @@index([foodId])
+}
+
+/// A day's eating, as a reusable template.
+///
+/// ONE DAY and not a week, which is the Program precedent rather than a
+/// shortcut: a Program is one workout and `Assignment.daysOfWeek` says when it
+/// runs, so a trainer wanting a different Tuesday assigns a second one.
+///
+/// Targets are the trainer's own numbers. Gart computes no energy requirement
+/// and claims no clinical authority it has not earned.
+model MealPlan {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  name String
+
+  targetKcal    Decimal? @db.Decimal(7, 2)
+  targetProtein Decimal? @db.Decimal(6, 2)
+  targetFat     Decimal? @db.Decimal(6, 2)
+  targetCarbs   Decimal? @db.Decimal(6, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  slots       MealPlanSlot[]
+  assignments MealPlanAssignment[]
+
+  @@index([trainerId])
+}
+
+/// One meal in a plan's day.
+model MealPlanSlot {
+  id String @id @default(cuid())
+
+  planId String
+  plan   MealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  /// Restrict: deleting a meal a plan still references is refused, 409.
+  mealId String
+  meal   Meal   @relation(fields: [mealId], references: [id], onDelete: Restrict)
+
+  slot  MealSlot
+  name  String?
+  order Int
+
+  servings Decimal @db.Decimal(5, 2) @default(1)
+
+  @@unique([planId, order])
+  @@index([mealId])
+}
+
+/// A plan given to a client — an independent SNAPSHOT.
+///
+/// Copy-on-assign, the invariant Step 12 established for workouts and this
+/// module inherits: afterwards the plan and its meals may be edited or deleted
+/// freely and this cannot change, because no code path updates the snapshot
+/// tree and `sourcePlanId` is provenance only.
+///
+/// The FOODS stay live references, and that distinction is the point: a trainer
+/// correcting гречка from 92 to 95 kcal is fixing a FACT and it should reach
+/// the client, exactly as an exercise's video does. Swapping гречка for рис in
+/// the template is a REDESIGN and must not.
+model MealPlanAssignment {
+  id String @id @default(cuid())
+
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  sourcePlanId String?
+  sourcePlan   MealPlan? @relation(fields: [sourcePlanId], references: [id], onDelete: SetNull)
+
+  name String
+
+  targetKcal    Decimal? @db.Decimal(7, 2)
+  targetProtein Decimal? @db.Decimal(6, 2)
+  targetFat     Decimal? @db.Decimal(6, 2)
+  targetCarbs   Decimal? @db.Decimal(6, 2)
+
+  /// The window this plan applies to. There is deliberately no status column:
+  /// nothing would ever write it, and a plan stops applying because its dates
+  /// say so, not because a flag was flipped.
+  startDate  DateTime  @db.Date
+  endDate    DateTime? @db.Date
+  daysOfWeek Int[]
+
+  assignedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  meals AssignedMeal[]
+
+  @@index([trainerId])
+  @@index([clientId])
+}
+
+/// One frozen meal in an assigned day.
+model AssignedMeal {
+  id String @id @default(cuid())
+
+  assignmentId String
+  assignment   MealPlanAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  slot  MealSlot
+  name  String
+  /// Snapshotted with the rest. A meal note is preparation guidance — «варити
+  /// 15 хв», «без солі» — and a trainer who writes one is writing it FOR the
+  /// client, so it has to travel with the copy rather than stay behind.
+  notes String?
+  order Int
+
+  servings Decimal @db.Decimal(5, 2) @default(1)
+
+  items AssignedMealItem[]
+
+  @@unique([assignmentId, order])
+}
+
+/// One frozen line. The composition is snapshotted; the Food is not.
+model AssignedMealItem {
+  id String @id @default(cuid())
+
+  assignedMealId String
+  assignedMeal   AssignedMeal @relation(fields: [assignedMealId], references: [id], onDelete: Cascade)
+
+  foodId String
+  food   Food   @relation(fields: [foodId], references: [id], onDelete: Restrict)
+
+  order Int
+
+  grams        Decimal  @db.Decimal(7, 2)
+  portionLabel String?
+  portionCount Decimal? @db.Decimal(5, 2)
+
+  @@unique([assignedMealId, order])
+  @@index([foodId])
 }
 
 /// A user acting inside a trainer's account. The OWNER row is created alongside
@@ -384,11 +593,12 @@ model Client {
   assignments Assignment[]
   workoutLogs WorkoutLog[]
 
-  progressVariables ProgressVariable[]
-  progressPhotos    ProgressPhoto[]
-  habits            Habit[]
-  notifications     Notification[]
-  chatThreads       ChatThread[]
+  progressVariables   ProgressVariable[]
+  progressPhotos      ProgressPhoto[]
+  habits              Habit[]
+  notifications       Notification[]
+  chatThreads         ChatThread[]
+  mealPlanAssignments MealPlanAssignment[]
 
   // One row per person per trainer. The same address may belong to a different
   // trainer's client — a person can train with more than one coach.

@@ -10,6 +10,7 @@ import { ClientChat } from '@/components/chat/client-chat';
 import { ClientHabits } from '@/components/habits/client-habits';
 import { ClientProgressPanel } from '@/components/progress/client-progress';
 import { ClientAssignments } from '@/components/clients/client-assignments';
+import { ClientNutritionPlans } from '@/components/nutrition/client-nutrition-plans';
 import { ClientStatusBadge } from '@/components/clients/client-status-badge';
 import { InviteLink } from '@/components/clients/invite-link';
 import { PageHeader } from '@/components/layout/page-header';
@@ -173,6 +174,8 @@ export default function ClientDetailPage() {
       <ClientActivity clientId={client.id} />
 
       <ClientAssignments clientId={client.id} />
+
+      <ClientNutritionPlans clientId={client.id} />
 
       <ClientProgressPanel clientId={client.id} />
 

@@ -347,8 +347,14 @@ describe("a lapsed trainer's clients", () => {
 
     // And WRITES — the half a lapse would take away if the guard were careless
     // about whose session it is looking at. Logging a habit:
+    //
+    // Dated TODAY rather than a fixed day: the log window is measured against
+    // the real clock, so a hardcoded date passes until it drifts out of range
+    // and then fails for a reason that has nothing to do with what is tested.
+    const today = new Date().toISOString().slice(0, 10);
+
     await request(server)
-      .put(`/me/habits/${habitId}/logs/2026-08-20`)
+      .put(`/me/habits/${habitId}/logs/${today}`)
       .set('Cookie', clientCookie)
       .send({ value: 1 })
       .expect(200);

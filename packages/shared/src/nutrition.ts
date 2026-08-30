@@ -1,3 +1,5 @@
+import type { DayOfWeek } from './assignment';
+
 /**
  * Nutrient amounts cross the wire as decimal STRINGS, never as numbers, and
  * every sum and scaling below is integer arithmetic.
@@ -64,8 +66,18 @@ export const NUTRIENT_UNITS: Record<RequiredNutrient | OptionalNutrient, string>
   salt: 'г',
 };
 
-/** A plain decimal string with at most two places, and never negative. */
-const DECIMAL_PATTERN = /^\d{1,7}(\.\d{1,2})?$/;
+/**
+ * A plain decimal string with at most two places, and never negative.
+ *
+ * Nine integer digits and not seven. Seven bounded a single AMOUNT, which is
+ * right — but the same parser renders TOTALS, and a day's total is the product
+ * of every cap multiplied together. At seven digits a large enough plan summed
+ * past the pattern, `fromCenti` refused it, and the total silently reported
+ * itself as zero. Every real bound (KCAL_MAX, ITEM_GRAMS_MAX, the target caps)
+ * is checked separately and unchanged; this only widens what can be WRITTEN
+ * DOWN.
+ */
+const DECIMAL_PATTERN = /^\d{1,9}(\.\d{1,2})?$/;
 
 export function isNutrientAmount(value: string): boolean {
   return DECIMAL_PATTERN.test(value);
@@ -106,14 +118,17 @@ export function fromCenti(centi: number): string {
 }
 
 /**
- * `value` × `grams` ÷ 100 g, rounded half-up, in integers throughout.
+ * `value` × `factorCenti` ÷ `divisor`, rounded half-up, in integers throughout.
  *
- * `+ CENTI * CENTI / 2` before the floor is half-up rounding without ever
- * dividing in floating point: the numerator is an exact integer product, and
- * every input is non-negative, so there is no negative-half ambiguity.
+ * The one multiplication routine both public helpers go through, so scaling to
+ * a weight and multiplying by a serving count cannot round differently.
+ *
+ * `+ divisor / 2` before the floor is half-up rounding without ever dividing in
+ * floating point: the numerator is an exact integer product, and every input is
+ * non-negative, so there is no negative-half ambiguity.
  */
-function scaleCenti(valueCenti: number, gramsCenti: number): number {
-  return Math.floor((valueCenti * gramsCenti + (CENTI * CENTI) / 2) / (CENTI * CENTI));
+function scaleBy(valueCenti: number, factorCenti: number, divisor: number): number {
+  return Math.floor((valueCenti * factorCenti + divisor / 2) / divisor);
 }
 
 /**
@@ -133,7 +148,9 @@ export function scaleNutrients(nutrients: Nutrients, grams: string): Nutrients |
   const scaleOne = (value: string): string | null => {
     const centi = toCenti(value);
 
-    return centi === null ? null : fromCenti(scaleCenti(centi, gramsCenti));
+    // grams is already a hundredth-scaled percentage of 100 g, so the divisor
+    // carries both the per-100 basis and the centi scale.
+    return centi === null ? null : fromCenti(scaleBy(centi, gramsCenti, CENTI * CENTI));
   };
 
   // `undefined` is «malformed», distinct from the `null` that means «not
@@ -165,6 +182,72 @@ export function scaleNutrients(nutrients: Nutrients, grams: string): Nutrients |
   }
 
   return { kcal, protein, fat, carbs, fibre, sugars, saturatedFat, salt };
+}
+
+/**
+ * A profile multiplied by a plain factor — «1.5 servings of this».
+ *
+ * Distinct from `scaleNutrients`, which converts a per-100 g profile to a
+ * weight. This one takes something already whole and takes more or less of it,
+ * so the units differ even though the integer routine underneath is shared.
+ * Collapsing them into one function taking «a percentage» would have made every
+ * call site say which meaning it intended in a comment.
+ *
+ * Null stays null, and a malformed amount returns null rather than a
+ * plausible-looking answer — the same contract as scaling.
+ */
+export function multiplyNutrients(nutrients: Nutrients, factor: string): Nutrients | null {
+  const factorCenti = toCenti(factor);
+
+  if (factorCenti === null) {
+    return null;
+  }
+
+  const multiplyOne = (value: string): string | null => {
+    const centi = toCenti(value);
+
+    return centi === null ? null : fromCenti(scaleBy(centi, factorCenti, CENTI));
+  };
+
+  const multiplyOptional = (value: string | null): string | null | undefined =>
+    value === null ? null : (multiplyOne(value) ?? undefined);
+
+  const kcal = multiplyOne(nutrients.kcal);
+  const protein = multiplyOne(nutrients.protein);
+  const fat = multiplyOne(nutrients.fat);
+  const carbs = multiplyOne(nutrients.carbs);
+
+  if (kcal === null || protein === null || fat === null || carbs === null) {
+    return null;
+  }
+
+  const fibre = multiplyOptional(nutrients.fibre);
+  const sugars = multiplyOptional(nutrients.sugars);
+  const saturatedFat = multiplyOptional(nutrients.saturatedFat);
+  const salt = multiplyOptional(nutrients.salt);
+
+  if (fibre === undefined || sugars === undefined) {
+    return null;
+  }
+  if (saturatedFat === undefined || salt === undefined) {
+    return null;
+  }
+
+  return { kcal, protein, fat, carbs, fibre, sugars, saturatedFat, salt };
+}
+
+/** A profile of all zeros — the identity `sumNutrients` starts from. */
+export function zeroNutrients(): Nutrients {
+  return {
+    kcal: '0.00',
+    protein: '0.00',
+    fat: '0.00',
+    carbs: '0.00',
+    fibre: '0.00',
+    sugars: '0.00',
+    saturatedFat: '0.00',
+    salt: '0.00',
+  };
 }
 
 /**
@@ -429,4 +512,268 @@ export interface NutritionStatus {
   customFoodCount: number;
   /** The plan that unlocks nutrition, so the upsell names it from one source. */
   requiredPlan: 'GROW';
+}
+
+/**
+ * When in the day a meal sits.
+ *
+ * A closed vocabulary beside a free name, exactly as ProgramSection carries a
+ * WorkoutType beside its own optional name: the enum drives ordering, labels
+ * and — in Step 31 — what a client is asked they ate, while «Перекус після
+ * тренування» stays the trainer's own words.
+ */
+export const MEAL_SLOTS = ['BREAKFAST', 'SNACK', 'LUNCH', 'DINNER'] as const;
+export type MealSlot = (typeof MEAL_SLOTS)[number];
+
+export const MEAL_SLOT_LABELS: Record<MealSlot, string> = {
+  BREAKFAST: 'Сніданок',
+  SNACK: 'Перекус',
+  LUNCH: 'Обід',
+  DINNER: 'Вечеря',
+};
+
+export const MEAL_NAME_MAX_LENGTH = 120;
+export const PLAN_NAME_MAX_LENGTH = 120;
+export const SLOT_NAME_MAX_LENGTH = 60;
+
+/** How much of one food is in a meal. Bounded so a typo cannot pass. */
+export const ITEM_GRAMS_MIN = '0.01';
+export const ITEM_GRAMS_MAX = '5000';
+
+/** How many of a meal a slot may hold. */
+export const SERVINGS_MIN = '0.01';
+export const SERVINGS_MAX = '20';
+
+export const MAX_ITEMS_PER_MEAL = 40;
+export const MAX_SLOTS_PER_PLAN = 12;
+
+/** A day's targets, generous enough for an athlete and bounded against a typo. */
+export const TARGET_KCAL_MAX = 10000;
+export const TARGET_GRAMS_MAX = 2000;
+
+/** One food inside a meal, with what it weighs and how the trainer wrote it. */
+export interface PublicMealItem {
+  id: string;
+  foodId: string;
+  foodName: string;
+  /** Canonical. Every total is computed from this and nothing else. */
+  grams: string;
+  /**
+   * How the amount was EXPRESSED, when it was not written in grams.
+   *
+   * Snapshotted strings rather than a reference: a trainer who later renames or
+   * removes a portion cannot restate a meal that was already composed, and
+   * there is no dangling row to guard.
+   */
+  portionLabel: string | null;
+  portionCount: string | null;
+  /** This line's contribution, scaled from the food's per-100 g profile. */
+  nutrients: Nutrients;
+}
+
+/** A composition of foods. Trainer-owned: a food is a fact, a meal is a judgement. */
+export interface PublicMeal {
+  id: string;
+  name: string;
+  notes: string | null;
+  items: PublicMealItem[];
+  /** DERIVED on every read, never stored — so a corrected food is never stale. */
+  nutrients: Nutrients;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MealPage {
+  items: PublicMeal[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export const MEALS_PAGE_SIZE = 20;
+
+export interface MealItemInput {
+  foodId: string;
+  grams: string;
+  portionLabel?: string | null;
+  portionCount?: string | null;
+}
+
+export interface CreateMealRequest {
+  name: string;
+  notes?: string | null;
+  items: MealItemInput[];
+}
+
+export type UpdateMealRequest = Partial<CreateMealRequest>;
+
+/** A day's targets. Every one optional — a trainer may set none. */
+export interface NutritionTargets {
+  kcal: string | null;
+  protein: string | null;
+  fat: string | null;
+  carbs: string | null;
+}
+
+/** One meal in a plan's day, at a time of day. */
+export interface PublicPlanSlot {
+  id: string;
+  slot: MealSlot;
+  name: string | null;
+  servings: string;
+  meal: PublicMeal;
+  /** The meal's profile times `servings`. */
+  nutrients: Nutrients;
+}
+
+/**
+ * A day's eating, as a reusable template.
+ *
+ * ONE DAY and not a week, which is the Program precedent rather than a
+ * shortcut: a Program is one workout and the schedule lives on the assignment,
+ * so a trainer wanting a different Tuesday assigns a second one. Nutrition
+ * takes the identical shape.
+ */
+export interface PublicMealPlan {
+  id: string;
+  name: string;
+  targets: NutritionTargets;
+  slots: PublicPlanSlot[];
+  /** The whole day, derived. */
+  nutrients: Nutrients;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanSlotInput {
+  slot: MealSlot;
+  name?: string | null;
+  mealId: string;
+  servings?: string;
+}
+
+export interface CreateMealPlanRequest {
+  name: string;
+  targets?: Partial<NutritionTargets>;
+  slots: PlanSlotInput[];
+}
+
+export type UpdateMealPlanRequest = Partial<CreateMealPlanRequest>;
+
+/**
+ * What a plan delivers against what it aims at.
+ *
+ * Arithmetic on the trainer's OWN numbers, not a formula. Gart names no
+ * clinical authority it has not earned: the target is whatever the trainer
+ * decided, and this is the subtraction they would otherwise do by hand.
+ */
+export interface TargetComparison {
+  target: string | null;
+  planned: string;
+  /** planned − target, signed, or null when no target is set. */
+  difference: string | null;
+}
+
+export interface PlanTargetReport {
+  kcal: TargetComparison;
+  protein: TargetComparison;
+  fat: TargetComparison;
+  carbs: TargetComparison;
+}
+
+/**
+ * planned − target as a signed decimal string, or null without a target.
+ *
+ * The one place a nutrition figure may be negative, and it is a difference
+ * rather than an amount — which is why `fromCenti` refuses negatives and this
+ * renders the sign itself.
+ */
+export function compareToTarget(planned: string, target: string | null): TargetComparison {
+  if (target === null) {
+    return { target: null, planned, difference: null };
+  }
+
+  const plannedCenti = toCenti(planned);
+  const targetCenti = toCenti(target);
+
+  if (plannedCenti === null || targetCenti === null) {
+    return { target, planned, difference: null };
+  }
+
+  const delta = plannedCenti - targetCenti;
+  const rendered = fromCenti(Math.abs(delta));
+
+  return { target, planned, difference: delta < 0 ? `-${rendered}` : rendered };
+}
+
+/**
+ * One frozen meal in a client's assigned day.
+ *
+ * Deliberately NOT a `PublicMeal`: an assigned meal has no template identity
+ * behind it — the composition is the snapshot — so it carries no created or
+ * updated timestamps of its own, and inventing them to satisfy a shared type
+ * would be a fiction the client app could read.
+ */
+export interface PublicAssignedMeal {
+  id: string;
+  slot: MealSlot;
+  name: string;
+  /** Preparation guidance the trainer wrote, snapshotted with the rest. */
+  notes: string | null;
+  servings: string;
+  items: PublicMealItem[];
+  /** The composition times `servings`. */
+  nutrients: Nutrients;
+}
+
+/**
+ * A plan as a client has it: an independent copy, not a view of a template.
+ *
+ * `sourcePlanId` is provenance only. Nothing here changes when the trainer
+ * edits or deletes the plan it came from — but the FOODS are read live, so a
+ * corrected nutrition figure does reach it.
+ */
+export interface PublicAssignedPlan {
+  id: string;
+  name: string;
+  targets: NutritionTargets;
+  meals: PublicAssignedMeal[];
+  /** The whole day, derived. */
+  nutrients: Nutrients;
+  startDate: string;
+  endDate: string | null;
+  daysOfWeek: DayOfWeek[];
+  assignedAt: string;
+}
+
+/** The trainer's view of one assignment, with who it went to. */
+export interface TrainerAssignedPlan extends PublicAssignedPlan {
+  clientId: string;
+  clientName: string;
+  sourcePlanId: string | null;
+}
+
+export interface AssignMealPlanRequest {
+  planId: string;
+  clientId: string;
+  startDate: string;
+  endDate?: string | null;
+  daysOfWeek: DayOfWeek[];
+}
+
+/**
+ * The nutrition section as a client sees it.
+ *
+ * `available` is DATA rather than a refusal, and that is the point. Nutrition
+ * is a tier their trainer buys, so it can stop — but a client is not the payer
+ * and must never be handed a 402, an error, or anything about somebody else's
+ * billing. The app renders «Розділ харчування зараз недоступний»: honest about
+ * the section, silent about the reason, and blaming nobody.
+ *
+ * Their plans are untouched underneath and return the moment it is available
+ * again.
+ */
+export interface ClientNutrition {
+  available: boolean;
+  plans: PublicAssignedPlan[];
 }

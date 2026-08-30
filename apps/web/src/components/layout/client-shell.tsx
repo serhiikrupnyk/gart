@@ -30,12 +30,10 @@ export const BRAND_WASH_PERCENT = 5;
 
 const NAV_ITEMS = [
   { label: 'Тренування', href: '/client', icon: Dumbbell },
+  { label: 'Харчування', href: '/client/nutrition', icon: Utensils },
   { label: 'Прогрес', href: '/client/progress', icon: ChartNoAxesCombined },
   { label: 'Чат', href: '/client/chat', icon: MessageCircle },
 ];
-
-/** The client-app sections later phases will fill; visible so the frame is honest. */
-const UPCOMING_SECTIONS = [{ label: 'Харчування', icon: Utensils }];
 
 /**
  * The client's app shell: the trainer's brand up top, the client's own identity
@@ -166,7 +164,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <p className="mb-2 hidden px-3 pt-2 text-2xs font-bold uppercase tracking-[0.14em] text-text-muted sm:block">
             Мій простір
           </p>
-          <ul className="grid grid-cols-3 gap-1 sm:block sm:space-y-1">
+          <ul className="grid grid-cols-4 gap-1 sm:block sm:space-y-1">
             {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
               const active = pathname === href;
 
@@ -199,19 +197,6 @@ export function ClientShell({ children }: { children: ReactNode }) {
                 </li>
               );
             })}
-            {UPCOMING_SECTIONS.map(({ label, icon: Icon }) => (
-              <li key={label} className="hidden sm:block">
-                {/* Plain text, not a control: keyboard users must never land
-                      on a link that goes nowhere. */}
-                <span className="flex min-h-11 items-center gap-3 rounded-control px-3 text-sm text-text-muted">
-                  <Icon className="size-4" aria-hidden="true" />
-                  <span>{label}</span>
-                  <span className="ml-auto text-[0.6rem] font-bold uppercase tracking-wide">
-                    скоро
-                  </span>
-                </span>
-              </li>
-            ))}
           </ul>
         </nav>
 

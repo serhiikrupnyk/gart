@@ -11,6 +11,8 @@ import { apiFetch } from './api';
 
 export interface FoodQuery {
   page: number;
+  /** The API accepts up to 100; a picker needs more than the list default. */
+  pageSize?: number;
   search?: string;
   group?: FoodGroup;
   mineOnly?: boolean;
@@ -23,6 +25,7 @@ export function getNutritionStatus(): Promise<NutritionStatus> {
 export function listFoods(query: FoodQuery): Promise<FoodPage> {
   const params = new URLSearchParams({ page: String(query.page) });
 
+  if (query.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
   if (query.search !== undefined && query.search !== '') params.set('search', query.search);
   if (query.group !== undefined) params.set('group', query.group);
   if (query.mineOnly === true) params.set('mineOnly', 'true');

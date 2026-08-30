@@ -49,6 +49,14 @@ export interface ClientEvent {
   type: NotificationType;
   title: string;
   body?: string | null;
+  /**
+   * Where tapping it should land, defaulting to the workouts home.
+   *
+   * Added when nutrition plans started raising this event: a notification that
+   * says «Новий план харчування» and opens Тренування has sent somebody to the
+   * wrong place.
+   */
+  url?: string;
 }
 
 /**
@@ -149,7 +157,7 @@ export class NotificationService {
         type: event.type,
         title: event.title,
         body: event.body ?? null,
-        url: '/client',
+        url: event.url ?? '/client',
       });
     } catch (error) {
       this.warn(error);

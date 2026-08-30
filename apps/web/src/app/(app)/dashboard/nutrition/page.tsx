@@ -15,6 +15,7 @@ import {
 } from '@gart/shared';
 
 import { FoodFormModal } from '@/components/nutrition/food-form-modal';
+import { NutritionTabs } from '@/components/nutrition/nutrition-tabs';
 import { NutritionUpsell } from '@/components/nutrition/nutrition-upsell';
 import { PageHeader } from '@/components/layout/page-header';
 import {
@@ -174,6 +175,8 @@ export default function NutritionPage() {
           </Button>
         }
       />
+
+      <NutritionTabs active="/dashboard/nutrition" />
 
       <Card padded={false}>
         <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">

@@ -82,7 +82,7 @@ describe('ClientShell', () => {
     expect(screen.queryByRole('link', { name: /gart/ })).not.toBeInTheDocument();
   });
 
-  it('links the live sections and marks the coming ones, with no dead controls', async () => {
+  it('links every section — none is a placeholder any more', async () => {
     apiFetch.mockResolvedValue(session());
     renderShell();
 
@@ -96,9 +96,13 @@ describe('ClientShell', () => {
       '/client/progress',
     );
 
-    expect(screen.getByText('Харчування')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Харчування' })).not.toBeInTheDocument();
-    expect(screen.getAllByText('скоро')).toHaveLength(1);
+    // «Харчування» was the last «скоро» placeholder in the client app, and
+    // Step 30 filled it — so the shell now carries no dead controls at all.
+    expect(screen.getByRole('link', { name: 'Харчування' })).toHaveAttribute(
+      'href',
+      '/client/nutrition',
+    );
+    expect(screen.queryAllByText('скоро')).toHaveLength(0);
   });
 
   it('sends a visitor with no session of any kind to the client login', async () => {
